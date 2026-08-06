@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="mujoco_ros2_control_config" params="">
+
+    <ros2_control name="MujocoSystem" type="system">
+      <hardware>
+        <plugin>mujoco_ros2_control/MujocoSystemInterface</plugin>
+
+        <!-- Absolute path for now.
+             Later this can be moved to a launch argument or package path. -->
+        <param name="mujoco_model">/home/vboxuser/Desktop/ros_ws/src/robot_description/mjcf/robot.xml</param>
+      </hardware>
+    </ros2_control>
+  </xacro:macro>
+
+</robot>

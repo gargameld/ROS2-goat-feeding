@@ -1,0 +1,3 @@
+[console_scripts]
+gripper_debugger = robot_description.gripper_debugger:main
+

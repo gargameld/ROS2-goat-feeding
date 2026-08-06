@@ -1,0 +1,11 @@
+# Ignore everything in this repository by default.
+/*
+
+# Keep the ignore rules themselves in the repository.
+!/.gitignore
+
+# Keep only the ROS source tree.
+!/workspace/
+/workspace/*
+!/workspace/src/
+!/workspace/src/**

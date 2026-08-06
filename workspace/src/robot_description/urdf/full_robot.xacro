@@ -1,0 +1,100 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="full_robot">
+
+  <xacro:include filename="$(find robot_description)/urdf/mujoco_config.xacro"/>
+  
+  
+  <!-- Wheel macro -->
+  <xacro:include filename="$(find robot_description)/urdf/wheel.xacro"/>
+
+  <!-- Arm + gripper xacro -->
+  <xacro:include filename="$(find robot_description)/urdf/arm_with_gripper.xacro"/>
+
+  <!-- Materials -->
+  <material name="chassis_gray">
+    <color rgba="0.45 0.45 0.45 1.0"/>
+  </material>
+
+  <!-- Root/world link -->
+  <link name="world"/>
+
+  <!-- Base/chassis box.
+       This is the main base link of the full robot. -->
+  <link name="base_link">
+    <inertial>
+      <!-- MuJoCo chassis box:
+           size="0.40 0.5 0.05" means full size 0.80 x 1.00 x 0.10
+           mass="10"
+      -->
+      <origin xyz="0 0 0.14" rpy="0 0 0"/>
+      <mass value="10.0"/>
+      <inertia
+        ixx="0.842"
+        ixy="0.0"
+        ixz="0.0"
+        iyy="0.542"
+        iyz="0.0"
+        izz="1.367"/>
+    </inertial>
+
+    <visual>
+      <origin xyz="0 0 0.14" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.80 1.00 0.10"/>
+      </geometry>
+      <material name="chassis_gray"/>
+    </visual>
+
+    <collision>
+      <origin xyz="0 0 0.14" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.80 1.00 0.10"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- In MuJoCo, chassis is at pos="0 0 0.26".
+       For RViz/URDF visualization we fix it to world. -->
+  <joint name="world_to_base" type="fixed">
+    <parent link="world"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 0.26" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Four wheels from wheel.xacro.
+       Positions are copied from robot.xml. -->
+
+  <xacro:mecanum_wheel
+    prefix="fr"
+    parent="base_link"
+    xyz="0.25 -0.35 -0.1"
+    rpy="0 0 -1.57079632679"/>
+
+  <xacro:mecanum_wheel
+    prefix="fl"
+    parent="base_link"
+    xyz="0.25 0.35 -0.1"
+    rpy="0 0 -1.57079632679"/>
+
+  <xacro:mecanum_wheel
+    prefix="rr"
+    parent="base_link"
+    xyz="-0.25 -0.35 -0.1"
+    rpy="0 0 -1.57079632679"/>
+
+  <xacro:mecanum_wheel
+    prefix="rl"
+    parent="base_link"
+    xyz="-0.25 0.35 -0.1"
+    rpy="0 0 -1.57079632679"/>
+
+  <!-- Attach arm base to the mobile base.
+       This assumes arm_with_gripper.xacro creates a link named arm_base_link. -->
+  <link name="arm_mount_link"/>
+  <joint name="base_to_arm_base" type="fixed">
+    <parent link="base_link"/>
+    <child link="arm_mount_link"/>
+    <origin xyz="0 0 0.19" rpy="0 0 0"/>
+  </joint>
+  <xacro:mujoco_ros2_control_config/>
+</robot>

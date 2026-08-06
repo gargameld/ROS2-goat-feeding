@@ -1,0 +1,58 @@
+running egg_info
+creating build/robot_description/robot_description.egg-info
+writing build/robot_description/robot_description.egg-info/PKG-INFO
+writing dependency_links to build/robot_description/robot_description.egg-info/dependency_links.txt
+writing entry points to build/robot_description/robot_description.egg-info/entry_points.txt
+writing requirements to build/robot_description/robot_description.egg-info/requires.txt
+writing top-level names to build/robot_description/robot_description.egg-info/top_level.txt
+writing manifest file 'build/robot_description/robot_description.egg-info/SOURCES.txt'
+reading manifest file 'build/robot_description/robot_description.egg-info/SOURCES.txt'
+writing manifest file 'build/robot_description/robot_description.egg-info/SOURCES.txt'
+running build
+running build_py
+creating /home/vboxuser/Desktop/ros_ws/src/robot_description/build/robot_description/build
+creating /home/vboxuser/Desktop/ros_ws/src/robot_description/build/robot_description/build/lib
+creating /home/vboxuser/Desktop/ros_ws/src/robot_description/build/robot_description/build/lib/robot_description
+copying robot_description/gripper_debugger.py -> /home/vboxuser/Desktop/ros_ws/src/robot_description/build/robot_description/build/lib/robot_description
+copying robot_description/__init__.py -> /home/vboxuser/Desktop/ros_ws/src/robot_description/build/robot_description/build/lib/robot_description
+running install
+running install_lib
+creating /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/lib/python3.10/site-packages/robot_description
+copying /home/vboxuser/Desktop/ros_ws/src/robot_description/build/robot_description/build/lib/robot_description/gripper_debugger.py -> /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/lib/python3.10/site-packages/robot_description
+copying /home/vboxuser/Desktop/ros_ws/src/robot_description/build/robot_description/build/lib/robot_description/__init__.py -> /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/lib/python3.10/site-packages/robot_description
+byte-compiling /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/lib/python3.10/site-packages/robot_description/gripper_debugger.py to gripper_debugger.cpython-310.pyc
+byte-compiling /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/lib/python3.10/site-packages/robot_description/__init__.py to __init__.cpython-310.pyc
+running install_data
+copying package.xml -> /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/share/robot_description
+creating /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/share/ament_index
+creating /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/share/ament_index/resource_index
+creating /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/share/ament_index/resource_index/packages
+copying resource/robot_description -> /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/share/ament_index/resource_index/packages
+creating /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/share/robot_description/launch
+copying launch/display_gripper.launch.py -> /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/share/robot_description/launch
+creating /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/share/robot_description/urdf
+copying urdf/full_robot.xacro -> /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/share/robot_description/urdf
+copying urdf/wheel.xacro -> /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/share/robot_description/urdf
+copying urdf/mujoco_config.xacro -> /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/share/robot_description/urdf
+copying urdf/arm_with_gripper.xacro -> /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/share/robot_description/urdf
+copying urdf/arm.xacro -> /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/share/robot_description/urdf
+creating /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/share/robot_description/urdf/gripper
+copying urdf/gripper/gripper.xacro -> /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/share/robot_description/urdf/gripper
+creating /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/share/robot_description/urdf/gripper/meshes
+copying urdf/gripper/meshes/robotiq_85_base_link_fine.STL -> /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/share/robot_description/urdf/gripper/meshes
+copying urdf/gripper/meshes/inner_knuckle_fine.STL -> /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/share/robot_description/urdf/gripper/meshes
+copying urdf/gripper/meshes/inner_finger_coarse.STL -> /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/share/robot_description/urdf/gripper/meshes
+copying urdf/gripper/meshes/outer_knuckle_fine.STL -> /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/share/robot_description/urdf/gripper/meshes
+copying urdf/gripper/meshes/outer_knuckle_coarse.STL -> /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/share/robot_description/urdf/gripper/meshes
+copying urdf/gripper/meshes/inner_finger_fine.STL -> /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/share/robot_description/urdf/gripper/meshes
+copying urdf/gripper/meshes/inner_knuckle_coarse.STL -> /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/share/robot_description/urdf/gripper/meshes
+copying urdf/gripper/meshes/outer_finger_fine.STL -> /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/share/robot_description/urdf/gripper/meshes
+copying urdf/gripper/meshes/outer_finger_coarse.STL -> /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/share/robot_description/urdf/gripper/meshes
+copying urdf/gripper/meshes/robotiq_85_base_link_coarse.STL -> /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/share/robot_description/urdf/gripper/meshes
+creating /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/share/robot_description/config
+copying config/rviz_config.rviz -> /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/share/robot_description/config
+running install_egg_info
+Copying build/robot_description/robot_description.egg-info to /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/lib/python3.10/site-packages/robot_description-0.0.0-py3.10.egg-info
+running install_scripts
+Installing gripper_debugger script to /home/vboxuser/Desktop/ros_ws/src/robot_description/install/robot_description/lib/robot_description
+writing list of installed files to '/home/vboxuser/Desktop/ros_ws/src/robot_description/build/robot_description/install.log'
