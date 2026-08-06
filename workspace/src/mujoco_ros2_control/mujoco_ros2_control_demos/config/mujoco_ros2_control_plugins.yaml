@@ -1,0 +1,13 @@
+/**:
+  ros__parameters:
+    mujoco_plugins:
+      heart_beat_plugin:
+        type: "mujoco_ros2_control_plugins/HeartbeatPublisherPlugin"
+        update_rate: 1.0
+      state_capture:
+        type: "mujoco_ros2_control_plugins/StateCapturePlugin"
+        capture_rate: 30.0
+        flush_interval: 4.0
+        buffer_capacity: 4096
+        output_directory: "/config/workspace/capture"
+        output_file: "simulation_states.csv"
