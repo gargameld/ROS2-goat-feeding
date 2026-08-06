@@ -229,7 +229,11 @@
       gainprm="0.3137255 0 0" biasprm="0 -100 -10"/>
   </actuator>
 
-
+  <!-- Start the free-floating robot 0.5 units above its normal height. -->
+  <keyframe>
+    <key name="robot_above_floor"
+      qpos="0 0 0.76 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"/>
+  </keyframe>
 
   
 </mujoco>
