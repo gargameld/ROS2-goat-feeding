@@ -2109,6 +2109,7 @@ void MujocoSystemInterface::load_mujoco_plugins()
         }
         const std::string plugin_type = get_node()->get_parameter(plugin_type_param).as_string();
         auto plugin = plugin_loader_->createSharedInstance(plugin_type);
+        plugin->set_simulation_mutex(&simulation_->mutex());
         if (plugin->init(get_node()->create_sub_node(plugin_name), simulation_->model(), simulation_->data()))
         {
           plugin_instances_.push_back(plugin);

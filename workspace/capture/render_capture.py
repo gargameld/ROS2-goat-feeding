@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Render a StateCapturePlugin CSV file to an MP4 video with MuJoCo."""
+"""Render a StateCapturePlugin CSV to a simulation-time-paced MP4 with MuJoCo."""
 
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterator
 import csv
 import math
 import os
@@ -68,7 +69,7 @@ def parse_arguments() -> argparse.Namespace:
         "--fps",
         type=float,
         default=30.0,
-        help="video frame rate (default: 30, matching the capture plugin configuration)",
+        help="output video frame rate used for the simulation-time timeline (default: 30)",
     )
     parser.add_argument("--width", type=int, default=640, help="video width (default: 640)")
     parser.add_argument("--height", type=int, default=480, help="video height (default: 480)")
@@ -187,8 +188,10 @@ def make_model_with_camera(
     return temporary_path
 
 
-def inspect_capture(csv_path: Path) -> tuple[list[int], int]:
+def inspect_capture(csv_path: Path) -> tuple[list[int], int, float, float]:
     frame_count = 0
+    first_timestamp: float | None = None
+    previous_timestamp: float | None = None
 
     with csv_path.open("r", newline="") as stream:
         reader = csv.reader(stream)
@@ -220,16 +223,50 @@ def inspect_capture(csv_path: Path) -> tuple[list[int], int]:
             if not row:
                 continue
             try:
-                float(row[0])
+                timestamp = float(row[0])
             except (ValueError, IndexError) as exc:
                 raise SystemExit(f"Invalid timestamp at CSV line {line_number}") from exc
+            if not math.isfinite(timestamp):
+                raise SystemExit(f"Non-finite timestamp at CSV line {line_number}")
+            if previous_timestamp is not None and timestamp < previous_timestamp:
+                raise SystemExit(
+                    f"Simulation time moves backwards at CSV line {line_number}: "
+                    f"{timestamp} follows {previous_timestamp}"
+                )
+            if first_timestamp is None:
+                first_timestamp = timestamp
+            previous_timestamp = timestamp
             frame_count += 1
 
     if not qpos_columns:
         raise SystemExit("Capture CSV contains no qpos columns")
-    if frame_count == 0:
+    if frame_count == 0 or first_timestamp is None or previous_timestamp is None:
         raise SystemExit("Capture CSV contains no state samples")
-    return qpos_columns, frame_count
+    return qpos_columns, frame_count, first_timestamp, previous_timestamp
+
+
+def output_frame_count(first_timestamp: float, last_timestamp: float, fps: float) -> int:
+    """Return enough fixed-rate frames to cover the captured simulation interval."""
+    duration = last_timestamp - first_timestamp
+    return max(1, int(math.ceil(duration * fps - 1e-12)))
+
+
+def capture_samples(csv_path: Path, qpos_columns: list[int]) -> Iterator[tuple[float, np.ndarray]]:
+    """Yield validated ``(simulation_time, qpos)`` samples from a capture file."""
+    with csv_path.open("r", newline="") as stream:
+        reader = csv.reader(stream)
+        next(reader)
+        for line_number, row in enumerate(reader, start=2):
+            if not row:
+                continue
+            try:
+                timestamp = float(row[0])
+                qpos = np.asarray([float(row[column]) for column in qpos_columns])
+            except (ValueError, IndexError) as exc:
+                raise SystemExit(f"Invalid state sample at CSV line {line_number}") from exc
+            if not np.all(np.isfinite(qpos)):
+                raise SystemExit(f"Non-finite qpos value at CSV line {line_number}")
+            yield timestamp, qpos
 
 
 def ffmpeg_command(args: argparse.Namespace, fps: float) -> list[str]:
@@ -263,7 +300,9 @@ def ffmpeg_command(args: argparse.Namespace, fps: float) -> list[str]:
 
 
 def render_video(args: argparse.Namespace) -> None:
-    qpos_columns, frame_count = inspect_capture(args.csv)
+    qpos_columns, sample_count, first_timestamp, last_timestamp = inspect_capture(args.csv)
+    capture_duration = last_timestamp - first_timestamp
+    frame_count = output_frame_count(first_timestamp, last_timestamp, args.fps)
     if args.max_frames is not None:
         frame_count = min(frame_count, args.max_frames)
     fps = args.fps
@@ -292,34 +331,36 @@ def render_video(args: argparse.Namespace) -> None:
         if encoder.stdin is None:
             raise RuntimeError("Failed to open the FFmpeg input pipe")
 
-        print(f"Rendering {frame_count} frames at {fps:.3f} FPS")
+        print(
+            f"Rendering {frame_count} frames at {fps:.3f} FPS from {sample_count} samples "
+            f"spanning {capture_duration:.3f} seconds of simulation time"
+        )
         print(f"Camera: {vector_attribute(camera_position)} -> {vector_attribute(look_at)}")
         print(f"Output: {args.output}")
 
         progress_interval = max(1, int(round(fps * 5.0)))
-        rendered = 0
-        with args.csv.open("r", newline="") as stream:
-            reader = csv.reader(stream)
-            next(reader)
-            for line_number, row in enumerate(reader, start=2):
-                if not row:
-                    continue
-                try:
-                    data.time = float(row[0])
-                    data.qpos[:] = [float(row[column]) for column in qpos_columns]
-                except (ValueError, IndexError) as exc:
-                    raise SystemExit(f"Invalid state sample at CSV line {line_number}") from exc
+        samples = iter(capture_samples(args.csv, qpos_columns))
+        _, current_qpos = next(samples)
+        next_sample = next(samples, None)
 
-                mujoco.mj_forward(model, data)
-                renderer.update_scene(data, camera=CAMERA_NAME)
-                encoder.stdin.write(renderer.render().tobytes())
-                rendered += 1
+        for frame_index in range(frame_count):
+            frame_time = first_timestamp + frame_index / fps
+            while next_sample is not None and next_sample[0] <= frame_time + 1e-12:
+                _, current_qpos = next_sample
+                next_sample = next(samples, None)
 
-                if rendered % progress_interval == 0 or rendered == frame_count:
-                    percent = 100.0 * rendered / frame_count
-                    print(f"\rRendered {rendered}/{frame_count} frames ({percent:.1f}%)", end="", flush=True)
-                if rendered == frame_count:
-                    break
+            # Hold each captured state until the next sample's simulation timestamp.
+            # This preserves recorded states while duplicate frames account for gaps.
+            data.time = frame_time
+            data.qpos[:] = current_qpos
+            mujoco.mj_forward(model, data)
+            renderer.update_scene(data, camera=CAMERA_NAME)
+            encoder.stdin.write(renderer.render().tobytes())
+            rendered = frame_index + 1
+
+            if rendered % progress_interval == 0 or rendered == frame_count:
+                percent = 100.0 * rendered / frame_count
+                print(f"\rRendered {rendered}/{frame_count} frames ({percent:.1f}%)", end="", flush=True)
 
         print()
         encoder.stdin.close()

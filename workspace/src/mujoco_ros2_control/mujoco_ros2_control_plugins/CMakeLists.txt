@@ -30,6 +30,7 @@ endif()
 add_library(mujoco_ros2_control_plugins SHARED
   src/heartbeat_publisher_plugin.cpp
   src/external_wrench_plugin.cpp
+  src/simulation_management_plugin.cpp
   src/state_capture_plugin.cpp
 )
 target_include_directories(mujoco_ros2_control_plugins PUBLIC

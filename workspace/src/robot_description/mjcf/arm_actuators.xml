@@ -1,9 +1,21 @@
 <mujocoinclude>
-  <motor name="shoulder_pan" joint="arm_shoulder_pan_joint" gear="1" ctrllimited="true" ctrlrange="-150 150"/>
-  <motor name="shoulder_lift" joint="arm_shoulder_lift_joint" gear="1" ctrllimited="true" ctrlrange="-150 150"/>
-  <motor name="elbow" joint="arm_elbow_joint" gear="1" ctrllimited="true" ctrlrange="-150 150"/>
-  <motor name="wrist_1" joint="arm_wrist_1_joint" gear="1" ctrllimited="true" ctrlrange="-28 28"/>
-  <motor name="wrist_2" joint="arm_wrist_2_joint" gear="1" ctrllimited="true" ctrlrange="-28 28"/>
-  <motor name="wrist_3" joint="arm_wrist_3_joint" gear="1" ctrllimited="true" ctrlrange="-28 28"/>
-  <motor name="arm_slide" joint="arm_slide_joint" gear="1" ctrllimited="true" ctrlrange="-8000 8000"/>
+  <!-- Native position servos for joint_trajectory_controller. -->
+  <position name="shoulder_pan" joint="arm_shoulder_pan_joint" kp="200" dampratio="1"
+    ctrllimited="true" ctrlrange="-6.283185307179586 6.283185307179586"
+    forcelimited="true" forcerange="-150 150"/>
+  <position name="shoulder_lift" joint="arm_shoulder_lift_joint" kp="200" dampratio="1"
+    ctrllimited="true" ctrlrange="-6.283185307179586 6.283185307179586"
+    forcelimited="true" forcerange="-150 150"/>
+  <position name="elbow" joint="arm_elbow_joint" kp="200" dampratio="1"
+    ctrllimited="true" ctrlrange="-3.141592653589793 3.141592653589793"
+    forcelimited="true" forcerange="-150 150"/>
+  <position name="wrist_1" joint="arm_wrist_1_joint" kp="50" dampratio="1"
+    ctrllimited="true" ctrlrange="-6.283185307179586 6.283185307179586"
+    forcelimited="true" forcerange="-28 28"/>
+  <position name="wrist_2" joint="arm_wrist_2_joint" kp="50" dampratio="1"
+    ctrllimited="true" ctrlrange="-6.283185307179586 6.283185307179586"
+    forcelimited="true" forcerange="-28 28"/>
+  <position name="wrist_3" joint="arm_wrist_3_joint" kp="50" dampratio="1"
+    ctrllimited="true" ctrlrange="-6.283185307179586 6.283185307179586"
+    forcelimited="true" forcerange="-28 28"/>
 </mujocoinclude>

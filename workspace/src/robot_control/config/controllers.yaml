@@ -1,0 +1,64 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 100
+    use_sim_time: true
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    mecanum_drive_controller:
+      type: mecanum_drive_controller/MecanumDriveController
+
+    arm_trajectory_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    gripper_controller:
+      type: position_controllers/GripperActionController
+
+    imu_sensor_broadcaster:
+      type: imu_sensor_broadcaster/IMUSensorBroadcaster
+
+mecanum_drive_controller:
+  ros__parameters:
+    use_sim_time: true
+    front_left_wheel_command_joint_name: fl_wheel_joint
+    front_right_wheel_command_joint_name: fr_wheel_joint
+    rear_left_wheel_command_joint_name: rl_wheel_joint
+    rear_right_wheel_command_joint_name: rr_wheel_joint
+    front_left_wheel_state_joint_name: fl_wheel_joint
+    front_right_wheel_state_joint_name: fr_wheel_joint
+    rear_left_wheel_state_joint_name: rl_wheel_joint
+    rear_right_wheel_state_joint_name: rr_wheel_joint
+    kinematics:
+      wheels_radius: 0.12
+      sum_of_robot_center_projection_on_X_Y_axis: 0.60
+    base_frame_id: base_link
+    odom_frame_id: odom
+    enable_odom_tf: true
+
+arm_trajectory_controller:
+  ros__parameters:
+    use_sim_time: true
+    joints:
+      - arm_shoulder_pan_joint
+      - arm_shoulder_lift_joint
+      - arm_elbow_joint
+      - arm_wrist_1_joint
+      - arm_wrist_2_joint
+      - arm_wrist_3_joint
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+
+gripper_controller:
+  ros__parameters:
+    use_sim_time: true
+    joint: finger_joint
+
+imu_sensor_broadcaster:
+  ros__parameters:
+    use_sim_time: true
+    sensor_name: imu_sensor
+    frame_id: base_link

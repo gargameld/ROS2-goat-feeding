@@ -88,8 +88,7 @@
     xyz="-0.25 0.35 -0.1"
     rpy="0 0 -1.57079632679"/>
 
-  <!-- Attach arm base to the mobile base.
-       This assumes arm_with_gripper.xacro creates a link named arm_base_link. -->
+  <!-- Attach the arm rigidly to the mobile base. -->
   <link name="arm_mount_link"/>
   <joint name="base_to_arm_base" type="fixed">
     <parent link="base_link"/>

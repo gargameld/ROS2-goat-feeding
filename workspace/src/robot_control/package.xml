@@ -13,6 +13,7 @@
   <!-- Launch dependencies -->
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
+  <exec_depend>controller_manager</exec_depend>
 
   <!-- Robot description / xacro dependencies -->
   <exec_depend>xacro</exec_depend>
@@ -21,6 +22,13 @@
   <!-- MuJoCo ros2_control dependency -->
   <exec_depend>mujoco_ros2_control</exec_depend>
   <exec_depend>mujoco_ros2_control_plugins</exec_depend>
+
+  <!-- ros2_control controllers and sensor broadcaster -->
+  <exec_depend>mecanum_drive_controller</exec_depend>
+  <exec_depend>joint_trajectory_controller</exec_depend>
+  <exec_depend>gripper_controllers</exec_depend>
+  <exec_depend>imu_sensor_broadcaster</exec_depend>
+  <exec_depend>joint_state_broadcaster</exec_depend>
 
   <!-- Test dependencies -->
   <test_depend>ament_copyright</test_depend>

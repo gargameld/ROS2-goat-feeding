@@ -219,6 +219,42 @@ Parameters
            torque_arrow_scale: 0.1      # 10 N·m → 1 m arrow
 
 
+SimulationManagementPlugin
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Provides services for inspecting and managing the live MuJoCo simulation. The plugin does not
+perform periodic work; its ``update()`` implementation is empty.
+
+.. list-table::
+   :widths: 25 75
+   :header-rows: 0
+
+   * - **Service**
+     - ``~/get_robot_state`` (``mujoco_ros2_control_msgs/srv/GetRobotState``)
+
+The service request is empty. Its response contains ``float64[] qpos`` with all ``model->nq``
+generalized position values, in MuJoCo qpos order. The service callback locks the simulation mutex
+while copying the live data so the returned vector is internally consistent with one simulation
+state.
+
+**Example**
+
+.. code-block:: bash
+
+   ros2 service call /simulation_management/get_robot_state \
+     mujoco_ros2_control_msgs/srv/GetRobotState "{}"
+
+**Example configuration**
+
+.. code-block:: yaml
+
+   /**:
+     ros__parameters:
+       mujoco_plugins:
+         simulation_management:
+           type: "mujoco_ros2_control_plugins/SimulationManagementPlugin"
+
+
 Usage
 -----
 
@@ -360,6 +396,10 @@ Plugin Lifecycle
    blocking operations.
 3. **Cleanup** (``cleanup``): Called when shutting down. Release any resources acquired in
    ``init``.
+
+Service, subscription, or worker callbacks that directly access the live ``mjModel`` or ``mjData``
+passed to ``init()`` must hold the simulation's recursive mutex. The loader sets this mutex before
+``init()`` and derived plugins can access it through the protected ``simulation_mutex()`` method.
 
 
 Building

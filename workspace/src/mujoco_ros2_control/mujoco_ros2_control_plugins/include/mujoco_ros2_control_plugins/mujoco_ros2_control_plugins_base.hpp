@@ -15,6 +15,8 @@
 #ifndef MUJOCO_ROS2_CONTROL_PLUGINS__PLUGIN_BASE_HPP_
 #define MUJOCO_ROS2_CONTROL_PLUGINS__PLUGIN_BASE_HPP_
 
+#include <mutex>
+
 #include <mujoco/mujoco.h>
 #include <rclcpp/rclcpp.hpp>
 
@@ -32,6 +34,16 @@ class MuJoCoROS2ControlPluginBase
 {
 public:
   virtual ~MuJoCoROS2ControlPluginBase() = default;
+
+  /**
+   * @brief Set the mutex that protects the live MuJoCo model and data.
+   * @param simulation_mutex Pointer to the mutex owned by the simulation.
+   * @note The plugin loader calls this before init(). The mutex remains valid for the plugin lifetime.
+   */
+  void set_simulation_mutex(std::recursive_mutex* simulation_mutex)
+  {
+    simulation_mutex_ = simulation_mutex;
+  }
 
   /**
    * @brief Initialize the plugin
@@ -61,6 +73,18 @@ public:
    * @brief Cleanup the plugin
    */
   virtual void cleanup() = 0;
+
+protected:
+  /**
+   * @brief Access the mutex that protects the live MuJoCo model and data.
+   */
+  std::recursive_mutex* simulation_mutex() const
+  {
+    return simulation_mutex_;
+  }
+
+private:
+  std::recursive_mutex* simulation_mutex_{ nullptr };
 };
 
 }  // namespace mujoco_ros2_control_plugins

@@ -11,3 +11,5 @@
         buffer_capacity: 4096
         output_directory: "/config/workspace/capture"
         output_file: "simulation_states.csv"
+      simulation_management:
+        type: "mujoco_ros2_control_plugins/SimulationManagementPlugin"

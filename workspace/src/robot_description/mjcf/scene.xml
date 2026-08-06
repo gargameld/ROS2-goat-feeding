@@ -216,23 +216,22 @@
       solref="0.005 1"/>
   </equality>
 
-  <!--
-    The general actuator below is a customized position actuator (with some damping) where
-    gainprm[0] != kp (see http://mujoco.org/book/modeling.html#position).
-    The reason why gainprm[0] != kp is because the control input range has to be re-scaled to
-    [0, 255]. The joint range is currently set at [0, 0.8], the control range is [0, 255] and
-    kp = 100. Tau = Kp * scale * control_input - Kp * error, max(Kp * scale * control_input) = 0.8,
-    hence scale = 0.8 * 100 / 255
-  -->
+  <!-- Native tendon-position servo for gripper_controllers. -->
   <actuator>
-    <general class="2f85" name="finger_joint" tendon="finger_joint" forcerange="-5 5" ctrlrange="0 255"
-      gainprm="0.3137255 0 0" biasprm="0 -100 -10"/>
+    <position class="2f85" name="finger_joint" tendon="finger_joint" kp="100" dampratio="1"
+      ctrllimited="true" ctrlrange="0 0.725" forcelimited="true" forcerange="-5 5"/>
   </actuator>
 
   <!-- Start the free-floating robot 0.5 units above its normal height. -->
   <keyframe>
     <key name="robot_above_floor"
-      qpos="0 0 0.76 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"/>
+      qpos="0 0 0.76 1 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0"/>
   </keyframe>
 
   
