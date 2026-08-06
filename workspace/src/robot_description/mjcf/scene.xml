@@ -1,6 +1,6 @@
 <mujoco>
   <option cone="elliptic" impratio="10"/>
-  <option timestep="0.01" iterations="10"/>
+  <option timestep="0.001" iterations="10"/>
   <visual>
     <quality shadowsize="0"/>
     <global realtime="0.1"/>

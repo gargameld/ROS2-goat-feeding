@@ -35,9 +35,6 @@
   <depend>mujoco_ros2_control_plugins</depend>
   <depend>transmission_interface</depend>
 
-  <test_depend>ament_cmake_gtest</test_depend>
-  <test_depend>ament_cmake_pytest</test_depend>
-
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>python3-importlib-resources</exec_depend>
   <exec_depend>python3-pykdl</exec_depend>

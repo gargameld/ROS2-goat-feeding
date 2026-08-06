@@ -48,15 +48,6 @@ For the full plugin parameter reference, joint control modes, gripper/mimic join
 The simulator exposes ROS 2 topics and services for interacting with the simulation at runtime (pause, reset, step-by-step control, etc.).
 See the [simulation topics and services documentation](docs/hardware_interface.rst#simulation-topics-and-services) for details.
 
-## Test Robot System
-
-While examples are limited, we maintain a functional example 2-dof robot system in the demos space (see `mujoco_ros2_control_demos` package).
-We generally recommend looking there for examples and recommended workflows.
-
-## Development
-
-More information is provided in the [developers guide](../doc/development.rst).
-
 ## Further Documentation
 
 | Document | Description |

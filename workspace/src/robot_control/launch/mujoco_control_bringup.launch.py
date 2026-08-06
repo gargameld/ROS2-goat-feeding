@@ -41,7 +41,7 @@ def generate_launch_description():
     }
 
     mujoco_plugins_file = PathJoinSubstitution([
-        FindPackageShare("mujoco_ros2_control_demos"),
+        FindPackageShare("mujoco_ros2_control_plugins"),
         "config",
         "mujoco_ros2_control_plugins.yaml",
     ])
@@ -59,9 +59,6 @@ def generate_launch_description():
         name="controller_manager",
         output="screen",
         parameters=[robot_description, ParameterFile(mujoco_plugins_file)],
-        remappings=[
-            ("~/robot_description", "/robot_description"),
-        ],
     )
 
     return LaunchDescription([

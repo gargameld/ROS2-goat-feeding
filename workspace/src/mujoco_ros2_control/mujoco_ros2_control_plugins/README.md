@@ -33,4 +33,3 @@ plugin, see [`doc/plugins.rst`](doc/plugins.rst).
 ## See Also
 
 - Main package: [mujoco_ros2_control](../mujoco_ros2_control/)
-- Demos: [mujoco_ros2_control_demos](../mujoco_ros2_control_demos/)

@@ -9,3 +9,8 @@
 /workspace/*
 !/workspace/src/
 !/workspace/src/**
+
+# Keep the capture rendering utility, but ignore generated captures and its local environment.
+!/workspace/capture/
+/workspace/capture/*
+!/workspace/capture/render_capture.py

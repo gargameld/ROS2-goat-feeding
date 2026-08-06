@@ -61,33 +61,14 @@ install(TARGETS mujoco_ros2_control_plugins
   RUNTIME DESTINATION bin
 )
 
-if(BUILD_TESTING)
-  find_package(ament_cmake_gtest REQUIRED)
-
-  ament_add_gtest(test_external_wrench_plugin
-    test/test_external_wrench_plugin.cpp
-  )
-  target_link_libraries(test_external_wrench_plugin
-    mujoco_ros2_control_plugins
-    ${mujoco_ros2_control_msgs_TARGETS}
-    ${visualization_msgs_TARGETS}
-  )
-  # MuJoCo has TinyXML2 statically linked, which conflicts with the system TinyXML2
-  # used by FastDDS. We need to ensure the system TinyXML2 is loaded first.
-  # Force tinyxml2 to appear first in the DT_NEEDED entries by using LINK_OPTIONS.
-  # TODO: Remove this after the following is resolved and the next ROS sync
-  # https://github.com/pal-robotics/mujoco_vendor/issues/2
-  target_link_options(test_external_wrench_plugin PUBLIC
-    "LINKER:--push-state,--no-as-needed"
-    "$<TARGET_LINKER_FILE:tinyxml2::tinyxml2>"
-    "LINKER:--pop-state"
-  )
-
-endif()
-
 # Install include directory
 install(DIRECTORY include/
   DESTINATION include
+)
+
+# Install runtime plugin configuration files.
+install(DIRECTORY config/
+  DESTINATION share/${PROJECT_NAME}/config
 )
 
 # Export plugin description

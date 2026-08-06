@@ -20,7 +20,6 @@
 
   <!-- MuJoCo ros2_control dependency -->
   <exec_depend>mujoco_ros2_control</exec_depend>
-  <exec_depend>mujoco_ros2_control_demos</exec_depend>
   <exec_depend>mujoco_ros2_control_plugins</exec_depend>
 
   <!-- Test dependencies -->
