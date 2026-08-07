@@ -1,0 +1,58 @@
+"""Headless tests for the lightweight Qt top-view widgets."""
+
+import os
+
+os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+
+from PyQt5.QtGui import QImage  # noqa: E402
+from PyQt5.QtGui import QPainter  # noqa: E402
+from PyQt5.QtWidgets import QApplication  # noqa: E402
+
+from simulation_interface_gui.gui import TopViewWindow  # noqa: E402
+from simulation_interface_gui.models import Point3D  # noqa: E402
+from simulation_interface_gui.models import Quaternion  # noqa: E402
+from simulation_interface_gui.models import SimulationSnapshot  # noqa: E402
+from simulation_interface_gui.presentation import SceneBuilder  # noqa: E402
+
+
+def _application():
+    return QApplication.instance() or QApplication([])
+
+
+def test_window_emits_velocity_values():
+    """Numeric controls produce the manager's velocity-command contract."""
+    application = _application()
+    window = TopViewWindow()
+    commands = []
+    window.velocity_command_requested.connect(commands.append)
+    window._spin_boxes['linear_x'].setValue(1.25)
+    window._spin_boxes['angular_z'].setValue(-0.5)
+
+    window._send_velocity()
+    application.processEvents()
+
+    assert commands[-1].linear_x == 1.25
+    assert commands[-1].angular_z == -0.5
+    window.close()
+
+
+def test_canvas_renders_complete_scene_offscreen():
+    """A built scene can be painted into an image without a display server."""
+    application = _application()
+    window = TopViewWindow()
+    scene = SceneBuilder().build(SimulationSnapshot(
+        base_position=Point3D(0.0, 0.0, 0.26),
+        base_orientation=Quaternion(1.0, 0.0, 0.0, 0.0),
+        arm_joint_positions=(0.0,) * 6,
+    ))
+    window.canvas.resize(500, 650)
+    window.update_scene(scene)
+    application.processEvents()
+    image = QImage(500, 650, QImage.Format_ARGB32)
+    painter = QPainter(image)
+
+    window.canvas.render(painter)
+    painter.end()
+
+    assert not image.isNull()
+    window.close()

@@ -234,7 +234,7 @@ bool MujocoSimulation::is_valid_command(mjtNum simulation_time)
   (void)simulation_time;
 
   // Temporary pacing delay while command-readiness synchronization is not implemented.
-  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  std::this_thread::sleep_for(std::chrono::milliseconds(2));
 
   // No command sources are configured yet, so every timestep is valid.
   // Add cmd_vel and controller command-timing checks here later.

@@ -92,6 +92,19 @@ def generate_launch_description():
         }.items(),
     )
 
+    simulation_interface_gui = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([
+                FindPackageShare("simulation_interface_gui"),
+                "launch",
+                "simulation_interface_gui.launch.py",
+            ])
+        ),
+        launch_arguments={
+            "use_sim_time": use_sim_time,
+        }.items(),
+    )
+
     delayed_mujoco_ros2_control_node = TimerAction(
         period=mujoco_start_delay,
         actions=[mujoco_ros2_control_node],
@@ -104,4 +117,5 @@ def generate_launch_description():
         robot_state_publisher_node,
         spawn_controllers,
         delayed_mujoco_ros2_control_node,
+        simulation_interface_gui,
     ])

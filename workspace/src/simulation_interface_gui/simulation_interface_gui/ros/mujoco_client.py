@@ -4,7 +4,7 @@ from concurrent.futures import Future
 import math
 from typing import Sequence
 
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import TwistStamped
 from mujoco_ros2_control_msgs.srv import GetRobotState
 
 from simulation_interface_gui.ros.ros_runtime import RosRuntime
@@ -21,15 +21,24 @@ class MujocoClient:
         self,
         runtime: RosRuntime,
         *,
-        cmd_vel_topic: str = '/cmd_vel',
-        robot_state_service: str = '/controller_manager/get_robot_state',
+        cmd_vel_topic: str = '/mecanum_drive_controller/reference',
+        robot_state_service: str = '/simulation_management/get_robot_state',
+        cmd_vel_publish_period: float = 0.05,
     ) -> None:
         """Create the ROS publisher and service client on the ROS thread."""
+        if (
+            not math.isfinite(cmd_vel_publish_period)
+            or cmd_vel_publish_period <= 0.0
+        ):
+            raise ValueError('The velocity publish period must be positive.')
         self._runtime = runtime
         self._cmd_vel_topic = cmd_vel_topic
         self._robot_state_service = robot_state_service
+        self._cmd_vel_publish_period = cmd_vel_publish_period
         self._publisher = None
+        self._command_timer = None
         self._state_client = None
+        self._current_velocity_values: tuple[float, ...] | None = None
         self._closed = False
         self._ready = runtime.submit(self._initialize)
 
@@ -43,7 +52,7 @@ class MujocoClient:
         angular_z: float = 0.0,
     ) -> Future[None]:
         """
-        Queue a new ``Twist`` message for publication.
+        Queue a new ``TwistStamped`` controller reference for publication.
 
         Values are copied before scheduling, so callers may safely invoke this
         method from a GUI event handler.
@@ -59,10 +68,8 @@ class MujocoClient:
 
         def publish() -> None:
             self._ensure_open()
-            message = Twist()
-            message.linear.x, message.linear.y, message.linear.z = values[:3]
-            message.angular.x, message.angular.y, message.angular.z = values[3:]
-            self._publisher.publish(message)
+            self._current_velocity_values = values
+            self._publish_velocity(values)
 
         return self._runtime.submit(publish)
 
@@ -108,18 +115,41 @@ class MujocoClient:
 
     def _initialize(self) -> None:
         self._publisher = self._runtime.node.create_publisher(
-            Twist,
+            TwistStamped,
             self._cmd_vel_topic,
             10,
+        )
+        self._command_timer = self._runtime.node.create_timer(
+            self._cmd_vel_publish_period,
+            self._republish_velocity,
         )
         self._state_client = self._runtime.node.create_client(
             GetRobotState,
             self._robot_state_service,
         )
 
+    def _republish_velocity(self) -> None:
+        if self._current_velocity_values is not None and not self._closed:
+            self._publish_velocity(self._current_velocity_values)
+
+    def _publish_velocity(self, values: tuple[float, ...]) -> None:
+        message = TwistStamped()
+        message.header.stamp = self._runtime.node.get_clock().now().to_msg()
+        message.twist.linear.x, message.twist.linear.y = values[:2]
+        message.twist.linear.z = values[2]
+        message.twist.angular.x, message.twist.angular.y = values[3:5]
+        message.twist.angular.z = values[5]
+        self._publisher.publish(message)
+
     def _close_on_ros_thread(self) -> None:
         if self._closed:
             return
+        if self._publisher is not None and self._current_velocity_values is not None:
+            self._publish_velocity((0.0,) * 6)
+            self._current_velocity_values = None
+        if self._command_timer is not None:
+            self._runtime.node.destroy_timer(self._command_timer)
+            self._command_timer = None
         if self._publisher is not None:
             self._runtime.node.destroy_publisher(self._publisher)
             self._publisher = None

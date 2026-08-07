@@ -47,13 +47,38 @@ class FakeNode:
         """Create fake ROS entities."""
         self.publisher = FakePublisher()
         self.client = FakeServiceClient()
+        self.publisher_message_type = None
+        self.publisher_topic = None
+        self.timer_callback = None
+        self.timer_period = None
+        self.timer_destroyed = False
+        self.service_name = None
+        self.stamp = SimpleNamespace(sec=12, nanosec=34)
 
-    def create_publisher(self, *_args):
+    def create_publisher(self, message_type, topic, _depth):
         """Return the fake publisher."""
+        self.publisher_message_type = message_type
+        self.publisher_topic = topic
         return self.publisher
 
-    def create_client(self, *_args):
+    def get_clock(self):
+        """Return a clock that provides a deterministic ROS timestamp."""
+        time = SimpleNamespace(to_msg=lambda: self.stamp)
+        return SimpleNamespace(now=lambda: time)
+
+    def create_timer(self, period, callback):
+        """Record the periodic command publisher."""
+        self.timer_period = period
+        self.timer_callback = callback
+        return callback
+
+    def destroy_timer(self, _timer):
+        """Record timer destruction."""
+        self.timer_destroyed = True
+
+    def create_client(self, _service_type, service_name):
         """Return the fake service client."""
+        self.service_name = service_name
         return self.client
 
     def destroy_publisher(self, _publisher):
@@ -88,14 +113,54 @@ def client_and_runtime():
 
 
 def test_change_cmd_vel_maps_all_twist_fields(client_and_runtime):
-    """The six GUI velocity fields are mapped to one Twist message."""
+    """The six GUI velocity fields are mapped to one stamped reference."""
     client, runtime = client_and_runtime
 
     client.change_cmd_vel(1, 2, 3, 4, 5, 6).result()
 
     message = runtime.node.publisher.messages[-1]
-    assert (message.linear.x, message.linear.y, message.linear.z) == (1, 2, 3)
-    assert (message.angular.x, message.angular.y, message.angular.z) == (4, 5, 6)
+    assert message.header.stamp is runtime.node.stamp
+    assert (
+        message.twist.linear.x,
+        message.twist.linear.y,
+        message.twist.linear.z,
+    ) == (1, 2, 3)
+    assert (
+        message.twist.angular.x,
+        message.twist.angular.y,
+        message.twist.angular.z,
+    ) == (4, 5, 6)
+
+
+def test_client_uses_mecanum_controller_reference_topic(client_and_runtime):
+    """The default publisher matches the Jazzy mecanum command interface."""
+    _client, runtime = client_and_runtime
+
+    assert runtime.node.publisher_message_type.__name__ == 'TwistStamped'
+    assert runtime.node.publisher_topic == '/mecanum_drive_controller/reference'
+
+
+def test_velocity_command_is_republished_for_the_controller(client_and_runtime):
+    """A selected command remains available across controller updates."""
+    client, runtime = client_and_runtime
+    client.change_cmd_vel(linear_x=1.5).result()
+
+    runtime.node.timer_callback()
+
+    assert runtime.node.timer_period == pytest.approx(0.05)
+    assert len(runtime.node.publisher.messages) == 2
+    assert runtime.node.publisher.messages[-1].twist.linear.x == 1.5
+
+
+def test_close_publishes_stop_and_destroys_command_timer(client_and_runtime):
+    """Closing the GUI leaves the velocity controller with a stop command."""
+    client, runtime = client_and_runtime
+    client.change_cmd_vel(linear_x=1.0).result()
+
+    client.close().result()
+
+    assert runtime.node.publisher.messages[-1].twist.linear.x == 0.0
+    assert runtime.node.timer_destroyed
 
 
 def test_change_cmd_vel_rejects_non_finite_values(client_and_runtime):
@@ -111,6 +176,15 @@ def test_get_robot_state_returns_float_list(client_and_runtime):
     client, _runtime = client_and_runtime
 
     assert client.get_robot_state().result() == [1.0, 2.5, -3.0]
+
+
+def test_client_uses_simulation_management_service_namespace(
+    client_and_runtime,
+):
+    """The default service matches the plugin sub-node namespace."""
+    _client, runtime = client_and_runtime
+
+    assert runtime.node.service_name == '/simulation_management/get_robot_state'
 
 
 def test_get_robot_state_reports_unavailable_service(client_and_runtime):

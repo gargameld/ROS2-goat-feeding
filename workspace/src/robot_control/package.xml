@@ -22,6 +22,7 @@
   <!-- MuJoCo ros2_control dependency -->
   <exec_depend>mujoco_ros2_control</exec_depend>
   <exec_depend>mujoco_ros2_control_plugins</exec_depend>
+  <exec_depend>simulation_interface_gui</exec_depend>
 
   <!-- ros2_control controllers and sensor broadcaster -->
   <exec_depend>mecanum_drive_controller</exec_depend>
