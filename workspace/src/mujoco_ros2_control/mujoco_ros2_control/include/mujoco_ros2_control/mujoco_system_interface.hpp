@@ -20,6 +20,7 @@
 #pragma once
 
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
@@ -43,6 +44,7 @@
 #include "mujoco_ros2_control/mujoco_cameras.hpp"
 #include "mujoco_ros2_control/mujoco_lidar.hpp"
 #include "mujoco_ros2_control/mujoco_simulation.hpp"
+#include "mujoco_ros2_control/physics_loop_synchronizer.hpp"
 
 #include <pluginlib/class_list_macros.hpp>
 #include <pluginlib/class_loader.hpp>
@@ -273,9 +275,17 @@ private:
   // Logger
   rclcpp::Logger logger_ = rclcpp::get_logger("MujocoSystemInterface");
 
+  // Declared before simulation_ so the simulation and its physics thread are
+  // destroyed first.
+  std::unique_ptr<PhysicsLoopSynchronizer> physics_loop_synchronizer_;
+
   // The simulation host: owns the Simulate app, model/data, physics & UI threads,
   // clock publisher, and reset/pause/step services.
   std::unique_ptr<MujocoSimulation> simulation_;
+
+  // Updated by write() and observed by the physics thread.
+  rclcpp::Time last_ros_write_time_{ 0, 0, RCL_ROS_TIME };
+  std::mutex last_ros_write_time_mutex_;
 
   // Provides access to ROS interfaces for elements that require it
   std::shared_ptr<rclcpp::Node> mujoco_node_;

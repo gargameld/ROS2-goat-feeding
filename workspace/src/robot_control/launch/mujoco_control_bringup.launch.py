@@ -1,3 +1,7 @@
+from pathlib import Path
+
+import yaml
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -5,6 +9,24 @@ from launch.substitutions import Command, LaunchConfiguration, PathJoinSubstitut
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterFile, ParameterValue
 from launch_ros.substitutions import FindPackageShare
+
+
+def get_controller_manager_parameter(controller_configuration, parameter_name):
+    parameter = int(
+        controller_configuration["controller_manager"]["ros__parameters"][parameter_name]
+    )
+    return parameter
+
+
+def load_write_frequency(controllers_file):
+    with controllers_file.open("r", encoding="utf-8") as file:
+        controller_configuration = yaml.safe_load(file)
+    return get_controller_manager_parameter(controller_configuration, "write_frequency")
+
+def load_safety_interval(controllers_file):
+    with controllers_file.open("r", encoding="utf-8") as file:
+        controller_configuration = yaml.safe_load(file)
+    return get_controller_manager_parameter(controller_configuration, "physics_sync_safety_interval")
 
 
 def generate_launch_description():
@@ -30,6 +52,14 @@ def generate_launch_description():
         description="Seconds to wait before starting mujoco_ros2_control",
     )
 
+    controllers_file = (
+        Path(get_package_share_directory("robot_control"))
+        / "config"
+        / "controllers.yaml"
+    )
+    write_frequency = load_write_frequency(controllers_file)
+    safety_interval = load_safety_interval(controllers_file)
+
     robot_description_content = ParameterValue(
         Command([
             "xacro ",
@@ -38,6 +68,10 @@ def generate_launch_description():
                 "urdf",
                 "full_robot.xacro",
             ]),
+            " write_frequency:=",
+            str(write_frequency),
+            " physics_sync_safety_interval:=",
+            str(safety_interval),
         ]),
         value_type=str,
     )
@@ -52,12 +86,6 @@ def generate_launch_description():
         FindPackageShare("mujoco_ros2_control_plugins"),
         "config",
         "mujoco_ros2_control_plugins.yaml",
-    ])
-
-    controllers_file = PathJoinSubstitution([
-        FindPackageShare("robot_control"),
-        "config",
-        "controllers.yaml",
     ])
 
     robot_state_publisher_node = Node(
@@ -75,7 +103,7 @@ def generate_launch_description():
         parameters=[
             robot_description,
             ParameterFile(mujoco_plugins_file),
-            ParameterFile(controllers_file),
+            ParameterFile(str(controllers_file)),
         ],
     )
 

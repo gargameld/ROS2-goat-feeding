@@ -43,6 +43,8 @@
 namespace mujoco_ros2_control
 {
 
+class PhysicsLoopSynchronizer;
+
 /**
  * @brief ROS 2-based container for the mujoco Simulate application.
  *
@@ -118,7 +120,7 @@ public:
   /**
    * @brief Start the physics thread. Must be called after load_model().
    */
-  void start_physics_thread();
+  void start_physics_thread(PhysicsLoopSynchronizer* synchronizer);
 
   /**
    * @brief Stop the physics and UI threads if they are running.
@@ -174,21 +176,21 @@ public:
    */
   void reset_world_state(bool fill_initial_state);
 
+  /**
+   * @brief Return a thread-safe snapshot of the current simulation time.
+   */
+  mjtNum simulation_time() const;
+
+  /**
+   * @brief Return whether shutdown has been requested for the simulation.
+   */
+  bool exit_requested() const;
+
 private:
   /**
    * @brief Loops the physics simulation until asked to terminate.
    */
-  void physics_loop();
-
-  /**
-   * @brief Check whether commands expected at the supplied simulation time are available.
-   *
-   * The physics loop calls this without holding sim_mutex_ so callbacks can make
-   * commands available while simulation time remains stopped.
-   *
-   * @return true when physics may advance, otherwise false.
-   */
-  bool is_valid_command(mjtNum simulation_time);
+  void physics_loop(const PhysicsLoopSynchronizer& synchronizer);
 
   /**
    * @brief Advance the running simulation by exactly one MuJoCo timestep.

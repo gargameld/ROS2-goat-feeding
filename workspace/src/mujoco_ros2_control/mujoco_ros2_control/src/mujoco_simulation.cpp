@@ -18,6 +18,7 @@
  */
 
 #include "mujoco_ros2_control/mujoco_simulation.hpp"
+#include "mujoco_ros2_control/physics_loop_synchronizer.hpp"
 #include "array_safety.h"
 
 #include <unistd.h>
@@ -682,8 +683,13 @@ void MujocoSimulation::set_reset_callback(ResetCallback callback)
   reset_callback_ = std::move(callback);
 }
 
-void MujocoSimulation::start_physics_thread()
+void MujocoSimulation::start_physics_thread(PhysicsLoopSynchronizer* synchronizer)
 {
+  if (!synchronizer)
+  {
+    throw std::invalid_argument("A physics-loop synchronizer is required");
+  }
+
   // Disable the rangefinder flag at startup so that we don't get the yellow lines.
   // We can still turn this on manually if desired.
   sim_->opt.flags[mjVIS_RANGEFINDER] = false;
@@ -695,7 +701,7 @@ void MujocoSimulation::start_physics_thread()
   }
 
   // When the interface is activated, we start the physics engine.
-  physics_thread_ = std::thread([this]() {
+  physics_thread_ = std::thread([this, synchronizer]() {
     // Load the simulation and do an initial forward pass
     RCLCPP_INFO(get_logger(), "Starting the MuJoCo physics thread...");
     if (this->headless_)
@@ -715,8 +721,19 @@ void MujocoSimulation::start_physics_thread()
       mj_forward(mj_model_, mj_data_);
     }
     // Blocks until terminated
-    physics_loop();
+    physics_loop(*synchronizer);
   });
+}
+
+mjtNum MujocoSimulation::simulation_time() const
+{
+  const std::unique_lock<std::recursive_mutex> lock(*sim_mutex_);
+  return mj_data_ ? mj_data_->time : 0.0;
+}
+
+bool MujocoSimulation::exit_requested() const
+{
+  return !sim_ || sim_->exitrequest.load();
 }
 
 void MujocoSimulation::shutdown()
@@ -915,7 +932,7 @@ void MujocoSimulation::step_simulation_callback(
 }
 
 // Simulate in a background thread while rendering in the main thread.
-void MujocoSimulation::physics_loop()
+void MujocoSimulation::physics_loop(const PhysicsLoopSynchronizer& synchronizer)
 {
   mjtNum previous_sim_time = 0;
 
@@ -965,10 +982,7 @@ void MujocoSimulation::physics_loop()
     // Do not advance MuJoCo until every command expected at this simulation
     // time is available. sim_mutex_ is not held here, allowing command and
     // controller callbacks to run and satisfy the validation condition.
-    while (!sim_->exitrequest.load() && !is_valid_command(validation_time))
-    {
-      std::this_thread::yield();
-    }
+    synchronizer.sync_physics_loop();
 
     if (sim_->exitrequest.load())
     {

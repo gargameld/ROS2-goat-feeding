@@ -1,6 +1,5 @@
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, LogInfo, RegisterEventHandler
-from launch.event_handlers import OnProcessExit
+from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
@@ -32,39 +31,20 @@ def generate_launch_description():
         description="Name of the controller manager node",
     )
 
-    arm_spawner = make_spawner(
+    controller_names = (
         "arm_trajectory_controller",
-        controller_manager,
-    )
-
-    remaining_controller_names = (
         "joint_state_broadcaster",
         "mecanum_drive_controller",
         "gripper_controller",
         "imu_sensor_broadcaster",
     )
 
-    remaining_spawners = [
+    controller_spawners = [
         make_spawner(controller_name, controller_manager)
-        for controller_name in remaining_controller_names
+        for controller_name in controller_names
     ]
-
-    def start_remaining_controllers(event, _context):
-        if event.returncode != 0:
-            return [LogInfo(
-                msg="ERROR: Arm controller failed to activate; remaining controllers will not be spawned."
-            )]
-        return remaining_spawners
-
-    start_remaining_after_arm = RegisterEventHandler(
-        OnProcessExit(
-            target_action=arm_spawner,
-            on_exit=start_remaining_controllers,
-        )
-    )
 
     return LaunchDescription([
         declare_controller_manager,
-        start_remaining_after_arm,
-        arm_spawner,
+        *controller_spawners,
     ])

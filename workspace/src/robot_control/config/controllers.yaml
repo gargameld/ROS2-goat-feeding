@@ -1,6 +1,7 @@
 controller_manager:
   ros__parameters:
-    update_rate: 100
+    write_frequency: 100
+    physics_sync_safety_interval: 10
     use_sim_time: true
 
     joint_state_broadcaster:

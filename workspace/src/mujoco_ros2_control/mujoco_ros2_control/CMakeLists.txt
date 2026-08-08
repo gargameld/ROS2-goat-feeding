@@ -145,6 +145,15 @@ endif()
 
 # MuJoCo ROS 2 control system interface (this package)
 add_library(mujoco_ros2_control SHARED
+    src/detail/configuration_helpers.cpp
+    src/detail/control_mode_helpers.cpp
+    src/detail/interface_helpers.cpp
+    src/detail/initial_state_helpers.cpp
+    src/detail/model_mapping_helpers.cpp
+    src/detail/plugin_helpers.cpp
+    src/detail/registration_helpers.cpp
+    src/detail/state_helpers.cpp
+    src/physics_loop_synchronizer.cpp
     src/mujoco_simulation.cpp
     src/simulation_actions.cpp
     src/mujoco_system_interface.cpp
