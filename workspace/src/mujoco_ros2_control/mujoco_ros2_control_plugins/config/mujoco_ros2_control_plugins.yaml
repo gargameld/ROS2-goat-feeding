@@ -4,6 +4,18 @@
       heart_beat_plugin:
         type: "mujoco_ros2_control_plugins/HeartbeatPublisherPlugin"
         update_rate: 1.0
+      # Publishes every mujoco.plugin.lidar sensor. Single-row sensors use
+      # sensor_msgs/LaserScan; multi-row sensors use sensor_msgs/PointCloud2.
+      # Per-sensor frame_name/topic overrides may be nested here using the
+      # MJCF sensor name as the key.
+      mujoco_3d_lidar_plugin:
+        type: "mujoco_ros2_control_plugins/Mujoco3dLidarPlugin"
+        front_lidar:
+          frame_name: "front_lidar_frame"
+          topic: "/front_scan"
+        back_lidar:
+          frame_name: "back_lidar_frame"
+          topic: "/back_scan"
       state_capture:
         type: "mujoco_ros2_control_plugins/StateCapturePlugin"
         capture_rate: 30.0

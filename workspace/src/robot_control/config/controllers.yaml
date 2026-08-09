@@ -1,7 +1,7 @@
 controller_manager:
   ros__parameters:
     write_frequency: 100
-    physics_sync_safety_interval: 10
+    physics_sync_safety_interval: 100000
     use_sim_time: true
 
     joint_state_broadcaster:
@@ -39,7 +39,8 @@ mecanum_drive_controller:
       sum_of_robot_center_projection_on_X_Y_axis: 0.60
     base_frame_id: base_link
     odom_frame_id: odom
-    enable_odom_tf: true
+    # The EKF owns the odom -> base_link transform.
+    enable_odom_tf: false
 
 arm_trajectory_controller:
   ros__parameters:

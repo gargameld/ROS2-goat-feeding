@@ -41,6 +41,8 @@
 
 #include <hardware_interface/version.h>
 #include <rclcpp/version.h>
+#include <ament_index_cpp/get_resource.hpp>
+#include <ament_index_cpp/get_resources.hpp>
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include "lodepng.h"
@@ -271,7 +273,48 @@ static std::string getExecutableDir()
   return "";
 }
 
-// scan for libraries in the plugin directory to load additional plugins
+// Load all shared-library plugins from a directory. Unlike
+// mj_loadAllPluginLibraries(), this follows the symlinks created by
+// `colcon build --symlink-install`.
+static void loadPluginsFromDirectory(const std::string& plugin_dir)
+{
+  std::error_code ec;
+  if (!std::filesystem::is_directory(plugin_dir, ec))
+  {
+    return;
+  }
+
+  for (const auto& entry : std::filesystem::directory_iterator(plugin_dir, ec))
+  {
+    if (!entry.is_regular_file(ec))
+    {
+      continue;
+    }
+
+    const auto& path = entry.path();
+    if (path.extension() != ".so")
+    {
+      continue;
+    }
+
+    const int first = mjp_pluginCount();
+    mj_loadPluginLibrary(path.c_str());
+    const int count = mjp_pluginCount() - first;
+    if (count <= 0)
+    {
+      continue;
+    }
+
+    std::printf("Plugins registered by library '%s':\n", path.filename().c_str());
+    for (int i = first; i < first + count; ++i)
+    {
+      std::printf("    %s\n", mjp_getPluginAtSlot(i)->name);
+    }
+  }
+}
+
+// Scan for MuJoCo extension libraries next to the executable and in packages
+// registered in the ament resource index under the `mujoco_plugins` resource.
 static void scanPluginLibraries()
 {
   // check and print plugins that are linked directly into the executable
@@ -285,26 +328,33 @@ static void scanPluginLibraries()
     }
   }
 
-  const std::string sep = "/";
-
   // try to open the ${EXECDIR}/MUJOCO_PLUGIN_DIR directory
   // ${EXECDIR} is the directory containing the simulate binary itself
   // MUJOCO_PLUGIN_DIR is the MUJOCO_PLUGIN_DIR preprocessor macro
   const std::string executable_dir = getExecutableDir();
-  if (executable_dir.empty())
+  if (!executable_dir.empty())
   {
-    return;
+    loadPluginsFromDirectory(executable_dir + "/" + MUJOCO_PLUGIN_DIR);
   }
 
-  const std::string plugin_dir = getExecutableDir() + sep + MUJOCO_PLUGIN_DIR;
-  mj_loadAllPluginLibraries(
-      plugin_dir.c_str(), +[](const char* filename, int first, int count) {
-        std::printf("Plugins registered by library '%s':\n", filename);
-        for (int i = first; i < first + count; ++i)
-        {
-          std::printf("    %s\n", mjp_getPluginAtSlot(i)->name);
-        }
-      });
+  // Discover extension providers installed anywhere in the sourced ROS
+  // environment. The resource content is a path relative to the provider's
+  // install prefix (for example lib/mujoco_3d_lidar/mujoco_plugin).
+  const auto plugin_packages = ament_index_cpp::get_resources("mujoco_plugins");
+  for (const auto& [package_name, unused_prefix] : plugin_packages)
+  {
+    (void)unused_prefix;
+    std::string relative_plugin_dir;
+    std::string package_prefix;
+    if (!ament_index_cpp::get_resource("mujoco_plugins", package_name, relative_plugin_dir, &package_prefix))
+    {
+      continue;
+    }
+
+    const auto plugin_dir = (std::filesystem::path(package_prefix) / relative_plugin_dir).lexically_normal();
+    std::printf("Loading MuJoCo plugins from package '%s': %s\n", package_name.c_str(), plugin_dir.c_str());
+    loadPluginsFromDirectory(plugin_dir.string());
+  }
 }
 
 //------------------------------------------- simulation

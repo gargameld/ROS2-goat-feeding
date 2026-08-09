@@ -283,8 +283,9 @@ private:
   // clock publisher, and reset/pause/step services.
   std::unique_ptr<MujocoSimulation> simulation_;
 
-  // Updated by write() and observed by the physics thread.
-  rclcpp::Time last_ros_write_time_{ 0, 0, RCL_ROS_TIME };
+  // Updated by write() and observed by the physics thread. The bootstrap value
+  // lets physics publish /clock until the first real controller write replaces it.
+  rclcpp::Time last_ros_write_time_{ 10, 0, RCL_ROS_TIME };
   std::mutex last_ros_write_time_mutex_;
 
   // Provides access to ROS interfaces for elements that require it

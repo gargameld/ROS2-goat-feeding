@@ -135,6 +135,47 @@ def vector_attribute(values: np.ndarray) -> str:
     return " ".join(f"{float(value):.17g}" for value in values)
 
 
+def remove_mjcf_plugins(root: ET.Element) -> None:
+    """Remove extension declarations and elements backed by those plugins."""
+    for parent in root.iter():
+        for child in list(parent):
+            if child.tag in {"extension", "plugin"}:
+                parent.remove(child)
+
+
+def copy_sanitized_mjcf(source: Path, destination: Path, copied: dict[Path, Path]) -> ET.ElementTree:
+    """Copy an MJCF file and its includes while omitting optional plugins."""
+    source = source.resolve()
+    if source in copied:
+        return ET.parse(copied[source])
+
+    tree = ET.parse(source)
+    root = tree.getroot()
+    remove_mjcf_plugins(root)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    copied[source] = destination
+
+    for include in root.iter("include"):
+        include_name = include.get("file")
+        if not include_name:
+            continue
+        included_source = (source.parent / include_name).resolve()
+        included_destination = destination.parent / include_name
+        copy_sanitized_mjcf(included_source, included_destination, copied)
+
+    # Included XML is copied, but meshes and other assets remain in the original
+    # model tree. Absolute paths keep those resources available to MuJoCo.
+    for element in root.iter():
+        if element.tag == "include" or "file" not in element.attrib:
+            continue
+        asset_path = Path(element.attrib["file"])
+        if not asset_path.is_absolute():
+            element.set("file", str((source.parent / asset_path).resolve()))
+
+    tree.write(destination, encoding="utf-8", xml_declaration=True)
+    return tree
+
+
 def make_model_with_camera(
     model_path: Path,
     position: np.ndarray,
@@ -142,8 +183,14 @@ def make_model_with_camera(
     width: int,
     height: int,
     fovy: float,
-) -> Path:
-    tree = ET.parse(model_path)
+) -> tuple[Path, Path]:
+    temporary_directory = Path(tempfile.mkdtemp(prefix="capture_render_", dir=model_path.parent))
+    temporary_path = temporary_directory / model_path.name
+    try:
+        tree = copy_sanitized_mjcf(model_path, temporary_path, {})
+    except Exception:
+        shutil.rmtree(temporary_directory, ignore_errors=True)
+        raise
     root = tree.getroot()
     worldbody = root.find("worldbody")
     if worldbody is None:
@@ -175,17 +222,12 @@ def make_model_with_camera(
     global_visual.set("offwidth", str(width))
     global_visual.set("offheight", str(height))
 
-    temporary = tempfile.NamedTemporaryFile(
-        mode="wb", suffix=".xml", prefix="capture_render_", dir=model_path.parent, delete=False
-    )
-    temporary_path = Path(temporary.name)
     try:
-        with temporary:
-            tree.write(temporary, encoding="utf-8", xml_declaration=True)
+        tree.write(temporary_path, encoding="utf-8", xml_declaration=True)
     except Exception:
-        temporary_path.unlink(missing_ok=True)
+        shutil.rmtree(temporary_directory, ignore_errors=True)
         raise
-    return temporary_path
+    return temporary_path, temporary_directory
 
 
 def inspect_capture(csv_path: Path) -> tuple[list[int], int, float, float]:
@@ -309,7 +351,7 @@ def render_video(args: argparse.Namespace) -> None:
     camera_position = np.asarray((args.camera_x, args.camera_y, args.camera_z), dtype=float)
     look_at = np.asarray(args.look_at, dtype=float)
 
-    temporary_model = make_model_with_camera(
+    temporary_model, temporary_directory = make_model_with_camera(
         args.model, camera_position, look_at, args.width, args.height, args.fovy
     )
     encoder: subprocess.Popen[bytes] | None = None
@@ -378,7 +420,7 @@ def render_video(args: argparse.Namespace) -> None:
             encoder.wait()
         if renderer is not None:
             renderer.close()
-        temporary_model.unlink(missing_ok=True)
+        shutil.rmtree(temporary_directory, ignore_errors=True)
 
 
 def main() -> None:

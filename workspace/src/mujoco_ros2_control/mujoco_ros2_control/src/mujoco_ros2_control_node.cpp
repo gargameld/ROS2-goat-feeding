@@ -37,6 +37,11 @@ using ControllerManagerPtr = std::shared_ptr<ControllerManager>;
 // Midpoint real-time priority leaves users room for higher- and lower-priority threads.
 constexpr int kSchedPriority = 50;
 
+// The MuJoCo physics loop waits for controller writes before advancing /clock.
+// Never wait indefinitely on that same clock here: doing so creates a cycle in
+// which physics waits for write() while the control loop waits for physics.
+constexpr auto kSimClockPollInterval = std::chrono::microseconds(100);
+
 rclcpp::NodeOptions get_controller_manager_options(int argc, char ** argv)
 {
   auto options = controller_manager::get_cm_node_options();
@@ -143,17 +148,15 @@ void run_control_loop(
   set_realtime_priority(controller_manager, thread_priority);
 
   // MuJoCo-specific change from upstream: the hardware interface must be constructed and running
-  // before it can publish the clock. Waiting here allows the executor to spin in the meantime.
+  // before it can publish the clock. Do not sleep on simulation time before the first write: the
+  // physics synchronizer needs that write before it can advance /clock to another deadline.
   // TODO: Revisit this when https://github.com/ros-controls/ros2_control/pull/2654 is resolved.
   controller_manager->get_clock()->wait_until_started();
-  controller_manager->get_clock()->sleep_for(
-    rclcpp::Duration::from_seconds(1.0 / controller_manager->get_update_rate()));
 
   const auto period =
     std::chrono::nanoseconds(1'000'000'000 / controller_manager->get_update_rate());
 
   rclcpp::Time previous_time = get_controller_manager_time(controller_manager);
-  std::this_thread::sleep_for(period);
 
   auto next_iteration_time = std::chrono::steady_clock::now();
 
@@ -169,18 +172,17 @@ void run_control_loop(
 
     if (use_sim_time)
     {
-      try
+      const auto simulation_deadline = current_time + period;
+      const auto wall_deadline = std::chrono::steady_clock::now() + period;
+
+      // Normally /clock reaches simulation_deadline first. The steady-clock
+      // deadline is a watchdog that guarantees another read/update/write cycle
+      // when the physics synchronizer is waiting for a fresh command.
+      while (
+        rclcpp::ok() && get_controller_manager_time(controller_manager) < simulation_deadline &&
+        std::chrono::steady_clock::now() < wall_deadline)
       {
-        // sleep_until may throw if simulation time stops during shutdown.
-        controller_manager->get_clock()->sleep_until(current_time + period);
-      }
-      catch (const std::runtime_error & error)
-      {
-        RCLCPP_ERROR(
-          controller_manager->get_logger(),
-          "Sleep_until failed with error: %s. Exiting control loop and aborting....",
-          error.what());
-        break;
+        std::this_thread::sleep_for(kSimClockPollInterval);
       }
       continue;
     }

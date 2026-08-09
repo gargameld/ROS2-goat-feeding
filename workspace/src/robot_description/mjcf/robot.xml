@@ -15,6 +15,10 @@
       <site name="rear" pos="0 -0.505 0.14" zaxis="0 -1 0" size="0.01"/>
       <site name="front" pos="0 0.505 0.14" zaxis="0 1 0" size="0.01"/>
 
+      <site name="front_lidar" pos="0 0.4 0.2" euler="0 0 90" size="0.01"/>
+      <site name="back_lidar" pos="0 -0.4 0.2" euler="0 0 -90" size="0.01"/>
+      
+
       <camera name="robot_camera" mode="fixed" pos="0 0.51 0.22" euler="90 0 -24.5"/>
 
       <!-- Wheels -->
@@ -57,4 +61,9 @@
     <velocity name="motor_rl" joint="rl_wheel_joint" kv="10"/>
     <include file="arm_actuators.xml"/>
   </actuator>
+
+  <include file="back_lidar.xml"/>
+  <include file="front_lidar.xml"/>
+
+
 </mujoco>

@@ -61,6 +61,25 @@
     <origin xyz="0 0 0.26" rpy="0 0 0"/>
   </joint>
 
+
+  <!-- frames for the LiDAR -->
+  <link name="front_lidar_frame"/>
+
+  <joint name="front_lidar_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="front_lidar_frame"/>
+    <origin xyz="0 0.4 0.2" rpy="0 0 1.57079632679"/>
+  </joint>
+
+
+  <link name="back_lidar_frame"/>
+
+  <joint name="back_lidar_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="back_lidar_frame"/>
+    <origin xyz="0 -0.4 0.2" rpy="0 0 -1.57079632679"/>
+  </joint>
+
   <!-- Four wheels from wheel.xacro.
        Positions are copied from robot.xml. -->
 

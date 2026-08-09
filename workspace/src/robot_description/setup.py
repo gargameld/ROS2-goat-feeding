@@ -28,8 +28,6 @@ setup(
         (os.path.join('share', package_name, 'urdf'), glob('urdf/*.xacro')),
         (os.path.join('share', package_name, 'urdf', 'gripper'), glob('urdf/gripper/*.xacro')),
         (os.path.join('share', package_name, 'urdf/gripper/meshes'), glob('urdf/gripper/meshes/*')),
-        # RViz config
-        (os.path.join('share', package_name, 'config'), glob('config/*.rviz')),
     ],
     zip_safe=True,
     entry_points={

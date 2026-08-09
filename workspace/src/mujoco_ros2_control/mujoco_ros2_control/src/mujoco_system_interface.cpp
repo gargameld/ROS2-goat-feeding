@@ -357,7 +357,7 @@ hardware_interface::return_type MujocoSystemInterface::read(const rclcpp::Time& 
   return hardware_interface::return_type::OK;
 }
 
-hardware_interface::return_type MujocoSystemInterface::write(const rclcpp::Time& time,
+hardware_interface::return_type MujocoSystemInterface::write(const rclcpp::Time&,
                                                              const rclcpp::Duration& period)
 {
   detail::update_mimic_joint_commands(urdf_joint_data_);
@@ -405,10 +405,12 @@ hardware_interface::return_type MujocoSystemInterface::write(const rclcpp::Time&
     }
   }
 
-  // Publish the timestamp only after this write's command data is ready.
+  // Publish the current simulation timestamp only after this write's command data is ready.
+  const auto simulation_time = rclcpp::Time(
+      static_cast<int64_t>(simulation_->simulation_time() * 1'000'000'000), RCL_ROS_TIME);
   {
     const std::lock_guard<std::mutex> write_time_lock(last_ros_write_time_mutex_);
-    last_ros_write_time_ = time;
+    last_ros_write_time_ = simulation_time;
   }
 
   return hardware_interface::return_type::OK;

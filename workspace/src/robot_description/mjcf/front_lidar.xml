@@ -1,0 +1,44 @@
+<mujoco>
+
+  <extension>
+    <plugin plugin="mujoco.plugin.lidar">
+      <instance name="front_lidar">
+
+        <!--
+          280 degree horizontal field of view.
+          0.5 degree between rays:
+          280 / 0.5 + 1 = 561 rays.
+          One vertical row => 2D lidar.
+        -->
+        <config key="resolution" value="561 1"/>
+
+        <!-- -140 deg to +140 deg -->
+        <config key="azimuth_range"
+                value="-2.44346095 2.44346095"/>
+
+        <!-- Horizontal scan plane -->
+        <config key="elevation_range" value="0.0"/>
+
+        <!-- Range in meters -->
+        <config key="min_range" value="0.05"/>
+        <config key="max_range" value="20.0"/>
+
+        <!-- 10 scans per second -->
+        <config key="update_rate" value="10.0"/>
+
+        <!-- Compute synchronously -->
+        <config key="async" value="0"/>
+
+      </instance>
+    </plugin>
+  </extension>
+
+  <sensor>
+    <plugin
+      name="front_lidar"
+      instance="front_lidar"
+      objtype="site"
+      objname="front_lidar"/>
+  </sensor>
+
+</mujoco>
