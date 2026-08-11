@@ -74,6 +74,25 @@ double extract_safety_interval(const hardware_interface::HardwareInfo& hardware_
   return interval;
 }
 
+std::chrono::milliseconds extract_extra_wait_time(const hardware_interface::HardwareInfo& hardware_info)
+{
+  constexpr auto default_extra_wait_time = std::chrono::milliseconds{ 0 };
+  const auto parameter = hardware_info.hardware_parameters.find("extra_wait_time");
+  if (parameter == hardware_info.hardware_parameters.end())
+  {
+    return default_extra_wait_time;
+  }
+
+  std::size_t parsed_characters = 0;
+  const long long milliseconds = std::stoll(parameter->second, &parsed_characters);
+  if (parsed_characters != parameter->second.size() || milliseconds < 0)
+  {
+    throw std::invalid_argument("Hardware parameter 'extra_wait_time' must be a non-negative integer");
+  }
+
+  return std::chrono::milliseconds{ milliseconds };
+}
+
 void set_current_thread_to_low_priority()
 {
   constexpr int low_priority_nice_value = 10;
@@ -93,7 +112,8 @@ PhysicsLoopSynchronizer::PhysicsLoopSynchronizer(MujocoSimulation* simulation,
     last_ros_write_time_(last_ros_write_time),
     last_ros_write_time_mutex_(last_ros_write_time_mutex),
     write_period_seconds_(1.0 / static_cast<double>(extract_write_rate(hardware_info, "write_frequency"))),
-    safety_time_interval_seconds_(extract_safety_interval(hardware_info))
+    safety_time_interval_seconds_(extract_safety_interval(hardware_info)),
+    extra_wait_time_(extract_extra_wait_time(hardware_info))
 {
   if (!simulation_ || !last_ros_write_time_ || !last_ros_write_time_mutex_)
   {
@@ -121,6 +141,8 @@ PhysicsLoopSynchronizer::~PhysicsLoopSynchronizer()
 
 void PhysicsLoopSynchronizer::sync_physics_loop() const
 {
+  std::this_thread::sleep_for(extra_wait_time_);
+
   const double current_simulation_time = simulation_->simulation_time();
 
   while (!simulation_->exit_requested())

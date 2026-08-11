@@ -1,9 +1,11 @@
 """Launch the complete robot control system and simulation GUI."""
 
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription
+from launch.actions import IncludeLaunchDescription, RegisterEventHandler
+from launch.event_handler import EventHandler
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import PathJoinSubstitution
+from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
 
@@ -22,6 +24,16 @@ def generate_launch_description():
                 FindPackageShare('robot_control'),
                 'launch',
                 'mujoco_control_bringup.launch.py',
+            ])
+        )
+    )
+
+    front_depth_pointcloud = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([
+                FindPackageShare('robot_perception'),
+                'launch',
+                'front_depth_pointcloud.launch.py',
             ])
         )
     )
@@ -57,10 +69,51 @@ def generate_launch_description():
         )
     )
 
+    navigation = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([
+                FindPackageShare('navigation_bringup'),
+                'launch',
+                'navigation.launch.py',
+            ])
+        )
+    )
+
+    lifecycle_manager = Node(
+        package='nav2_lifecycle_manager',
+        executable='lifecycle_manager',
+        name='lifecycle_manager',
+        output='screen',
+        parameters=[{
+            'use_sim_time': True,
+            'autostart': True,
+            'node_names': [
+                'map_server',
+                'amcl',
+                'controller_server',
+                'planner_server',
+                'behavior_server',
+                'bt_navigator',
+            ],
+        }],
+    )
+
+    start_lifecycle_manager_after_controllers = RegisterEventHandler(
+        EventHandler(
+            matcher=lambda event: getattr(event, 'name', None) ==
+            'robot_control.ControllerSpawnersComplete',
+            entities=[lifecycle_manager],
+            handle_once=True,
+        )
+    )
+
     return LaunchDescription([
         robot_state_publisher,
         robot_control,
+        front_depth_pointcloud,
         simulation_interface_gui,
         ekf,
         localization,
+        navigation,
+        start_lifecycle_manager_after_controllers,
     ])

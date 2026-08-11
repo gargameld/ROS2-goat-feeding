@@ -1,4 +1,4 @@
-"""Start the static map server and AMCL for the MuJoCo arena."""
+"""Start the static map server and AMCL"""
 
 from launch import LaunchDescription
 from launch.substitutions import PathJoinSubstitution
@@ -32,16 +32,5 @@ def generate_launch_description():
             output="screen",
             parameters=[params_file, {"use_sim_time": True}],
             remappings=[("scan", "/front_scan")],
-        ),
-        Node(
-            package="nav2_lifecycle_manager",
-            executable="lifecycle_manager",
-            name="lifecycle_manager_localization",
-            output="screen",
-            parameters=[{
-                "use_sim_time": True,
-                "autostart": True,
-                "node_names": ["map_server", "amcl"],
-            }],
         ),
     ])

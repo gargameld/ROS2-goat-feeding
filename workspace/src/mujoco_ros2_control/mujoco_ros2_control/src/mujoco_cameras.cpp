@@ -81,9 +81,17 @@ void MujocoCameras::register_cameras(const hardware_interface::HardwareInfo& har
     RCLCPP_INFO(node_->get_logger(), "    depth_topic: '%s'", camera.depth_topic.c_str());
 
     // Configure publishers
-    camera.camera_info_pub = node_->create_publisher<sensor_msgs::msg::CameraInfo>(camera.info_topic, 1);
-    camera.image_pub = node_->create_publisher<sensor_msgs::msg::Image>(camera.image_topic, 1);
-    camera.depth_image_pub = node_->create_publisher<sensor_msgs::msg::Image>(camera.depth_topic, 1);
+    // Use the same sensor-data QoS for every part of a camera stream.  In
+    // particular, depth_image_proc subscribes to both image_rect and
+    // camera_info using SensorDataQoS; publishing CameraInfo with the default
+    // reliable profile can leave that synchronizer without a compatible info
+    // stream on DDS implementations/configurations that enforce the profile.
+    const auto sensor_qos = rclcpp::SensorDataQoS();
+    camera.camera_info_pub =
+      node_->create_publisher<sensor_msgs::msg::CameraInfo>(camera.info_topic, sensor_qos);
+    camera.image_pub = node_->create_publisher<sensor_msgs::msg::Image>(camera.image_topic, sensor_qos);
+    camera.depth_image_pub =
+      node_->create_publisher<sensor_msgs::msg::Image>(camera.depth_topic, sensor_qos);
 
     // Setup containers for color image data
     camera.image.header.frame_id = camera.frame_name;

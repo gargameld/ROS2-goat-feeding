@@ -1,0 +1,17 @@
+bt_navigator:
+  ros__parameters:
+    use_sim_time: true
+    # Tick the tree (and publish navigation feedback) at 1 Hz.
+    bt_loop_duration: 1000
+
+    # Expose only the NavigateToPose action server.
+    navigators: ["navigate_to_pose"]
+    navigate_to_pose:
+      plugin: "nav2_bt_navigator::NavigateToPoseNavigator"
+
+behavior_server:
+  ros__parameters:
+    use_sim_time: true
+    behavior_plugins: ["wait"]
+    wait:
+      plugin: "nav2_behaviors::Wait"

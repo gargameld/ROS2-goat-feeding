@@ -17,11 +17,12 @@ amcl:
     alpha4: 0.2
     alpha5: 0.2
 
-    min_particles: 500
+    min_particles: 200
     max_particles: 2000
     pf_err: 0.05
     pf_z: 0.99
     resample_interval: 1
+    # disable recovery
     recovery_alpha_fast: 0.0
     recovery_alpha_slow: 0.0
 
@@ -37,7 +38,7 @@ amcl:
     update_min_a: 0.10
     update_min_d: 0.10
     save_pose_rate: 0.5
-    first_map_only: false
+    first_map_only: true
     always_reset_initial_pose: false
     set_initial_pose: true
 

@@ -9,7 +9,10 @@
 
   <exec_depend>launch</exec_depend>
   <exec_depend>localization_bringup</exec_depend>
+  <exec_depend>navigation_bringup</exec_depend>
+  <exec_depend>nav2_lifecycle_manager</exec_depend>
   <exec_depend>robot_control</exec_depend>
+  <exec_depend>robot_perception</exec_depend>
   <exec_depend>simulation_interface_gui</exec_depend>
 
   <test_depend>ament_copyright</test_depend>

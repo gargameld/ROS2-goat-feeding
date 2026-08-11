@@ -43,6 +43,16 @@ def load_safety_interval(controllers_file):
     )
 
 
+def load_extra_wait_time(controllers_file):
+    with controllers_file.open("r", encoding="utf-8") as file:
+        controller_configuration = yaml.safe_load(file)
+    return int(
+        get_controller_manager_parameter(
+            controller_configuration, "extra_wait_time"
+        )
+    )
+
+
 def generate_launch_description():
     mujoco_start_delay = LaunchConfiguration("mujoco_start_delay")
     mujoco_model_path = "src/robot_description/mjcf/scene.xml"
@@ -59,6 +69,7 @@ def generate_launch_description():
     )
     write_frequency = load_write_frequency(controllers_file)
     safety_interval = load_safety_interval(controllers_file)
+    extra_wait_time = load_extra_wait_time(controllers_file)
 
     robot_description_content = ParameterValue(
         Command([
@@ -72,6 +83,8 @@ def generate_launch_description():
             str(write_frequency),
             " physics_sync_safety_interval:=",
             str(safety_interval),
+            " extra_wait_time:=",
+            str(extra_wait_time),
         ]),
         value_type=str,
     )

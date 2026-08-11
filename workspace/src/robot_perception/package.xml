@@ -1,19 +1,16 @@
 <?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>localization_bringup</name>
-  <version>0.1.0</version>
-  <description>EKF, map server, and AMCL bringup for the MuJoCo arena.</description>
-
+  <name>robot_perception</name>
+  <version>0.0.0</version>
+  <description>Launch configuration for front-camera RGB-D perception.</description>
   <maintainer email="vboxuser@todo.todo">vboxuser</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
-
+  <exec_depend>depth_image_proc</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
-  <exec_depend>nav2_amcl</exec_depend>
-  <exec_depend>nav2_map_server</exec_depend>
-  <exec_depend>robot_localization</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
