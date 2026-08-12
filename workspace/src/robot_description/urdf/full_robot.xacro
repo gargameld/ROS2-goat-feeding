@@ -20,16 +20,16 @@
   <link name="base_link">
     <inertial>
       <!-- MuJoCo chassis box:
-           size="0.40 0.5 0.05" means full size 0.80 x 1.00 x 0.10
+           size="0.5 0.40 0.05" means full size 1.00 x 0.80 x 0.10
            mass="10"
       -->
       <origin xyz="0 0 0.14" rpy="0 0 0"/>
       <mass value="10.0"/>
       <inertia
-        ixx="0.842"
+        ixx="0.542"
         ixy="0.0"
         ixz="0.0"
-        iyy="0.542"
+        iyy="0.842"
         iyz="0.0"
         izz="1.367"/>
     </inertial>
@@ -37,7 +37,7 @@
     <visual>
       <origin xyz="0 0 0.14" rpy="0 0 0"/>
       <geometry>
-        <box size="0.80 1.00 0.10"/>
+        <box size="1.00 0.80 0.10"/>
       </geometry>
       <material name="chassis_gray"/>
     </visual>
@@ -45,7 +45,7 @@
     <collision>
       <origin xyz="0 0 0.14" rpy="0 0 0"/>
       <geometry>
-        <box size="0.80 1.00 0.10"/>
+        <box size="1.00 0.80 0.10"/>
       </geometry>
     </collision>
   </link>
@@ -78,31 +78,30 @@
     <origin xyz="0 0.51 0.22" rpy="-1.57079632679 0 -0.42760566673861"/>
   </joint>
 
-  <!-- Four wheels from wheel.xacro.
-       Positions are copied from robot.xml. -->
+  <!-- Match the MuJoCo chassis frame exactly: +Y is front and +X is left. -->
 
   <xacro:mecanum_wheel
     prefix="fr"
     parent="base_link"
-    xyz="0.25 -0.35 -0.1"
+    xyz="0.35 0.25 -0.1"
     rpy="0 0 -1.57079632679"/>
 
   <xacro:mecanum_wheel
     prefix="fl"
     parent="base_link"
-    xyz="0.25 0.35 -0.1"
+    xyz="-0.35 0.25 -0.1"
     rpy="0 0 -1.57079632679"/>
 
   <xacro:mecanum_wheel
     prefix="rr"
     parent="base_link"
-    xyz="-0.25 -0.35 -0.1"
+    xyz="0.35 -0.25 -0.1"
     rpy="0 0 -1.57079632679"/>
 
   <xacro:mecanum_wheel
     prefix="rl"
     parent="base_link"
-    xyz="-0.25 0.35 -0.1"
+    xyz="-0.35 -0.25 -0.1"
     rpy="0 0 -1.57079632679"/>
 
   <!-- Attach the arm rigidly to the mobile base. -->

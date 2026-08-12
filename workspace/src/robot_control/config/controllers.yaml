@@ -2,7 +2,7 @@ controller_manager:
   ros__parameters:
     write_frequency: 100
     physics_sync_safety_interval: 100000
-    extra_wait_time: 200  # milliseconds of wall-clock time
+    extra_wait_time: 10000  # milliseconds of wall-clock time
     use_sim_time: true
 
     joint_state_broadcaster:
@@ -26,14 +26,14 @@ mecanum_drive_controller:
     reference_timeout: 0.2
     # Use the MJCF joint names at their corresponding controller corners.
     # Command and state mappings must remain identical for valid odometry.
-    front_left_wheel_command_joint_name: fl_wheel_joint
-    front_right_wheel_command_joint_name: fr_wheel_joint
-    rear_left_wheel_command_joint_name: rl_wheel_joint
-    rear_right_wheel_command_joint_name: rr_wheel_joint
-    front_left_wheel_state_joint_name: fl_wheel_joint
-    front_right_wheel_state_joint_name: fr_wheel_joint
-    rear_left_wheel_state_joint_name: rl_wheel_joint
-    rear_right_wheel_state_joint_name: rr_wheel_joint
+    front_left_wheel_command_joint_name: fr_wheel_joint
+    front_right_wheel_command_joint_name: fl_wheel_joint
+    rear_left_wheel_command_joint_name: rr_wheel_joint
+    rear_right_wheel_command_joint_name: rl_wheel_joint
+    front_left_wheel_state_joint_name: fr_wheel_joint
+    front_right_wheel_state_joint_name: fl_wheel_joint
+    rear_left_wheel_state_joint_name: rr_wheel_joint
+    rear_right_wheel_state_joint_name: rl_wheel_joint
     kinematics:
       wheels_radius: 0.12
       sum_of_robot_center_projection_on_X_Y_axis: 0.60
