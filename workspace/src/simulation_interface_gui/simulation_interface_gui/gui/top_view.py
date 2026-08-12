@@ -22,6 +22,7 @@ from PyQt5.QtWidgets import QVBoxLayout
 from PyQt5.QtWidgets import QWidget
 
 from simulation_interface_gui.models import VelocityCommand
+from simulation_interface_gui.models import Pose2D
 from simulation_interface_gui.presentation.scene import Point2D
 from simulation_interface_gui.presentation.scene import Polygon2D
 from simulation_interface_gui.presentation.scene import TopViewScene
@@ -142,6 +143,7 @@ class TopViewWindow(QMainWindow):
 
     velocity_command_requested = pyqtSignal(object)
     _status_received = pyqtSignal(str, bool)
+    _poses_received = pyqtSignal(object, object, object)
 
     _VELOCITY_FIELDS = (
         ('Linear X', 'linear_x'),
@@ -162,8 +164,12 @@ class TopViewWindow(QMainWindow):
         self.resize(900, 720)
         self.canvas = TopViewCanvas(self)
         self._spin_boxes: dict[str, QDoubleSpinBox] = {}
+        self._amcl_pose_label = QLabel('Waiting for map to base_link transform...')
+        self._odom_pose_label = QLabel('Waiting for odom to base_link transform...')
+        self._sim_pose_label = QLabel('Waiting for MuJoCo state...')
         self._status_label = QLabel('Waiting for simulation state…')
         self._status_received.connect(self._apply_status, Qt.QueuedConnection)
+        self._poses_received.connect(self._apply_poses, Qt.QueuedConnection)
         self.setCentralWidget(self._create_content())
         if velocity_handler is not None:
             self.velocity_command_requested.connect(velocity_handler)
@@ -175,6 +181,12 @@ class TopViewWindow(QMainWindow):
     def set_status(self, message: str, *, is_error: bool = False) -> None:
         """Queue a status message from any thread."""
         self._status_received.emit(message, is_error)
+
+    def set_poses(
+        self, amcl_pose: Pose2D, odom_pose: Pose2D, sim_pose: Pose2D,
+    ) -> None:
+        """Queue the AMCL, odometry, and MuJoCo poses for display."""
+        self._poses_received.emit(amcl_pose, odom_pose, sim_pose)
 
     def _create_content(self) -> QWidget:
         content = QWidget(self)
@@ -210,6 +222,12 @@ class TopViewWindow(QMainWindow):
         layout.addWidget(command_group)
         layout.addWidget(send_button)
         layout.addWidget(stop_button)
+        pose_group = QGroupBox('Robot pose', panel)
+        pose_form = QFormLayout(pose_group)
+        pose_form.addRow('AMCL map to base_link', self._amcl_pose_label)
+        pose_form.addRow('EKF odom to base_link', self._odom_pose_label)
+        pose_form.addRow('MuJoCo simulation', self._sim_pose_label)
+        layout.addWidget(pose_group)
         layout.addStretch(1)
         layout.addWidget(self._status_label)
         return panel
@@ -231,3 +249,15 @@ class TopViewWindow(QMainWindow):
         color = '#a12622' if is_error else '#276738'
         self._status_label.setStyleSheet(f'color: {color};')
         self._status_label.setText(message)
+
+    @pyqtSlot(object, object, object)
+    def _apply_poses(
+        self, amcl_pose: Pose2D, odom_pose: Pose2D, sim_pose: Pose2D,
+    ) -> None:
+        self._amcl_pose_label.setText(self._format_pose(amcl_pose))
+        self._odom_pose_label.setText(self._format_pose(odom_pose))
+        self._sim_pose_label.setText(self._format_pose(sim_pose))
+
+    @staticmethod
+    def _format_pose(pose: Pose2D) -> str:
+        return f'x={pose.x:.2f}, y={pose.y:.2f}, yaw={pose.yaw:.2f} rad'

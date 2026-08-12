@@ -10,6 +10,7 @@ from PyQt5.QtWidgets import QApplication  # noqa: E402
 
 from simulation_interface_gui.gui import TopViewWindow  # noqa: E402
 from simulation_interface_gui.models import Point3D  # noqa: E402
+from simulation_interface_gui.models import Pose2D  # noqa: E402
 from simulation_interface_gui.models import Quaternion  # noqa: E402
 from simulation_interface_gui.models import SimulationSnapshot  # noqa: E402
 from simulation_interface_gui.presentation import SceneBuilder  # noqa: E402
@@ -55,4 +56,22 @@ def test_canvas_renders_complete_scene_offscreen():
     painter.end()
 
     assert not image.isNull()
+    window.close()
+
+
+def test_window_displays_amcl_and_simulation_poses():
+    """Both pose sources are rendered in the control panel."""
+    application = _application()
+    window = TopViewWindow()
+
+    window.set_poses(
+        Pose2D(1.0, 2.0, 0.5),
+        Pose2D(2.0, 3.0, 0.25),
+        Pose2D(3.0, 4.0, -0.25),
+    )
+    application.processEvents()
+
+    assert 'x=1.00, y=2.00, yaw=0.50 rad' == window._amcl_pose_label.text()
+    assert 'x=2.00, y=3.00, yaw=0.25 rad' == window._odom_pose_label.text()
+    assert 'x=3.00, y=4.00, yaw=-0.25 rad' == window._sim_pose_label.text()
     window.close()

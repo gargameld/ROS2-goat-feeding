@@ -6,7 +6,11 @@ from typing import Sequence
 
 from geometry_msgs.msg import TwistStamped
 from mujoco_ros2_control_msgs.srv import GetRobotState
+from rclpy.time import Time
+from tf2_ros import Buffer
+from tf2_ros import TransformListener
 
+from simulation_interface_gui.models import Pose2D
 from simulation_interface_gui.ros.ros_runtime import RosRuntime
 
 
@@ -23,6 +27,9 @@ class MujocoClient:
         *,
         cmd_vel_topic: str = '/mecanum_drive_controller/reference',
         robot_state_service: str = '/simulation_management/get_robot_state',
+        map_frame: str = 'map',
+        odom_frame: str = 'odom',
+        base_frame: str = 'base_link',
         cmd_vel_publish_period: float = 0.05,
     ) -> None:
         """Create the ROS publisher and service client on the ROS thread."""
@@ -34,10 +41,15 @@ class MujocoClient:
         self._runtime = runtime
         self._cmd_vel_topic = cmd_vel_topic
         self._robot_state_service = robot_state_service
+        self._map_frame = map_frame
+        self._odom_frame = odom_frame
+        self._base_frame = base_frame
         self._cmd_vel_publish_period = cmd_vel_publish_period
         self._publisher = None
         self._command_timer = None
         self._state_client = None
+        self._tf_buffer = None
+        self._tf_listener = None
         self._current_velocity_values: tuple[float, ...] | None = None
         self._closed = False
         self._ready = runtime.submit(self._initialize)
@@ -109,6 +121,40 @@ class MujocoClient:
             result.set_exception(error)
         return result
 
+    def get_amcl_pose(self) -> Future[Pose2D]:
+        """Return the latest ``map -> base_link`` pose published by AMCL."""
+        return self._runtime.submit(
+            lambda: self._lookup_transform_pose(self._map_frame)
+        )
+
+    def get_odom_pose(self) -> Future[Pose2D]:
+        """Return the latest ``odom -> base_link`` pose from the EKF."""
+        return self._runtime.submit(
+            lambda: self._lookup_transform_pose(self._odom_frame)
+        )
+
+    def get_sim_pose(self) -> Future[Pose2D]:
+        """Return the MuJoCo free-joint planar pose from the state plugin."""
+        result: Future[Pose2D] = Future()
+
+        def finish_request(state_future: Future[list[float]]) -> None:
+            try:
+                qpos = state_future.result()
+                if len(qpos) < 7:
+                    raise RuntimeError('MuJoCo state does not contain a free joint.')
+                yaw = math.atan2(
+                    2.0 * (qpos[3] * qpos[6] + qpos[4] * qpos[5]),
+                    1.0 - 2.0 * (qpos[5] ** 2 + qpos[6] ** 2),
+                )
+                # The occupancy map is generated directly from the MuJoCo
+                # scene, so qpos already uses the map's world coordinates.
+                result.set_result(Pose2D(qpos[0], qpos[1], yaw))
+            except BaseException as error:
+                result.set_exception(error)
+
+        self.get_robot_state().add_done_callback(finish_request)
+        return result
+
     def close(self) -> Future[None]:
         """Destroy this client's ROS entities on the executor thread."""
         return self._runtime.submit(self._close_on_ros_thread)
@@ -127,6 +173,23 @@ class MujocoClient:
             GetRobotState,
             self._robot_state_service,
         )
+        self._tf_buffer = Buffer()
+        self._tf_listener = TransformListener(
+            self._tf_buffer, self._runtime.node, spin_thread=False
+        )
+
+    def _lookup_transform_pose(self, parent_frame: str) -> Pose2D:
+        self._ensure_open()
+        transform = self._tf_buffer.lookup_transform(
+            parent_frame, self._base_frame, Time()
+        )
+        translation = transform.transform.translation
+        rotation = transform.transform.rotation
+        yaw = math.atan2(
+            2.0 * (rotation.w * rotation.z + rotation.x * rotation.y),
+            1.0 - 2.0 * (rotation.y ** 2 + rotation.z ** 2),
+        )
+        return Pose2D(float(translation.x), float(translation.y), yaw)
 
     def _republish_velocity(self) -> None:
         if self._current_velocity_values is not None and not self._closed:
@@ -156,6 +219,10 @@ class MujocoClient:
         if self._state_client is not None:
             self._runtime.node.destroy_client(self._state_client)
             self._state_client = None
+        if self._tf_listener is not None:
+            self._tf_listener.unregister()
+            self._tf_listener = None
+        self._tf_buffer = None
         self._closed = True
 
     def _ensure_open(self) -> None:

@@ -4,6 +4,15 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True, slots=True)
+class Pose2D:
+    """Represent a planar pose in metres and radians."""
+
+    x: float
+    y: float
+    yaw: float
+
+
+@dataclass(frozen=True, slots=True)
 class Point3D:
     """Represent a position in three-dimensional world or robot coordinates."""
 

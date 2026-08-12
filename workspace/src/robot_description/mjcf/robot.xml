@@ -1,13 +1,13 @@
 <mujoco>
   <worldbody>
     <light diffuse=".5 .5 .5"/>
-    <body name="chassis" pos="0 0 0.26" euler="0 0 0">
-      <freejoint/> 
+    <body name="chassis" pos="0 0 0.26" euler="0 0 90">
+      <freejoint/>
       <body name="arm_mount" pos="0 0 0.10">
         <include file="mounted_arm.xml"/>
       </body>
       <geom type="box" size="0.40 0.5 0.05" pos="0 0 0.14" mass="10"/>
-      <site name="imu_sensor" pos="0 0 0.200" size="0.015"/>
+      <site name="imu_sensor" pos="0 0 0.200" size="0.015" euler = "0 0 -90"/>
       <site name="rear_right" pos="0.405 -0.40 0.14" zaxis="0.707107 -0.707107 0" size="0.01"/>
       <site name="front_right" pos="0.405 0.40 0.14" zaxis="0.707107 0.707107 0" size="0.01"/>
       <site name="rear_left" pos="-0.405 -0.40 0.14" zaxis="-0.707107 -0.707107 0" size="0.01"/>

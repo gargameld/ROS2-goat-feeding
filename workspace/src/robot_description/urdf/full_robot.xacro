@@ -15,9 +15,6 @@
     <color rgba="0.45 0.45 0.45 1.0"/>
   </material>
 
-  <!-- Root/world link -->
-  <link name="world"/>
-
   <!-- Base/chassis box.
        This is the main base link of the full robot. -->
   <link name="base_link">
@@ -52,15 +49,6 @@
       </geometry>
     </collision>
   </link>
-
-  <!-- In MuJoCo, chassis is at pos="0 0 0.26".
-       For RViz/URDF visualization we fix it to world. -->
-  <joint name="world_to_base" type="fixed">
-    <parent link="world"/>
-    <child link="base_link"/>
-    <origin xyz="0 0 0.26" rpy="0 0 0"/>
-  </joint>
-
 
   <!-- frames for the LiDAR -->
   <link name="front_lidar_frame"/>

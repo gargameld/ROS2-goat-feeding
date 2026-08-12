@@ -7,6 +7,7 @@ import pytest
 from simulation_interface_gui.manager import RobotStateDecoder
 from simulation_interface_gui.manager import SimulationInterfaceManager
 from simulation_interface_gui.models import VelocityCommand
+from simulation_interface_gui.models import Pose2D
 
 
 class FakeSignal:
@@ -59,6 +60,7 @@ class FakeWindow:
         """Create empty output collections."""
         self.velocity_command_requested = FakeSignal()
         self.scenes = []
+        self.poses = []
         self.statuses = []
 
     def update_scene(self, scene):
@@ -68,6 +70,10 @@ class FakeWindow:
     def set_status(self, message, *, is_error=False):
         """Record one status update."""
         self.statuses.append((message, is_error))
+
+    def set_poses(self, amcl_pose, odom_pose, sim_pose):
+        """Record one displayed triple of poses."""
+        self.poses.append((amcl_pose, odom_pose, sim_pose))
 
 
 class FakeClient:
@@ -93,6 +99,27 @@ class FakeClient:
         self.velocity_calls.append(values)
         future = Future()
         future.set_result(None)
+        return future
+
+    @staticmethod
+    def get_amcl_pose():
+        """Return a representative map-frame robot pose."""
+        future = Future()
+        future.set_result(Pose2D(3.0, 4.0, 0.5))
+        return future
+
+    @staticmethod
+    def get_sim_pose():
+        """Return a representative MuJoCo robot pose."""
+        future = Future()
+        future.set_result(Pose2D(1.0, 2.0, 0.25))
+        return future
+
+    @staticmethod
+    def get_odom_pose():
+        """Return a representative EKF odometry pose."""
+        future = Future()
+        future.set_result(Pose2D(2.0, 3.0, 0.4))
         return future
 
 
@@ -121,6 +148,11 @@ def test_manager_builds_scene_on_start():
     assert len(window.scenes) == 1
     assert window.scenes[0].orientation_marker.start.x == pytest.approx(1.0)
     assert window.scenes[0].orientation_marker.start.y == pytest.approx(2.0)
+    assert window.poses[-1] == (
+        Pose2D(3.0, 4.0, 0.5),
+        Pose2D(2.0, 3.0, 0.4),
+        Pose2D(1.0, 2.0, 0.25),
+    )
 
 
 def test_manager_does_not_overlap_state_requests():

@@ -222,17 +222,7 @@
       ctrllimited="true" ctrlrange="0 0.725" forcelimited="true" forcerange="-5 5"/>
   </actuator>
 
-  <!-- Start the free-floating robot 0.5 units above its normal height. -->
-  <keyframe>
-    <key name="robot_above_floor"
-      qpos="0 0 0.76 1 0 0 0
-            0 0 0 0 0 0 0 0 0 0 0
-            0 0 0 0 0 0 0 0 0 0 0
-            0 0 0 0 0 0 0 0 0 0 0
-            0 0 0 0 0 0 0 0 0 0 0
-            0 0 0 0 0 0 0 0 0 0 0
-            0 0 0 0 0 0 0 0 0 0 0"/>
-  </keyframe>
+
 
   
 </mujoco>

@@ -8,6 +8,7 @@ from PyQt5.QtCore import QTimer
 
 from simulation_interface_gui.gui import TopViewWindow
 from simulation_interface_gui.models import Point3D
+from simulation_interface_gui.models import Pose2D
 from simulation_interface_gui.models import Quaternion
 from simulation_interface_gui.models import SimulationSnapshot
 from simulation_interface_gui.models import VelocityCommand
@@ -94,6 +95,24 @@ class SimulationInterfaceManager:
         try:
             future = self._client.get_robot_state()
             future.add_done_callback(self._finish_scene_update)
+            amcl_pose_future = self._client.get_amcl_pose()
+            odom_pose_future = self._client.get_odom_pose()
+            sim_pose_future = self._client.get_sim_pose()
+            amcl_pose_future.add_done_callback(
+                lambda _: self._finish_pose_update(
+                    amcl_pose_future, odom_pose_future, sim_pose_future
+                )
+            )
+            odom_pose_future.add_done_callback(
+                lambda _: self._finish_pose_update(
+                    amcl_pose_future, odom_pose_future, sim_pose_future
+                )
+            )
+            sim_pose_future.add_done_callback(
+                lambda _: self._finish_pose_update(
+                    amcl_pose_future, odom_pose_future, sim_pose_future
+                )
+            )
         except Exception as error:
             with self._request_lock:
                 self._request_in_flight = False
@@ -136,6 +155,30 @@ class SimulationInterfaceManager:
         finally:
             with self._request_lock:
                 self._request_in_flight = False
+
+    def _finish_pose_update(
+        self,
+        amcl_pose_future: Future[Pose2D],
+        odom_pose_future: Future[Pose2D],
+        sim_pose_future: Future[Pose2D],
+    ) -> None:
+        """Display a paired pose sample once both asynchronous sources arrive."""
+        if not all((
+            amcl_pose_future.done(), odom_pose_future.done(), sim_pose_future.done(),
+        )):
+            return
+        try:
+            if self._running:
+                self._window.set_poses(
+                    amcl_pose_future.result(),
+                    odom_pose_future.result(),
+                    sim_pose_future.result(),
+                )
+        except Exception as error:
+            if self._running:
+                self._window.set_status(
+                    f'Could not update robot poses: {error}', is_error=True
+                )
 
     def _finish_velocity_command(self, future: Future[None]) -> None:
         try:
