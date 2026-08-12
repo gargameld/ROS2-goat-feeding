@@ -282,8 +282,7 @@ map MJCF sensors to ROS topics.
      <!-- camera sensor: name must match processed_inputs camera 'name' -->
      <sensor name="camera">
        <param name="frame_name">camera_color_mujoco_frame</param>
-       <param name="image_topic">/camera/color/image_raw</param>
-       <param name="info_topic">/camera/color/camera_info</param>
+       <param name="pointcloud_topic">/camera/points</param>
      </sensor>
 
      <!-- lidar sensor: base name must match processed_inputs 'sensor_name' -->

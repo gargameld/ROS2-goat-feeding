@@ -247,12 +247,12 @@ These sensor state interfaces work out of the box with the standard ROS 2 broadc
 Cameras
 -------
 
-Any ``camera`` included in the MJCF will automatically have its RGB-D images and camera info published to ROS topics.
+Any ``camera`` included in the MJCF will automatically have an organized point cloud published to a ROS topic.
 
 The camera ``name`` attribute sets the defaults for the frame and topic names:
 
 - Frame: ``<name>_frame``
-- Topics: ``<name>/camera_info``, ``<name>/color``, ``<name>/depth``
+- Topic: ``<name>/points``
 
 For example:
 
@@ -264,12 +264,8 @@ Publishes the following topics:
 
 .. code-block:: bash
 
-   $ ros2 topic info /wrist_mounted_camera/camera_info
-   Type: sensor_msgs/msg/CameraInfo
-   $ ros2 topic info /wrist_mounted_camera/color
-   Type: sensor_msgs/msg/Image
-   $ ros2 topic info /wrist_mounted_camera/depth
-   Type: sensor_msgs/msg/Image
+   $ ros2 topic info /wrist_mounted_camera/points
+   Type: sensor_msgs/msg/PointCloud2
 
 Frame and topic names can be overridden via ``ros2_control`` xacro:
 
@@ -278,9 +274,7 @@ Frame and topic names can be overridden via ``ros2_control`` xacro:
    <!-- The sensor name must match the camera name in the MJCF -->
    <sensor name="wrist_mounted_camera">
      <param name="frame_name">wrist_mounted_camera_mujoco_frame</param>
-     <param name="info_topic">/wrist_mounted_camera/color/camera_info</param>
-     <param name="image_topic">/wrist_mounted_camera/color/image_raw</param>
-     <param name="depth_topic">/wrist_mounted_camera/aligned_depth_to_color/image_raw</param>
+     <param name="pointcloud_topic">/wrist_mounted_camera/points</param>
    </sensor>
 
 .. note::

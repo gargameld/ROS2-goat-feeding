@@ -48,7 +48,7 @@ global_costmap:
         enabled: true
         observation_sources: front_depth
         front_depth:
-          topic: /front/depth/points
+          topic: /front_camera/points
           data_type: "PointCloud2"
           clearing: true
           marking: true

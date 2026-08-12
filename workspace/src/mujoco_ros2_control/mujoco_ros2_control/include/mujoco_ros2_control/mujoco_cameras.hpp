@@ -20,7 +20,9 @@
 #pragma once
 
 #include <atomic>
+#include <memory>
 #include <mutex>
+#include <optional>
 #include <thread>
 #include <vector>
 
@@ -31,8 +33,10 @@
 #include <rclcpp/node.hpp>
 #include <rclcpp/publisher.hpp>
 #include <rclcpp/rclcpp.hpp>
-#include <sensor_msgs/msg/camera_info.hpp>
-#include <sensor_msgs/msg/image.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
+
+#include "mujoco_ros2_control/depth_to_pointcloud.hpp"
+#include "mujoco_ros2_control/mujoco_simulation_clock.hpp"
 
 namespace mujoco_ros2_control
 {
@@ -44,28 +48,25 @@ struct CameraData
 
   std::string name;
   std::string frame_name;
-  std::string info_topic;
-  std::string image_topic;
-  std::string depth_topic;
+  std::string pointcloud_topic;
 
   uint32_t width;
   uint32_t height;
+  double fovy;
 
-  std::vector<uint8_t> image_buffer;
   std::vector<float> depth_buffer;
   std::vector<float> depth_buffer_flipped;
+  std::unique_ptr<DepthToPointcloud> depth_to_pointcloud;
 
-  sensor_msgs::msg::Image image;
-  sensor_msgs::msg::Image depth_image;
-  sensor_msgs::msg::CameraInfo camera_info;
+  sensor_msgs::msg::PointCloud2 pointcloud_message;
 
-  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_pub;
-  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr depth_image_pub;
-  rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_pub;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_pub;
+  bool pointcloud_ready{ false };
+  bool has_published{ false };
 };
 
 /**
- * @brief Wraps MuJoCo cameras for publishing ROS 2 RGB-D streams.
+ * @brief Wraps MuJoCo cameras for publishing ROS 2 point clouds.
  */
 class MujocoCameras
 {
@@ -74,13 +75,15 @@ public:
    * @brief Constructs a new MujocoCameras wrapper object.
    *
    * @param node Will be used to construct image publishers
+   * @param simulation Provides simulation-time scheduling for camera updates.
    * @param sim_mutex Provides synchronized access to the mujoco_data object for rendering
    * @param mujoco_data MuJoCo data for the simulation
    * @param mujoco_model MuJoCo model for the simulation
    * @param camera_publish_rate The rate to publish all camera images, for now all images are published at the same rate.
    */
-  explicit MujocoCameras(rclcpp::Node::SharedPtr node, std::recursive_mutex* sim_mutex, mjData* mujoco_data,
-                         mjModel* mujoco_model, double camera_publish_rate);
+  explicit MujocoCameras(rclcpp::Node::SharedPtr node, const MujocoSimulation& simulation,
+                         std::recursive_mutex* sim_mutex, mjData* mujoco_data, mjModel* mujoco_model,
+                         double camera_publish_rate);
 
   /**
    * @brief Starts the image processing thread in the background.
@@ -102,16 +105,56 @@ public:
 
 private:
   /**
+   * @brief Extracts and validates the MuJoCo-specific parameters for one camera.
+   *
+   * @param camera_id Index into mjModel's camera arrays.
+   * @return Camera data populated with name, fixed-camera ID, dimensions, viewport,
+   *         and vertical field of view; std::nullopt when the camera is invalid.
+   */
+  std::optional<CameraData> extract_camera_parameters(int camera_id) const;
+
+  /**
+   * @brief Applies ROS topic and frame parameters for a camera, or logs and applies defaults.
+   */
+  void read_camera_hardware_parameters(CameraData& camera,
+                                       const hardware_interface::HardwareInfo& hardware_info) const;
+
+  /** @brief Allocates depth buffers and initializes the depth-to-point-cloud converter. */
+  void initialize_depth_processing(CameraData& camera) const;
+
+  /** @brief Initializes the PointCloud2 layout used to publish one camera's points. */
+  void initialize_pointcloud_message(CameraData& camera) const;
+
+  /** @brief Linearizes MuJoCo depth-buffer values and reverses their row order. */
+  void linearize_and_flip_depth(CameraData& camera, float near, float depth_scale) const;
+
+  /** @brief Copies an XYZ point cloud into its ROS PointCloud2 transport message. */
+  void populate_pointcloud_message(CameraData& camera, const Pointcloud& pointcloud) const;
+
+  /** @brief Initializes MuJoCo's camera-rendering visual options. */
+  void initialize_visual_options();
+
+  /** @brief Configures visual options so sensor aids are hidden from depth rendering. */
+  void configure_depth_rendering_visibility();
+
+  /** @brief Allocates the MuJoCo scene used for offscreen camera rendering. */
+  void initialize_scene();
+
+  /** @brief Initializes MuJoCo's offscreen renderer and sizes its framebuffer. */
+  void initialize_renderer_context();
+
+  /**
    * @brief Initializes the rendering context and starts processing.
    */
   void update_loop();
 
   /**
-   * @brief Updates the camera images and publishes info, images, and depth maps.
+   * @brief Updates and publishes camera point clouds.
    */
   void update();
 
   rclcpp::Node::SharedPtr node_;
+  MujocoSimulationClock simulation_clock_;
 
   // Ensures locked access to simulation data for rendering.
   std::recursive_mutex* sim_mutex_{ nullptr };
@@ -133,7 +176,9 @@ private:
 
   // Camera processing thread
   std::thread rendering_thread_;
-  std::atomic_bool publish_images_;
+  // Start disabled.  This prevents the render loop from treating an
+  // unsuccessful GLFW/context initialization as a running camera.
+  std::atomic_bool publish_images_{ false };
 };
 
 }  // namespace mujoco_ros2_control

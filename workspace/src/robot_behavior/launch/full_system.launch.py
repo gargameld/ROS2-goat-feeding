@@ -28,16 +28,6 @@ def generate_launch_description():
         )
     )
 
-    front_depth_pointcloud = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            PathJoinSubstitution([
-                FindPackageShare('robot_perception'),
-                'launch',
-                'front_depth_pointcloud.launch.py',
-            ])
-        )
-    )
-
     simulation_interface_gui = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([
@@ -110,7 +100,6 @@ def generate_launch_description():
     return LaunchDescription([
         robot_state_publisher,
         robot_control,
-        front_depth_pointcloud,
         simulation_interface_gui,
         ekf,
         localization,

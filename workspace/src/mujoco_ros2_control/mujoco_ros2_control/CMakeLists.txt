@@ -156,9 +156,11 @@ add_library(mujoco_ros2_control SHARED
     src/detail/state_helpers.cpp
     src/physics_loop_synchronizer.cpp
     src/mujoco_simulation.cpp
+    src/mujoco_simulation_clock.cpp
     src/simulation_actions.cpp
     src/mujoco_system_interface.cpp
     src/mujoco_cameras.cpp
+    src/depth_to_pointcloud.cpp
     src/mujoco_lidar.cpp
 )
 # Ensure MuJoCo library can be found at runtime regardless of how it was installed above.

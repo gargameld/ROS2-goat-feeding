@@ -200,7 +200,7 @@ MujocoSystemInterface::on_init(const hardware_interface::HardwareComponentInterf
 
   // Ready cameras
   RCLCPP_INFO(get_logger(), "Initializing cameras...");
-  cameras_ = std::make_unique<MujocoCameras>(get_node(), &simulation_->mutex(), simulation_->data(),
+  cameras_ = std::make_unique<MujocoCameras>(get_node(), *simulation_, &simulation_->mutex(), simulation_->data(),
                                              simulation_->model(), simulation_configuration->camera_publish_rate);
   cameras_->register_cameras(get_hardware_info());
 

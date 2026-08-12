@@ -16,7 +16,7 @@
         <param name="initial_keyframe">robot_above_floor</param>
         <param name="write_frequency">$(arg write_frequency)</param>
         <!-- All MuJoCo camera streams are rendered and published at this rate. -->
-        <param name="camera_publish_rate">0.5</param>
+        <param name="camera_publish_rate">1.0</param>
         <param name="physics_sync_safety_interval">$(arg physics_sync_safety_interval)</param>
         <param name="extra_wait_time">$(arg extra_wait_time)</param>
       </hardware>
@@ -129,9 +129,7 @@
       <!-- Front-facing MuJoCo camera (robot.xml: robot_camera). -->
       <sensor name="robot_camera">
         <param name="frame_name">front_camera_frame</param>
-        <param name="info_topic">/front_camera/depth/camera_info</param>
-        <param name="image_topic">/front_camera/image_raw</param>
-        <param name="depth_topic">/front_camera/depth/image_raw</param>
+        <param name="pointcloud_topic">/front_camera/points</param>
       </sensor>
     </ros2_control>
   </xacro:macro>
