@@ -231,11 +231,17 @@ perform periodic work; its ``update()`` implementation is empty.
 
    * - **Service**
      - ``~/get_robot_state`` (``mujoco_ros2_control_msgs/srv/GetRobotState``)
+   * - **Service**
+     - ``~/set_obstacle`` (``mujoco_ros2_control_msgs/srv/SetObstacle``)
 
-The service request is empty. Its response contains ``float64[] qpos`` with all ``model->nq``
-generalized position values, in MuJoCo qpos order. The service callback locks the simulation mutex
-while copying the live data so the returned vector is internally consistent with one simulation
-state.
+The state-service request is empty. Its response contains ``float64[] qpos`` with all ``model->nq``
+generalized position values, plus the managed box's ``obstacle_position`` and full
+``obstacle_size``. Size axes are width (X), length (Y), and height (Z).
+
+``set_obstacle`` accepts the desired XY position and the same full size vector. It edits the named
+``obstacle`` geom in the retained ``mjSpec`` and invokes ``mj_recompile`` while holding the
+simulation mutex. The requested Z position is ignored; the geom centre is always placed at half
+its height so its bottom face remains on the floor.
 
 **Example**
 
@@ -243,6 +249,10 @@ state.
 
    ros2 service call /simulation_management/get_robot_state \
      mujoco_ros2_control_msgs/srv/GetRobotState "{}"
+
+   ros2 service call /simulation_management/set_obstacle \
+     mujoco_ros2_control_msgs/srv/SetObstacle \
+     "{position: {x: 1.0, y: -2.0}, size: {x: 0.8, y: 1.2, z: 1.0}}"
 
 **Example configuration**
 

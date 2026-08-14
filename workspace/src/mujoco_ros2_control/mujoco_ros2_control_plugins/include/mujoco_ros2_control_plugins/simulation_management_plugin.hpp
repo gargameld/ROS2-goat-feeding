@@ -19,9 +19,11 @@
 #include <memory>
 
 #include <mujoco_ros2_control_msgs/srv/get_robot_state.hpp>
+#include <mujoco_ros2_control_msgs/srv/set_obstacle.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 #include "mujoco_ros2_control_plugins/mujoco_ros2_control_plugins_base.hpp"
+#include "mujoco_ros2_control_plugins/obstacle_management.hpp"
 
 namespace mujoco_ros2_control_plugins
 {
@@ -41,16 +43,21 @@ public:
 
 private:
   using GetRobotState = mujoco_ros2_control_msgs::srv::GetRobotState;
+  using SetObstacle = mujoco_ros2_control_msgs::srv::SetObstacle;
 
   void handle_get_robot_state(const GetRobotState::Request::SharedPtr request,
                               GetRobotState::Response::SharedPtr response);
+  void handle_set_obstacle(const SetObstacle::Request::SharedPtr request, SetObstacle::Response::SharedPtr response);
 
   rclcpp::Node::SharedPtr node_;
   rclcpp::Logger logger_{ rclcpp::get_logger("SimulationManagementPlugin") };
   rclcpp::Service<GetRobotState>::SharedPtr get_robot_state_service_;
+  rclcpp::Service<SetObstacle>::SharedPtr set_obstacle_service_;
 
+  mjModel* model_{ nullptr };
   mjData* data_{ nullptr };
   std::size_t nq_{ 0 };
+  std::unique_ptr<ObstacleManagement> obstacle_management_;
 };
 
 }  // namespace mujoco_ros2_control_plugins

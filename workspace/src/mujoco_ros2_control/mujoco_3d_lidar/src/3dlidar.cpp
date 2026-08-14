@@ -20,6 +20,7 @@
 #include "mujoco_3d_lidar/3dlidar.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cstdint>
 #include <cstdlib>
@@ -213,13 +214,41 @@ Lidar* Lidar::Create(const mjModel* m, mjData* d, int instance)
     async = (std::atoi(async_str.c_str()) != 0);
   }
 
+  // Include all six MuJoCo geom groups unless an explicit inclusion mask is
+  // provided. A mask lets robot-mounted sensors ignore the robot's own geoms
+  // without excluding environment geoms on unrelated bodies.
+  std::array<mjtByte, mjNGROUP> geom_group;
+  geom_group.fill(1);
+  std::string geom_group_str = std::string(mj_getPluginConfig(m, instance, "geom_group"));
+  if (!geom_group_str.empty())
+  {
+    std::vector<int> values;
+    ReadVector(values, geom_group_str);
+    if (values.size() != mjNGROUP)
+    {
+      mju_error("Lidar geom_group must contain exactly %d values", mjNGROUP);
+      return nullptr;
+    }
+    for (int i = 0; i < mjNGROUP; ++i)
+    {
+      if (values[i] != 0 && values[i] != 1)
+      {
+        mju_error("Lidar geom_group values must be either 0 or 1");
+        return nullptr;
+      }
+      geom_group[i] = static_cast<mjtByte>(values[i]);
+    }
+  }
+
   return new Lidar(m, d, instance, resolution.data(), azimuth_range.data(), elevation_range.data(), max_range,
-                   min_range, update_rate, async);
+                   min_range, update_rate, async, geom_group);
 }
 
 Lidar::Lidar(const mjModel* m, mjData* d, int instance, int resolution[2], mjtNum azimuth_range[2],
-             mjtNum elevation_range[2], mjtNum max_range, mjtNum min_range, mjtNum update_rate, bool async)
+             mjtNum elevation_range[2], mjtNum max_range, mjtNum min_range, mjtNum update_rate, bool async,
+             const std::array<mjtByte, mjNGROUP>& geom_group)
   : resolution_{ resolution[0], resolution[1] }
+  , geom_group_(geom_group)
   , max_range_(max_range)
   , min_range_(min_range)
   , update_period_(update_rate > 0.0 ? 1.0 / update_rate : 0.0)
@@ -325,17 +354,16 @@ void Lidar::Raycast(const mjModel* m, mjData* d, const mjtNum* rotated_vecs, mjt
   mjtNum* site_pos = d->site_xpos + 3 * site_id_;
   mju_zero(output, dimension_);
 
-  mjtByte* geom_group = nullptr;
   mjtByte flg_static = -1;
   int body_exclude = -1;
 
 #if (mjVERSION_HEADER >= 3005000)
   int* geomid = nullptr;
-  mj_multiRay(m, d, site_pos, rotated_vecs, geom_group, flg_static, body_exclude, geomid, output, NULL, dimension_,
-              max_range_);
+  mj_multiRay(m, d, site_pos, rotated_vecs, geom_group_.data(), flg_static, body_exclude, geomid, output, NULL,
+              dimension_, max_range_);
 #elif (mjVERSION_HEADER == 340)
-  mj_multiRay(m, d, site_pos, rotated_vecs, geom_group, flg_static, body_exclude, geomid_.data(), output, dimension_,
-              max_range_);
+  mj_multiRay(m, d, site_pos, rotated_vecs, geom_group_.data(), flg_static, body_exclude, geomid_.data(), output,
+              dimension_, max_range_);
 #else
   mju_error("Unsupported mujoco version (%d)\n", mjVERSION_HEADER);
 #endif
@@ -491,8 +519,8 @@ void Lidar::RegisterPlugin()
   plugin.capabilityflags |= mjPLUGIN_SENSOR;
 
   // Parameterizable attributes
-  const char* attributes[] = { "resolution",  "azimuth_range", "elevation_range", "max_range", "min_range",
-                               "update_rate", "async" };
+  const char* attributes[] = { "resolution", "azimuth_range", "elevation_range", "max_range", "min_range",
+                               "update_rate", "async", "geom_group" };
   plugin.nattribute = sizeof(attributes) / sizeof(attributes[0]);
   plugin.attributes = attributes;
 

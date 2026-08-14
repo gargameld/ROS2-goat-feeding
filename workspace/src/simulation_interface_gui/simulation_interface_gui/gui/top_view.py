@@ -12,6 +12,7 @@ from PyQt5.QtGui import QPen
 from PyQt5.QtGui import QPolygonF
 from PyQt5.QtWidgets import QDoubleSpinBox
 from PyQt5.QtWidgets import QFormLayout
+from PyQt5.QtWidgets import QGridLayout
 from PyQt5.QtWidgets import QGroupBox
 from PyQt5.QtWidgets import QHBoxLayout
 from PyQt5.QtWidgets import QLabel
@@ -21,8 +22,10 @@ from PyQt5.QtWidgets import QSizePolicy
 from PyQt5.QtWidgets import QVBoxLayout
 from PyQt5.QtWidgets import QWidget
 
-from simulation_interface_gui.models import VelocityCommand
+from simulation_interface_gui.models import ObstacleState
+from simulation_interface_gui.models import Point3D
 from simulation_interface_gui.models import Pose2D
+from simulation_interface_gui.models import VelocityCommand
 from simulation_interface_gui.presentation.scene import Point2D
 from simulation_interface_gui.presentation.scene import Polygon2D
 from simulation_interface_gui.presentation.scene import TopViewScene
@@ -81,6 +84,9 @@ class TopViewCanvas(QWidget):
         painter.setBrush(QColor(178, 183, 188))
         for obstacle in scene.obstacle_polygons:
             painter.drawPolygon(self._map_polygon(obstacle))
+        painter.setPen(QPen(QColor(155, 70, 20), 2))
+        painter.setBrush(QColor(235, 125, 55))
+        painter.drawPolygon(self._map_polygon(scene.managed_obstacle_polygon))
 
     def _draw_boundaries(self, painter: QPainter, scene: TopViewScene) -> None:
         painter.setBrush(Qt.NoBrush)
@@ -141,9 +147,13 @@ class TopViewCanvas(QWidget):
 class TopViewWindow(QMainWindow):
     """Show the top view and emit validated velocity commands."""
 
+    _OBSTACLE_MOVE_STEP = 0.5
+
     velocity_command_requested = pyqtSignal(object)
+    obstacle_update_requested = pyqtSignal(object)
     _status_received = pyqtSignal(str, bool)
     _poses_received = pyqtSignal(object, object, object)
+    _obstacle_received = pyqtSignal(object)
 
     _VELOCITY_FIELDS = (
         ('Linear X', 'linear_x'),
@@ -164,12 +174,17 @@ class TopViewWindow(QMainWindow):
         self.resize(900, 720)
         self.canvas = TopViewCanvas(self)
         self._spin_boxes: dict[str, QDoubleSpinBox] = {}
+        self._dimension_boxes: dict[str, QDoubleSpinBox] = {}
+        self._obstacle_state: ObstacleState | None = None
         self._amcl_pose_label = QLabel('Waiting for map to base_link transform...')
         self._odom_pose_label = QLabel('Waiting for odom to base_link transform...')
         self._sim_pose_label = QLabel('Waiting for MuJoCo state...')
         self._status_label = QLabel('Waiting for simulation state…')
         self._status_received.connect(self._apply_status, Qt.QueuedConnection)
         self._poses_received.connect(self._apply_poses, Qt.QueuedConnection)
+        self._obstacle_received.connect(
+            self._apply_obstacle_state, Qt.QueuedConnection
+        )
         self.setCentralWidget(self._create_content())
         if velocity_handler is not None:
             self.velocity_command_requested.connect(velocity_handler)
@@ -187,6 +202,10 @@ class TopViewWindow(QMainWindow):
     ) -> None:
         """Queue the AMCL, odometry, and MuJoCo poses for display."""
         self._poses_received.emit(amcl_pose, odom_pose, sim_pose)
+
+    def set_obstacle_state(self, obstacle: ObstacleState) -> None:
+        """Queue the latest managed-box state for controls and display."""
+        self._obstacle_received.emit(obstacle)
 
     def _create_content(self) -> QWidget:
         content = QWidget(self)
@@ -222,6 +241,43 @@ class TopViewWindow(QMainWindow):
         layout.addWidget(command_group)
         layout.addWidget(send_button)
         layout.addWidget(stop_button)
+        obstacle_group = QGroupBox('Obstacle box', panel)
+        obstacle_layout = QVBoxLayout(obstacle_group)
+        dimension_form = QFormLayout()
+        for label, field_name in (
+            ('Height', 'height'),
+            ('Width', 'width'),
+            ('Length', 'length'),
+        ):
+            spin_box = QDoubleSpinBox(obstacle_group)
+            spin_box.setRange(0.01, 10.0)
+            spin_box.setDecimals(3)
+            spin_box.setSingleStep(0.1)
+            spin_box.setSuffix(' m')
+            self._dimension_boxes[field_name] = spin_box
+            dimension_form.addRow(label, spin_box)
+        obstacle_layout.addLayout(dimension_form)
+
+        apply_button = QPushButton('Apply dimensions', obstacle_group)
+        apply_button.clicked.connect(self._apply_obstacle_dimensions)
+        obstacle_layout.addWidget(apply_button)
+
+        arrows = QGridLayout()
+        up_button = QPushButton('Up', obstacle_group)
+        left_button = QPushButton('Left', obstacle_group)
+        down_button = QPushButton('Down', obstacle_group)
+        right_button = QPushButton('Right', obstacle_group)
+        move_step = self._OBSTACLE_MOVE_STEP
+        up_button.clicked.connect(lambda _checked=False: self._move_obstacle(0.0, move_step))
+        left_button.clicked.connect(lambda _checked=False: self._move_obstacle(-move_step, 0.0))
+        down_button.clicked.connect(lambda _checked=False: self._move_obstacle(0.0, -move_step))
+        right_button.clicked.connect(lambda _checked=False: self._move_obstacle(move_step, 0.0))
+        arrows.addWidget(up_button, 0, 1)
+        arrows.addWidget(left_button, 1, 0)
+        arrows.addWidget(down_button, 1, 1)
+        arrows.addWidget(right_button, 1, 2)
+        obstacle_layout.addLayout(arrows)
+        layout.addWidget(obstacle_group)
         pose_group = QGroupBox('Robot pose', panel)
         pose_form = QFormLayout(pose_group)
         pose_form.addRow('AMCL map to base_link', self._amcl_pose_label)
@@ -244,6 +300,45 @@ class TopViewWindow(QMainWindow):
             spin_box.setValue(0.0)
         self.velocity_command_requested.emit(VelocityCommand())
 
+    def _apply_obstacle_dimensions(self) -> None:
+        if self._obstacle_state is None:
+            self.set_status('Obstacle state is not available yet.', is_error=True)
+            return
+        self._emit_obstacle_update(
+            position=self._obstacle_state.position,
+            width=self._dimension_boxes['width'].value(),
+            length=self._dimension_boxes['length'].value(),
+            height=self._dimension_boxes['height'].value(),
+        )
+
+    def _move_obstacle(self, delta_x: float, delta_y: float) -> None:
+        if self._obstacle_state is None:
+            self.set_status('Obstacle state is not available yet.', is_error=True)
+            return
+        position = self._obstacle_state.position
+        self._emit_obstacle_update(
+            position=Point3D(
+                position.x + delta_x,
+                position.y + delta_y,
+                self._obstacle_state.height / 2.0,
+            ),
+            width=self._obstacle_state.width,
+            length=self._obstacle_state.length,
+            height=self._obstacle_state.height,
+        )
+
+    def _emit_obstacle_update(
+        self,
+        *,
+        position: Point3D,
+        width: float,
+        length: float,
+        height: float,
+    ) -> None:
+        obstacle = ObstacleState(position, width, length, height)
+        self._obstacle_state = obstacle
+        self.obstacle_update_requested.emit(obstacle)
+
     @pyqtSlot(str, bool)
     def _apply_status(self, message: str, is_error: bool) -> None:
         color = '#a12622' if is_error else '#276738'
@@ -257,6 +352,13 @@ class TopViewWindow(QMainWindow):
         self._amcl_pose_label.setText(self._format_pose(amcl_pose))
         self._odom_pose_label.setText(self._format_pose(odom_pose))
         self._sim_pose_label.setText(self._format_pose(sim_pose))
+
+    @pyqtSlot(object)
+    def _apply_obstacle_state(self, obstacle: ObstacleState) -> None:
+        self._obstacle_state = obstacle
+        self._dimension_boxes['width'].setValue(obstacle.width)
+        self._dimension_boxes['length'].setValue(obstacle.length)
+        self._dimension_boxes['height'].setValue(obstacle.height)
 
     @staticmethod
     def _format_pose(pose: Pose2D) -> str:

@@ -1,8 +1,8 @@
 bt_navigator:
   ros__parameters:
     use_sim_time: true
-    # Tick the tree (and publish navigation feedback) at 1 Hz.
-    bt_loop_duration: 1000
+    # Standard Nav2 tree tick: react promptly to controller completion and updates.
+    bt_loop_duration: 10
 
     # Expose only the NavigateToPose action server.
     navigators: ["navigate_to_pose"]

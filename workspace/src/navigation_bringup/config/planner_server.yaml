@@ -35,8 +35,12 @@ global_costmap:
       transform_tolerance: 10.0
       resolution: 0.05
       track_unknown_space: true
-      footprint: "[[0.40, 0.50], [0.40, -0.50], [-0.40, -0.50], [-0.40, 0.50]]"
-      footprint_padding: 0.02
+      # The collision monitor's hard-stop rectangle is +/-0.72 x +/-0.62 m.
+      # Its circumscribed radius is 0.950 m. Planning with that circle makes
+      # every accepted path executable without entering StopZone, regardless
+      # of the chassis orientation chosen independently by the omni controller.
+      robot_radius: 0.95
+      footprint_padding: 0.0
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
 
       static_layer:
@@ -46,7 +50,33 @@ global_costmap:
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: true
-        observation_sources: front_depth
+        tf_filter_tolerance: 0.20
+        # Self-returns are filtered at the simulator lidar, so preserve real
+        # obstacle endpoints even when they overlap the robot footprint.
+        footprint_clearing_enabled: false
+        observation_sources: front_lidar back_lidar front_depth
+        front_lidar:
+          topic: /front_scan
+          data_type: "LaserScan"
+          clearing: true
+          marking: true
+          min_obstacle_height: 0.0
+          max_obstacle_height: 2.0
+          obstacle_min_range: 0.05
+          obstacle_max_range: 10.0
+          raytrace_min_range: 0.05
+          raytrace_max_range: 12.0
+        back_lidar:
+          topic: /back_scan
+          data_type: "LaserScan"
+          clearing: true
+          marking: true
+          min_obstacle_height: 0.0
+          max_obstacle_height: 2.0
+          obstacle_min_range: 0.05
+          obstacle_max_range: 10.0
+          raytrace_min_range: 0.05
+          raytrace_max_range: 12.0
         front_depth:
           topic: /front_camera/points
           data_type: "PointCloud2"
@@ -61,7 +91,7 @@ global_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        inflation_radius: 0.75
-        cost_scaling_factor: 3.0
+        inflation_radius: 1.25
+        cost_scaling_factor: 2.0
 
       always_send_full_costmap: true

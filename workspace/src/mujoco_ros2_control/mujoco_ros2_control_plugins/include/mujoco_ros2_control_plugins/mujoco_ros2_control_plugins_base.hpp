@@ -46,6 +46,15 @@ public:
   }
 
   /**
+   * @brief Set the editable specification backing the live MuJoCo model.
+   * @note The specification is owned by the simulation and may be null for binary MJB models.
+   */
+  void set_mujoco_spec(mjSpec* spec)
+  {
+    spec_ = spec;
+  }
+
+  /**
    * @brief Initialize the plugin
    * @param node Shared pointer to the ROS 2 node for accessing parameters
    * @param model Pointer to the MuJoCo model
@@ -83,8 +92,14 @@ protected:
     return simulation_mutex_;
   }
 
+  mjSpec* mujoco_spec() const
+  {
+    return spec_;
+  }
+
 private:
   std::recursive_mutex* simulation_mutex_{ nullptr };
+  mjSpec* spec_{ nullptr };
 };
 
 }  // namespace mujoco_ros2_control_plugins

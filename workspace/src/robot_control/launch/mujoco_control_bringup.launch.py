@@ -138,6 +138,8 @@ def generate_launch_description():
         actions=[mujoco_ros2_control_node],
     )
 
+    print(f"Launching MuJoCo with extra_wait_time={extra_wait_time} ms")
+
     return LaunchDescription([
         declare_mujoco_start_delay,
         spawn_controllers_after_manager_starts,

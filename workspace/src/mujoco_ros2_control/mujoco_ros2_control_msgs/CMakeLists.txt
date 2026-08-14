@@ -20,6 +20,7 @@ set(srv_files
   srv/StepSimulation.srv
   srv/ApplyExternalWrench.srv
   srv/GetRobotState.srv
+  srv/SetObstacle.srv
 )
 
 

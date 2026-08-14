@@ -375,9 +375,15 @@ static const char* Diverged(int disableflags, const mjData* d)
   return nullptr;
 }
 
-static mjModel* loadModelFromFile(const char* file, mj::Simulate& sim)
+struct LoadedModel
 {
-  mjModel* mnew = 0;
+  mjModel* model{ nullptr };
+  mjSpec* spec{ nullptr };
+};
+
+static LoadedModel loadModelFromFile(const char* file, mj::Simulate& sim)
+{
+  LoadedModel loaded;
 
   // this copy is needed so that the mju::strlen call below compiles
   char filename[mj::Simulate::kMaxFilenameLength];
@@ -389,15 +395,23 @@ static mjModel* loadModelFromFile(const char* file, mj::Simulate& sim)
   if (mju::strlen_arr(filename) > 4 && !std::strncmp(filename + mju::strlen_arr(filename) - 4, ".mjb",
                                                      mju::sizeof_arr(filename) - mju::strlen_arr(filename) + 4))
   {
-    mnew = mj_loadModel(filename, nullptr);
-    if (!mnew)
+    loaded.model = mj_loadModel(filename, nullptr);
+    if (!loaded.model)
     {
       mju::strcpy_arr(loadError, "could not load binary model");
     }
   }
   else
   {
-    mnew = mj_loadXML(filename, nullptr, loadError, kErrorLength);
+    loaded.spec = mj_parseXML(filename, nullptr, loadError, kErrorLength);
+    if (loaded.spec)
+    {
+      loaded.model = mj_compile(loaded.spec, nullptr);
+      if (!loaded.model)
+      {
+        mju::strcpy_arr(loadError, mjs_getError(loaded.spec));
+      }
+    }
 
     // remove trailing newline character from loadError
     if (loadError[0])
@@ -412,11 +426,16 @@ static mjModel* loadModelFromFile(const char* file, mj::Simulate& sim)
   auto load_interval = mj::Simulate::Clock::now() - load_start;
   double load_seconds = Seconds(load_interval).count();
 
-  if (!mnew)
+  if (!loaded.model)
   {
     std::printf("%s\n", loadError);
     mju::strcpy_arr(sim.load_error, loadError);
-    return nullptr;
+    if (loaded.spec)
+    {
+      mj_deleteSpec(loaded.spec);
+      loaded.spec = nullptr;
+    }
+    return loaded;
   }
 
   // compiler warning: print and pause
@@ -434,12 +453,12 @@ static mjModel* loadModelFromFile(const char* file, mj::Simulate& sim)
   }
 
   mju::strcpy_arr(sim.load_error, loadError);
-  return mnew;
+  return loaded;
 }
 
-static mjModel* loadModelFromTopic(rclcpp::Node::SharedPtr node, const std::string& topic_name)
+static LoadedModel loadModelFromTopic(rclcpp::Node::SharedPtr node, const std::string& topic_name)
 {
-  mjModel* mnew = 0;
+  LoadedModel loaded;
   std::string robot_description;
 
   rclcpp::QoS qos_profile(rclcpp::QoSInitialization::from_rmw(rmw_qos_profile_default));
@@ -465,7 +484,7 @@ static mjModel* loadModelFromTopic(rclcpp::Node::SharedPtr node, const std::stri
     if (now - start > timeout)
     {
       RCLCPP_WARN(node->get_logger(), "Timeout waiting for '%s' topic.", topic_name.c_str());
-      return nullptr;
+      return loaded;
     }
 
     rclcpp::sleep_for(std::chrono::milliseconds(200));
@@ -476,26 +495,29 @@ static mjModel* loadModelFromTopic(rclcpp::Node::SharedPtr node, const std::stri
     // Load MuJoCo model
     char error[1000] = "Could not load XML model";
 
-    mjSpec* spec = nullptr;
-    spec = mj_parseXMLString(robot_description.c_str(), nullptr, error, 1000);
-    mnew = mj_compile(spec, nullptr);
+    loaded.spec = mj_parseXMLString(robot_description.c_str(), nullptr, error, 1000);
+    loaded.model = loaded.spec ? mj_compile(loaded.spec, nullptr) : nullptr;
 
-    if (!mnew)
+    if (!loaded.model)
     {
-      const char* myerr = mjs_getError(spec);
+      const char* myerr = loaded.spec ? mjs_getError(loaded.spec) : error;
       RCLCPP_INFO(node->get_logger(), "Error %s", myerr);
       RCLCPP_FATAL(node->get_logger(), "Failed to compile MuJoCo model: %s", error);
-      mj_deleteSpec(spec);
-      return nullptr;
+      if (loaded.spec)
+      {
+        mj_deleteSpec(loaded.spec);
+        loaded.spec = nullptr;
+      }
+      return loaded;
     }
-    mj_deleteSpec(spec);
-    RCLCPP_INFO(node->get_logger(), "Model body count: %ld", static_cast<long>(mnew->nbody));
-    RCLCPP_INFO(node->get_logger(), "Model geom count: %ld", static_cast<long>(mnew->ngeom));
+    RCLCPP_INFO(node->get_logger(), "Model body count: %ld", static_cast<long>(loaded.model->nbody));
+    RCLCPP_INFO(node->get_logger(), "Model geom count: %ld", static_cast<long>(loaded.model->ngeom));
   }
-  return mnew;
+  return loaded;
 }
 
-static mjModel* LoadModel(const char* file, const std::string& topic, mj::Simulate& sim, rclcpp::Node::SharedPtr node)
+static LoadedModel LoadModel(const char* file, const std::string& topic, mj::Simulate& sim,
+                             rclcpp::Node::SharedPtr node)
 {
   // Try to get the MuJoCo model from URDF.
   // If it is not available, create a subscription and listen for the model on a topic.
@@ -529,6 +551,10 @@ MujocoSimulation::~MujocoSimulation()
   if (mj_model_)
   {
     mj_deleteModel(mj_model_);
+  }
+  if (mj_spec_)
+  {
+    mj_deleteSpec(mj_spec_);
   }
 }
 
@@ -681,7 +707,9 @@ bool MujocoSimulation::initialize(rclcpp::Node::SharedPtr node, const std::strin
 
   // Finish initialization by loading the model and initializing the model and control data containers.
   RCLCPP_INFO(get_logger(), "Loading model...");
-  mj_model_ = LoadModel(model_path_.c_str(), mujoco_model_topic_, *sim_, node_);
+  const LoadedModel loaded = LoadModel(model_path_.c_str(), mujoco_model_topic_, *sim_, node_);
+  mj_model_ = loaded.model;
+  mj_spec_ = loaded.spec;
   if (!mj_model_)
   {
     RCLCPP_FATAL(get_logger(), "MuJoCo failed to load the model");

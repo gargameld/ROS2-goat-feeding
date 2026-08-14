@@ -128,6 +128,14 @@ PhysicsLoopSynchronizer::PhysicsLoopSynchronizer(MujocoSimulation* simulation,
 
   expected_write_time_thread_ =
       std::thread(&PhysicsLoopSynchronizer::update_expected_write_time_loop, this);
+
+  for (const auto& [key, value] : hardware_info.hardware_parameters)
+  {
+    RCLCPP_INFO(
+      rclcpp::get_logger("PhysicsLoopSynchronizer"),
+      "hardware parameter: '%s' = '%s'",
+      key.c_str(), value.c_str());
+  }
 }
 
 PhysicsLoopSynchronizer::~PhysicsLoopSynchronizer()

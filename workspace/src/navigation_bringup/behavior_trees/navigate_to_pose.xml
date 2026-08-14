@@ -1,10 +1,13 @@
-<!-- Retry navigation forever, pausing for one second after a blocked attempt. -->
+<!-- Retry a blocked navigation attempt up to three times before reporting failure. -->
 <root BTCPP_format="4" main_tree_to_execute="MainTree">
   <BehaviorTree ID="MainTree">
-    <RetryUntilSuccessful num_attempts="-1">
+    <RetryUntilSuccessful num_attempts="3">
       <Fallback name="NavigateOrWaitBeforeRetry">
         <PipelineSequence name="NavigateWithReplanning">
-          <RateController hz="1.0">
+          <!-- The dragged MuJoCo box is dynamic. Replan at the same 2 Hz rate
+               as the global costmap so a newly marked obstacle invalidates the
+               straight path within one costmap cycle instead of two seconds. -->
+          <RateController hz="2.0">
             <ComputePathToPose
               goal="{goal}"
               path="{path}"

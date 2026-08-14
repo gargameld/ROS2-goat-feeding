@@ -1,2 +1,4 @@
 ---
 float64[] qpos
+geometry_msgs/Point obstacle_position
+geometry_msgs/Vector3 obstacle_size

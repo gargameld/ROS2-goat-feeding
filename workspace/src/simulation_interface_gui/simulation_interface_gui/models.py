@@ -1,6 +1,7 @@
 """Immutable simulation state consumed by the presentation layer."""
 
 from dataclasses import dataclass
+from dataclasses import field
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,12 +33,36 @@ class Quaternion:
 
 
 @dataclass(frozen=True, slots=True)
+class ObstacleState:
+    """Represent the managed floor box using full dimensions in metres."""
+
+    position: Point3D
+    width: float
+    length: float
+    height: float
+
+
+@dataclass(frozen=True, slots=True)
+class RobotState:
+    """Contain one service response from the simulation-management plugin."""
+
+    qpos: tuple[float, ...]
+    obstacle: ObstacleState
+
+
+@dataclass(frozen=True, slots=True)
 class SimulationSnapshot:
     """Contain the state needed to construct one top-view scene."""
 
     base_position: Point3D
     base_orientation: Quaternion
     arm_joint_positions: tuple[float, ...]
+    obstacle: ObstacleState = field(default_factory=lambda: ObstacleState(
+        position=Point3D(-2.0, -7.5, 0.5),
+        width=0.8,
+        length=0.8,
+        height=1.0,
+    ))
 
 
 @dataclass(frozen=True, slots=True)

@@ -33,6 +33,7 @@ add_library(mujoco_ros2_control_plugins SHARED
   src/heartbeat_publisher_plugin.cpp
   src/external_wrench_plugin.cpp
   src/mujoco_3d_lidar_plugin.cpp
+  src/obstacle_management.cpp
   src/simulation_management_plugin.cpp
   src/state_capture_plugin.cpp
 )
@@ -94,5 +95,11 @@ ament_export_dependencies(
   ros2_control_cmake
 )
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
+
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_obstacle_management test/test_obstacle_management.cpp)
+  target_link_libraries(test_obstacle_management mujoco_ros2_control_plugins)
+endif()
 
 ament_package()

@@ -14,34 +14,50 @@ amcl:
     # Wheel/EKF odometry presently accumulates measurable translation error.
     # Spread particles broadly enough that lidar can select a map-consistent
     # pose instead of remaining locked to the odometry prediction.
-    alpha1: 0.30
-    alpha2: 0.30
-    alpha3: 0.30
-    alpha4: 0.30
-    alpha5: 0.30
+    # Keep heading tightly constrained by the IMU, but allow substantially
+    # more uncertainty in both holonomic translation components.  This gives
+    # scan matching enough particle support to correct the observed Y drift.
+    alpha1: 0.10
+    alpha2: 0.10
+    alpha3: 0.20
+    alpha4: 0.10
+    alpha5: 0.20
 
-    min_particles: 200
-    max_particles: 2000
-    pf_err: 0.05
+    min_particles: 500
+    max_particles: 2500
+    pf_err: 0.04
+    max_beams: 160
     pf_z: 0.99
     resample_interval: 1
-    # disable recovery
-    recovery_alpha_fast: 0.0
-    recovery_alpha_slow: 0.0
 
-    laser_model_type: likelihood_field
-    laser_likelihood_max_dist: 2.0
+    update_min_a: 0.01
+    update_min_d: 0.01
+    # recovery
+    recovery_alpha_fast: 0.1
+    recovery_alpha_slow: 0.001
+
+    laser_model_type: likelihood_field_prob
+    # Make the likelihood field discriminate nearby, parallel walls more
+    # strongly; the arena map and simulated scan are deterministic.
+    laser_likelihood_max_dist: 1.0
     laser_max_range: 20.0
     laser_min_range: 0.05
-    max_beams: 120
+    max_beams: 280
     # Favor valid simulated lidar returns over the random-measurement model
     # so AMCL provides a meaningful map-to-odom correction.
-    z_hit: 0.9
-    z_rand: 0.1
-    sigma_hit: 0.1
+    z_hit: 0.97
+    z_rand: 0.03
+    sigma_hit: 0.05
 
-    update_min_a: 0.10
-    update_min_d: 0.10
+    # Reject scan rays that disagree with the map consensus (for example,
+    # rays intercepted by the robot body but absent from the arena-only map).
+    do_beamskip: true
+    beam_skip_distance: 0.5
+    beam_skip_threshold: 0.3
+    beam_skip_error_threshold: 0.9
+
+    update_min_a: 0.03
+    update_min_d: 0.03
     save_pose_rate: 0.5
     first_map_only: true
     always_reset_initial_pose: false

@@ -54,3 +54,4 @@ class TopViewScene:
     joint_markers: tuple[Point2D, ...]
     world_boundaries: tuple[Line2D, ...]
     obstacle_polygons: tuple[Polygon2D, ...]
+    managed_obstacle_polygon: Polygon2D

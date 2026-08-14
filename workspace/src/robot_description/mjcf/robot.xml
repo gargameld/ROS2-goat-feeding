@@ -1,7 +1,7 @@
 <mujoco>
   <worldbody>
     <light diffuse=".5 .5 .5"/>
-    <body name="chassis" pos="0 0 0.26">
+    <body name="chassis" pos="0 0 0.26" childclass="robot">
       <freejoint/>
       <body name="arm_mount" pos="0 0 0.10">
         <include file="mounted_arm.xml"/>
@@ -16,15 +16,18 @@
       <site name="front" pos="0 0.505 0.14" zaxis="0 1 0" size="0.01"/>
 
       <site name="front_lidar" pos="0.4 0 0.2" size="0.01"/>
-      <site name="back_lidar" pos="0 -0.4 0.2" euler="0 0 -90" size="0.01"/>
+      <site name="back_lidar" pos="-0.4 0 0.2" euler="0 0 180" size="0.01"/>
       
 
       <!-- 320x240 keeps software-rendered RGB-D frames below the DDS message
            and processing bottleneck seen with 640x480 in the headless container. -->
-      <camera name="robot_camera" mode="fixed" pos="0.51 0 0.22" euler="90 0 -24.5" resolution="320 240"/>
+      <!-- Look straight along chassis +X. MuJoCo camera +X is image-right,
+           +Y is image-up, and -Z is the viewing direction. -->
+      <camera name="robot_camera" mode="fixed" pos="0.51 0 0.22"
+              xyaxes="0 -1 0  0 0 1" resolution="320 240"/>
 
       <!--
-        The chassis is forward along local +Y and left along local +X.  Keep
+        The chassis is forward along local +X and left along local +Y.  Keep
         each physical corner paired with its similarly named joint so the
         mecanum_drive_controller's direct fl/fr/rl/rr mapping is valid.
       -->

@@ -29,6 +29,9 @@
         <!-- Compute synchronously -->
         <config key="async" value="0"/>
 
+        <!-- Raycast environment group 0 only; robot geoms use groups 1-3. -->
+        <config key="geom_group" value="1 0 0 0 0 0"/>
+
       </instance>
     </plugin>
   </extension>

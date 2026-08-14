@@ -136,6 +136,14 @@ public:
   }
 
   /**
+   * @brief Accessor for the editable specification used to compile the model.
+   */
+  mjSpec* spec()
+  {
+    return mj_spec_;
+  }
+
+  /**
    * @brief Accessor for the mujoco data.
    */
   mjData* data()
@@ -243,6 +251,7 @@ private:
   std::string mujoco_model_topic_;
 
   // MuJoCo data pointers
+  mjSpec* mj_spec_{ nullptr };
   mjModel* mj_model_{ nullptr };
   mjData* mj_data_{ nullptr };
 

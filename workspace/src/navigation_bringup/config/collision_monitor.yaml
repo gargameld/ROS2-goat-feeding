@@ -1,0 +1,51 @@
+collision_monitor:
+  ros__parameters:
+    use_sim_time: true
+    enable_stamped_cmd_vel: true
+
+    base_frame_id: base_link
+    odom_frame_id: odom
+    cmd_vel_in_topic: /cmd_vel_smoothed
+    cmd_vel_out_topic: /mecanum_drive_controller/reference
+    state_topic: /collision_monitor/state
+
+    transform_tolerance: 1.0
+    source_timeout: 0.5
+    base_shift_correction: true
+    stop_pub_timeout: 1.0
+
+    # The physical footprint is x +/-0.50 m and y +/-0.40 m. Keep the hard
+    # stop at 0.22 m clearance. The slowdown envelope is deliberately closer:
+    # the previous 1.00 x 0.90 m rectangle caught a safe obstacle at its corner
+    # (nearest return 1.17 m) and scaled lateral avoidance below usable speed.
+    polygons: ["StopZone", "SlowZone"]
+    StopZone:
+      type: polygon
+      points: "[[0.72, 0.62], [0.72, -0.62], [-0.72, -0.62], [-0.72, 0.62]]"
+      action_type: stop
+      min_points: 3
+      visualize: true
+      polygon_pub_topic: /collision_monitor/stop_zone
+      enabled: true
+    SlowZone:
+      type: polygon
+      points: "[[0.90, 0.80], [0.90, -0.80], [-0.90, -0.80], [-0.90, 0.80]]"
+      action_type: slowdown
+      min_points: 3
+      # This is an early-warning envelope; exact MPPI footprint checking and
+      # StopZone still enforce collision safety. Avoid compounding MPPI's own
+      # slowdown until commands fall below the base's usable velocity range.
+      slowdown_ratio: 0.80
+      visualize: true
+      polygon_pub_topic: /collision_monitor/slow_zone
+      enabled: true
+
+    observation_sources: ["front_scan", "back_scan"]
+    front_scan:
+      type: scan
+      topic: /front_scan
+      enabled: true
+    back_scan:
+      type: scan
+      topic: /back_scan
+      enabled: true

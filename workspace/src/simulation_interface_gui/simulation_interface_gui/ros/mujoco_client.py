@@ -6,12 +6,16 @@ from typing import Sequence
 
 from geometry_msgs.msg import TwistStamped
 from mujoco_ros2_control_msgs.srv import GetRobotState
+from mujoco_ros2_control_msgs.srv import SetObstacle
 from rclpy.time import Time
+
+from simulation_interface_gui.models import ObstacleState
+from simulation_interface_gui.models import Point3D
+from simulation_interface_gui.models import Pose2D
+from simulation_interface_gui.models import RobotState
+from simulation_interface_gui.ros.ros_runtime import RosRuntime
 from tf2_ros import Buffer
 from tf2_ros import TransformListener
-
-from simulation_interface_gui.models import Pose2D
-from simulation_interface_gui.ros.ros_runtime import RosRuntime
 
 
 class ServiceUnavailableError(RuntimeError):
@@ -27,6 +31,7 @@ class MujocoClient:
         *,
         cmd_vel_topic: str = '/mecanum_drive_controller/reference',
         robot_state_service: str = '/simulation_management/get_robot_state',
+        obstacle_service: str = '/simulation_management/set_obstacle',
         map_frame: str = 'map',
         odom_frame: str = 'odom',
         base_frame: str = 'base_link',
@@ -41,6 +46,7 @@ class MujocoClient:
         self._runtime = runtime
         self._cmd_vel_topic = cmd_vel_topic
         self._robot_state_service = robot_state_service
+        self._obstacle_service = obstacle_service
         self._map_frame = map_frame
         self._odom_frame = odom_frame
         self._base_frame = base_frame
@@ -48,6 +54,7 @@ class MujocoClient:
         self._publisher = None
         self._command_timer = None
         self._state_client = None
+        self._obstacle_client = None
         self._tf_buffer = None
         self._tf_listener = None
         self._current_velocity_values: tuple[float, ...] | None = None
@@ -85,9 +92,9 @@ class MujocoClient:
 
         return self._runtime.submit(publish)
 
-    def get_robot_state(self) -> Future[list[float]]:
-        """Request MuJoCo qpos and return it through a GUI-safe future."""
-        result: Future[list[float]] = Future()
+    def get_robot_state(self) -> Future[RobotState]:
+        """Request MuJoCo robot and obstacle state through a GUI-safe future."""
+        result: Future[RobotState] = Future()
 
         def request_state() -> None:
             if not result.set_running_or_notify_cancel():
@@ -111,12 +118,64 @@ class MujocoClient:
                 response = response_future.result()
                 if response is None:
                     raise RuntimeError('The robot-state service returned no response.')
-                result.set_result([float(value) for value in response.qpos])
+                result.set_result(RobotState(
+                    qpos=tuple(float(value) for value in response.qpos),
+                    obstacle=ObstacleState(
+                        position=Point3D(
+                            float(response.obstacle_position.x),
+                            float(response.obstacle_position.y),
+                            float(response.obstacle_position.z),
+                        ),
+                        width=float(response.obstacle_size.x),
+                        length=float(response.obstacle_size.y),
+                        height=float(response.obstacle_size.z),
+                    ),
+                ))
             except BaseException as error:
                 result.set_exception(error)
 
         try:
             self._runtime.submit(request_state)
+        except BaseException as error:
+            result.set_exception(error)
+        return result
+
+    def set_obstacle(self, obstacle: ObstacleState) -> Future[None]:
+        """Request a new XY position and full dimensions for the floor box."""
+        values = self._validate_obstacle(obstacle)
+        result: Future[None] = Future()
+
+        def request_update() -> None:
+            if not result.set_running_or_notify_cancel():
+                return
+            try:
+                self._ensure_open()
+                if not self._obstacle_client.service_is_ready():
+                    raise ServiceUnavailableError(
+                        f'ROS service {self._obstacle_service!r} is unavailable.'
+                    )
+                request = SetObstacle.Request()
+                request.position.x, request.position.y = values[:2]
+                request.position.z = values[-1] / 2.0
+                request.size.x, request.size.y, request.size.z = values[3:]
+                response_future = self._obstacle_client.call_async(request)
+                response_future.add_done_callback(finish_request)
+            except BaseException as error:
+                result.set_exception(error)
+
+        def finish_request(response_future: object) -> None:
+            try:
+                response = response_future.result()
+                if response is None:
+                    raise RuntimeError('The obstacle service returned no response.')
+                if not response.success:
+                    raise RuntimeError(response.message or 'Obstacle update failed.')
+                result.set_result(None)
+            except BaseException as error:
+                result.set_exception(error)
+
+        try:
+            self._runtime.submit(request_update)
         except BaseException as error:
             result.set_exception(error)
         return result
@@ -137,9 +196,9 @@ class MujocoClient:
         """Return the MuJoCo free-joint planar pose from the state plugin."""
         result: Future[Pose2D] = Future()
 
-        def finish_request(state_future: Future[list[float]]) -> None:
+        def finish_request(state_future: Future[RobotState]) -> None:
             try:
-                qpos = state_future.result()
+                qpos = state_future.result().qpos
                 if len(qpos) < 7:
                     raise RuntimeError('MuJoCo state does not contain a free joint.')
                 yaw = math.atan2(
@@ -172,6 +231,10 @@ class MujocoClient:
         self._state_client = self._runtime.node.create_client(
             GetRobotState,
             self._robot_state_service,
+        )
+        self._obstacle_client = self._runtime.node.create_client(
+            SetObstacle,
+            self._obstacle_service,
         )
         self._tf_buffer = Buffer()
         self._tf_listener = TransformListener(
@@ -219,6 +282,9 @@ class MujocoClient:
         if self._state_client is not None:
             self._runtime.node.destroy_client(self._state_client)
             self._state_client = None
+        if self._obstacle_client is not None:
+            self._runtime.node.destroy_client(self._obstacle_client)
+            self._obstacle_client = None
         if self._tf_listener is not None:
             self._tf_listener.unregister()
             self._tf_listener = None
@@ -235,4 +301,21 @@ class MujocoClient:
         converted = tuple(float(value) for value in values)
         if not all(math.isfinite(value) for value in converted):
             raise ValueError('Velocity values must be finite numbers.')
+        return converted
+
+    @staticmethod
+    def _validate_obstacle(obstacle: ObstacleState) -> tuple[float, ...]:
+        values = (
+            obstacle.position.x,
+            obstacle.position.y,
+            obstacle.position.z,
+            obstacle.width,
+            obstacle.length,
+            obstacle.height,
+        )
+        converted = tuple(float(value) for value in values)
+        if not all(math.isfinite(value) for value in converted):
+            raise ValueError('Obstacle values must be finite numbers.')
+        if any(value <= 0.0 for value in converted[3:]):
+            raise ValueError('Obstacle dimensions must be greater than zero.')
         return converted

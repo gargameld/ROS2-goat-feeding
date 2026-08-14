@@ -81,6 +81,8 @@ def generate_launch_description():
                 'map_server',
                 'amcl',
                 'controller_server',
+                'velocity_smoother',
+                'collision_monitor',
                 'planner_server',
                 'behavior_server',
                 'bt_navigator',

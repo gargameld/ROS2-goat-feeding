@@ -39,7 +39,7 @@
          base_class_type="mujoco_ros2_control_plugins::MuJoCoROS2ControlPluginBase">
     <description>
       Provides services for inspecting and managing the simulation, including a thread-safe
-      get_robot_state service that returns the current MuJoCo qpos values.
+      state service and an mjSpec-based service for resizing and moving a managed floor box.
     </description>
   </class>
 </library>

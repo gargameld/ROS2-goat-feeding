@@ -14,7 +14,7 @@ Full documentation is maintained in RST format:
 |---|---|
 | `HeartbeatPublisherPlugin` | Publishes a heartbeat string to `/mujoco_heartbeat` at 1 Hz |
 | `ExternalWrenchPlugin` | Applies external wrenches to MuJoCo bodies via a ROS 2 service |
-| `SimulationManagementPlugin` | Provides thread-safe services for inspecting and managing the simulation |
+| `SimulationManagementPlugin` | Returns robot/box state and recompiles managed box size and position |
 
 ## Quick Start
 

@@ -5,19 +5,19 @@
   <xacro:arg name="physics_sync_safety_interval" default="0.002"/>
   <xacro:arg name="extra_wait_time" default="0"/>
 
-  <xacro:macro name="mujoco_ros2_control_config" params="">
-
-  <ros2_control name="MujocoSystem" type="system">
+  <xacro:macro name="mujoco_ros2_control_config"
+               params="write_frequency physics_sync_safety_interval extra_wait_time">
+    <ros2_control name="MujocoSystem" type="system">
       <hardware>
         <plugin>mujoco_ros2_control/MujocoSystemInterface</plugin>
         <param name="mujoco_model">/config/workspace/src/robot_description/mjcf/scene.xml</param>
         <param name="sim_speed_factor">0.5</param>
         <param name="headless">true</param>
-        <param name="write_frequency">$(arg write_frequency)</param>
+        <param name="write_frequency">100</param>
+        <param name="physics_sync_safety_interval">0</param>
+        <param name="extra_wait_time">1</param>
         <!-- All MuJoCo camera streams are rendered and published at this rate. -->
         <param name="camera_publish_rate">1.0</param>
-        <param name="physics_sync_safety_interval">$(arg physics_sync_safety_interval)</param>
-        <param name="extra_wait_time">$(arg extra_wait_time)</param>
       </hardware>
 
       <!-- Four Wheel Joints -->

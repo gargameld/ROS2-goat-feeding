@@ -71,13 +71,13 @@ class FakeWindow:
         self.shown = True
 
 
-class FakeManager:
-    """Record manager lifecycle calls."""
+class FakeEventListener:
+    """Record GUI event-listener lifecycle calls."""
 
     instance = None
 
     def __init__(self, _client, _window):
-        """Create stopped manager state."""
+        """Create stopped event-listener state."""
         self.started = False
         self.stopped = False
         type(self).instance = self
@@ -91,6 +91,12 @@ class FakeManager:
         self.stopped = True
 
 
+class FakeSceneRefresher(FakeEventListener):
+    """Record scene-refresher lifecycle calls."""
+
+    instance = None
+
+
 def test_main_starts_and_stops_every_component(monkeypatch):
     """The entry point filters ROS args and owns every component lifecycle."""
     monkeypatch.setattr(application_main, 'QApplication', FakeApplication)
@@ -99,9 +105,10 @@ def test_main_starts_and_stops_every_component(monkeypatch):
     monkeypatch.setattr(application_main, 'TopViewWindow', FakeWindow)
     monkeypatch.setattr(
         application_main,
-        'SimulationInterfaceManager',
-        FakeManager,
+        'EventListener',
+        FakeEventListener,
     )
+    monkeypatch.setattr(application_main, 'SceneRefresher', FakeSceneRefresher)
 
     result = application_main.main([
         '--ros-args', '-r', '__node:=test_simulation_interface',
@@ -112,5 +119,7 @@ def test_main_starts_and_stops_every_component(monkeypatch):
     assert FakeRuntime.instance.ros_args[0] == '--ros-args'
     assert FakeRuntime.instance.stopped
     assert FakeClient.instance.closed
-    assert FakeManager.instance.started
-    assert FakeManager.instance.stopped
+    assert FakeEventListener.instance.started
+    assert FakeEventListener.instance.stopped
+    assert FakeSceneRefresher.instance.started
+    assert FakeSceneRefresher.instance.stopped

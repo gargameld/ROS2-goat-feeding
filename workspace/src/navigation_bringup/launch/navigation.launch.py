@@ -18,6 +18,12 @@ def generate_launch_description():
     bt_navigator_params = PathJoinSubstitution(
         [package_share, 'config', 'bt_navigator.yaml']
     )
+    velocity_smoother_params = PathJoinSubstitution(
+        [package_share, 'config', 'velocity_smoother.yaml']
+    )
+    collision_monitor_params = PathJoinSubstitution(
+        [package_share, 'config', 'collision_monitor.yaml']
+    )
     navigate_to_pose_tree = PathJoinSubstitution(
         [package_share, 'behavior_trees', 'navigate_to_pose.xml']
     )
@@ -30,8 +36,26 @@ def generate_launch_description():
             output='screen',
             parameters=[controller_params, {'use_sim_time': True}],
             remappings=[
-                ('cmd_vel', '/mecanum_drive_controller/reference'),
+                ('cmd_vel', '/cmd_vel_nav'),
             ],
+        ),
+        Node(
+            package='nav2_velocity_smoother',
+            executable='velocity_smoother',
+            name='velocity_smoother',
+            output='screen',
+            parameters=[velocity_smoother_params, {'use_sim_time': True}],
+            remappings=[
+                ('cmd_vel', '/cmd_vel_nav'),
+                ('cmd_vel_smoothed', '/cmd_vel_smoothed'),
+            ],
+        ),
+        Node(
+            package='nav2_collision_monitor',
+            executable='collision_monitor',
+            name='collision_monitor',
+            output='screen',
+            parameters=[collision_monitor_params, {'use_sim_time': True}],
         ),
         Node(
             package='nav2_planner',
@@ -59,5 +83,8 @@ def generate_launch_description():
             name='behavior_server',
             output='screen',
             parameters=[bt_navigator_params, {'use_sim_time': True}],
+            remappings=[
+                ('cmd_vel', '/cmd_vel_nav'),
+            ],
         ),
     ])

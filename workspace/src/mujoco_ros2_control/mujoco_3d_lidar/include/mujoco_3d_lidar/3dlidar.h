@@ -20,6 +20,7 @@
 #ifndef MUJOCO_PLUGIN_SENSOR_LIDAR_H_
 #define MUJOCO_PLUGIN_SENSOR_LIDAR_H_
 
+#include <array>
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
@@ -70,7 +71,8 @@ public:
 
 private:
   Lidar(const mjModel* m, mjData* d, int instance, int resolution[2], mjtNum azimuth_range[2],
-        mjtNum elevation_range[2], mjtNum max_range, mjtNum min_range, mjtNum update_rate, bool async);
+        mjtNum elevation_range[2], mjtNum max_range, mjtNum min_range, mjtNum update_rate, bool async,
+        const std::array<mjtByte, mjNGROUP>& geom_group);
 
   void Raycast(const mjModel* m, mjData* d, const mjtNum* rotated_vecs, mjtNum* output);
 
@@ -83,6 +85,7 @@ private:
   int sensor_address_;        // Address in the model based on sensor id
   int dimension_;             // Dimension of the sensor
   int resolution_[2];         // horizontal and vertical resolution
+  std::array<mjtByte, mjNGROUP> geom_group_;  // MuJoCo geom groups included in raycasts
   mjtNum fov_[2];             // horizontal and vertical field of view, in degrees
   mjtNum max_range_;          // max range of lidar
   mjtNum min_range_;          // min range of lidar

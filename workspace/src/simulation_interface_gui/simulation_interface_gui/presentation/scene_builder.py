@@ -119,6 +119,12 @@ class SceneBuilder:
             joint_markers=arm_points[:-1],
             world_boundaries=self._world_boundaries,
             obstacle_polygons=self._obstacle_polygons,
+            managed_obstacle_polygon=_rectangle(
+                snapshot.obstacle.position.x,
+                snapshot.obstacle.position.y,
+                snapshot.obstacle.width / 2.0,
+                snapshot.obstacle.length / 2.0,
+            ),
         )
 
 

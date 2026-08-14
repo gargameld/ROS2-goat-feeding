@@ -1,0 +1,25 @@
+velocity_smoother:
+  ros__parameters:
+    use_sim_time: true
+    enable_stamped_cmd_vel: true
+    stamp_smoothed_velocity_with_smoothing_time: true
+
+    # Match ros2_control's 100 Hz loop for smaller command increments.
+    smoothing_frequency: 100.0
+    # Limit each axis independently so yaw corrections cannot throttle X/Y.
+    scale_velocities: false
+    feedback: "OPEN_LOOP"
+
+    # Keep the same symmetric holonomic limits as MPPI.
+    max_velocity: [0.80, 0.80, 1.50]
+    min_velocity: [-0.80, -0.80, -1.50]
+
+    # Match MPPI's acceleration model so its collision predictions reflect
+    # the commands that are actually sent to the drivetrain.
+    max_accel: [1.20, 1.20, 3.00]
+    max_decel: [-1.20, -1.20, -3.00]
+    deadband_velocity: [0.0, 0.0, 0.0]
+    velocity_timeout: 0.30
+
+    odom_topic: /odometry/filtered
+    odom_duration: 0.1
