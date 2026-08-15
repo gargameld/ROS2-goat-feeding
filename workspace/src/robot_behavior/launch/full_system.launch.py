@@ -69,6 +69,27 @@ def generate_launch_description():
         )
     )
 
+    move_group = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([
+                FindPackageShare('moveit_config'),
+                'launch',
+                'move_group.launch.py',
+            ])
+        )
+    )
+
+    arm_behavior = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([
+                FindPackageShare('arm_behavior'),
+                'launch',
+                'arm_behavior.launch.py',
+            ])
+        ),
+        launch_arguments={'use_sim_time': 'true'}.items(),
+    )
+
     lifecycle_manager = Node(
         package='nav2_lifecycle_manager',
         executable='lifecycle_manager',
@@ -106,5 +127,7 @@ def generate_launch_description():
         ekf,
         localization,
         navigation,
+        move_group,
+        arm_behavior,
         start_lifecycle_manager_after_controllers,
     ])

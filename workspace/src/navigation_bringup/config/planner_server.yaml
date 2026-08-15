@@ -39,7 +39,7 @@ global_costmap:
       # Its circumscribed radius is 0.950 m. Planning with that circle makes
       # every accepted path executable without entering StopZone, regardless
       # of the chassis orientation chosen independently by the omni controller.
-      robot_radius: 0.95
+      robot_radius: 0.4
       footprint_padding: 0.0
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
 

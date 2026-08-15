@@ -10,7 +10,7 @@
 
   
 
-  <!-- Attach the gripper base to the UR5e tool frame -->
+  <!-- Attach the gripper base to the UR5e tool frame. -->
   <joint name="tool0_to_robotiq_85_base" type="fixed">
     <parent link="arm_tool0"/>
     <child link="robotiq_85_base_link"/>

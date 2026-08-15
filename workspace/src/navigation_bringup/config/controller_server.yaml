@@ -32,28 +32,30 @@ controller_server:
       model_dt: 0.05
       batch_size: 2000
       iteration_count: 1
-      # Sample longitudinal and lateral motion equally for the mecanum base.
-      vx_std: 0.60
-      vy_std: 0.60
-      wz_std: 0.80
+      # Keep rollouts close to the current command. Large velocity perturbations
+      # make consecutive MPPI cycles choose alternating lateral corrections.
+      vx_std: 0.30
+      vy_std: 0.30
+      wz_std: 0.10
       # Symmetric omnidirectional speed and acceleration limits.
-      vx_max: 0.80
-      vx_min: -0.80
-      vy_max: 0.80
-      wz_max: 1.50
+      vx_max: 1.50
+      vx_min: -1.50
+      vy_max: 1.50
+      wz_max: 2.00
       # Keep MPPI responsive; the downstream smoother owns the gentle ramp.
-      ax_max: 1.20
-      ax_min: -1.20
-      ay_max: 1.20
-      ay_min: -1.20
-      az_max: 3.00
+      ax_max: 2.50
+      ax_min: -2.50
+      ay_max: 2.50
+      ay_min: -2.50
+      az_max: 4.00
       prune_distance: 1.00
       # Bound closest-point searches to the local portion of a detour so a
       # later segment across an obstacle cannot become the tracking target.
       max_robot_pose_search_dist: 1.00
       transform_tolerance: 5.0
-      # Favor the best jointly translating-and-rotating samples more strongly.
-      temperature: 0.10
+      # Blend several low-cost rollouts instead of abruptly switching to a
+      # different single winner at each controller cycle.
+      temperature: 0.20
       # Reduce the control-effort penalty so faster valid trajectories win.
       gamma: 0.003
       motion_model: "Omni"
@@ -67,6 +69,7 @@ controller_server:
         - GoalAngleCritic
         - PathAlignCritic
         - PathFollowCritic
+        - TwirlingCritic
       ConstraintCritic:
         enabled: true
         cost_power: 1
@@ -88,25 +91,26 @@ controller_server:
       GoalCritic:
         enabled: true
         cost_power: 1
-        # Overlap goal progress with path following to avoid the long creep
-        # observed from roughly 1.1 m to 0.65 m remaining.
+        # Apply the same strong goal-progress incentive along the whole arena,
+        # rather than only after the remaining path is 1.5 m or shorter.
         cost_weight: 30.0
-        threshold_to_consider: 1.5
+        threshold_to_consider: 10.0
       GoalAngleCritic:
         enabled: true
         cost_power: 1
-        # Converge on goal yaw while translating instead of rotating afterward.
-        cost_weight: 30.0
-        threshold_to_consider: 3.0
+        # Do not spend most of the route rotating toward the final yaw. Align
+        # during the final approach, after translation has done useful work.
+        cost_weight: 8.0
+        threshold_to_consider: 0.8
       PathAlignCritic:
         enabled: true
         cost_power: 1
         # The global planner replans around dynamic obstacles at 2 Hz, so MPPI
         # should closely execute that collision-free path rather than disable
         # alignment and independently cut across its obstacle-side corner.
-        cost_weight: 40.0
+        cost_weight: 100.0
         max_path_occupancy_ratio: 1.0
-        trajectory_point_step: 2
+        trajectory_point_step: 1
         # Keep path alignment active through goal acceptance (0.15 m) so the
         # optimizer does not briefly reverse an axis at a critic handoff.
         threshold_to_consider: 0.10
@@ -115,12 +119,17 @@ controller_server:
       PathFollowCritic:
         enabled: true
         cost_power: 1
-        # The installed critic documents that offsets greater than one create
-        # shortcutting. Track the next path point instead of a point beyond the
-        # obstacle-side bend.
-        cost_weight: 30.0
+        # Track the next path point. Looking several points ahead lets an omni
+        # base alternate between lateral shortcut candidates at each cycle.
+        cost_weight: 50.0
         offset_from_furthest: 1
         threshold_to_consider: 0.6
+      TwirlingCritic:
+        enabled: true
+        cost_power: 1
+        # An omni base can strafe along the route; avoid a speculative turn
+        # that must later be undone for the goal yaw.
+        cost_weight: 20.0
 local_costmap:
   local_costmap:
     ros__parameters:

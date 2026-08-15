@@ -62,7 +62,7 @@ private:
 
   const double write_period_seconds_;
   const double safety_time_interval_seconds_;
-  const std::chrono::milliseconds extra_wait_time_;
+  const std::chrono::duration<double, std::milli> extra_wait_time_;
 
   mutable std::mutex expected_write_time_mutex_;
   rclcpp::Time next_expected_write_time_{ 0, 0, RCL_ROS_TIME };

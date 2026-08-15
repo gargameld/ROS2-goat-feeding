@@ -8,7 +8,10 @@
   <license>Apache-2.0</license>
 
   <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>arm_behavior</exec_depend>
   <exec_depend>localization_bringup</exec_depend>
+  <exec_depend>moveit_config</exec_depend>
   <exec_depend>navigation_bringup</exec_depend>
   <exec_depend>nav2_lifecycle_manager</exec_depend>
   <exec_depend>robot_control</exec_depend>

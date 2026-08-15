@@ -23,4 +23,22 @@
 
   </xacro:ur_robot>
 
+  <!-- TCP frame attached to the gripper base. Adjust this fixed transform
+       to locate the desired task point without moving the gripper itself. -->
+  <link name="arm_tcp">
+    <visual>
+      <geometry>
+        <box size="0.02 0.02 0.02"/>
+      </geometry>
+      <material name="tcp_marker">
+        <color rgba="1 0 0 1"/>
+      </material>
+    </visual>
+  </link>
+  <joint name="robotiq_85_base_to_tcp" type="fixed">
+    <parent link="robotiq_85_base_link"/>
+    <child link="arm_tcp"/>
+    <origin xyz="0 0 0.1355" rpy="0 0 0"/>
+  </joint>
+
 </robot>

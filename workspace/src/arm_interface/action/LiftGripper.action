@@ -1,0 +1,7 @@
+# Positive vertical distance in metres, in the MoveIt planning frame.
+float64 distance
+---
+bool success
+string message
+---
+string state

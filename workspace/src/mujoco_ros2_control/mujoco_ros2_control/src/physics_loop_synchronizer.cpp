@@ -74,9 +74,10 @@ double extract_safety_interval(const hardware_interface::HardwareInfo& hardware_
   return interval;
 }
 
-std::chrono::milliseconds extract_extra_wait_time(const hardware_interface::HardwareInfo& hardware_info)
+std::chrono::duration<double, std::milli> extract_extra_wait_time(
+  const hardware_interface::HardwareInfo& hardware_info)
 {
-  constexpr auto default_extra_wait_time = std::chrono::milliseconds{ 0 };
+  constexpr auto default_extra_wait_time = std::chrono::duration<double, std::milli>{ 0.0 };
   const auto parameter = hardware_info.hardware_parameters.find("extra_wait_time");
   if (parameter == hardware_info.hardware_parameters.end())
   {
@@ -84,13 +85,13 @@ std::chrono::milliseconds extract_extra_wait_time(const hardware_interface::Hard
   }
 
   std::size_t parsed_characters = 0;
-  const long long milliseconds = std::stoll(parameter->second, &parsed_characters);
-  if (parsed_characters != parameter->second.size() || milliseconds < 0)
+  const double milliseconds = std::stod(parameter->second, &parsed_characters);
+  if (parsed_characters != parameter->second.size() || !std::isfinite(milliseconds) || milliseconds < 0.0)
   {
-    throw std::invalid_argument("Hardware parameter 'extra_wait_time' must be a non-negative integer");
+    throw std::invalid_argument("Hardware parameter 'extra_wait_time' must be a non-negative number of milliseconds");
   }
 
-  return std::chrono::milliseconds{ milliseconds };
+  return std::chrono::duration<double, std::milli>{ milliseconds };
 }
 
 void set_current_thread_to_low_priority()

@@ -1,0 +1,7 @@
+# Target pose of arm_tcp, expressed in the MoveIt planning frame.
+geometry_msgs/Pose target_pose
+---
+bool success
+string message
+---
+string state

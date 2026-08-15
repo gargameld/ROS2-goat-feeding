@@ -1,0 +1,22 @@
+/**:
+  ros__parameters:
+    planning_group: arm_planning_group
+    tcp_link: arm_tcp
+    home_pose: home_pose
+    payload:
+      id: lifted_payload
+      # Box dimensions [x, y, z] in metres. The box extends from arm_tcp
+      # along its positive Z axis and remains collision-checked after attachment.
+      box_dimensions: [0.10, 0.10, 0.15]
+      # Only these links may overlap the attached payload.
+      gripper_touch_links:
+        - arm_tcp
+        - robotiq_85_base_link
+        - left_inner_finger
+        - left_inner_knuckle
+        - left_outer_finger
+        - left_outer_knuckle
+        - right_inner_finger
+        - right_inner_knuckle
+        - right_outer_finger
+        - right_outer_knuckle
