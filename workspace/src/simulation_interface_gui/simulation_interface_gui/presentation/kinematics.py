@@ -80,7 +80,7 @@ class ArmKinematics:
         """
         Return chassis-relative joint and tool positions.
 
-        The fixed offsets and rotations match ``mjcf/mounted_arm.xml``. The
+        The fixed offsets and rotations match ``mujoco_model/mounted_arm.xml``. The
         returned tuple contains the six actuated joint origins followed by the
         gripper attachment point.
         """

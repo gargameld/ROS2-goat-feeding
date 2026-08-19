@@ -16,14 +16,22 @@
   </material>
 
   <!-- Base/chassis box.
-       This is the main base link of the full robot. -->
+       This is the main base link of the full robot.
+
+       base_link is the planar odometry frame: the EKF/AMCL stack publishes
+       map->odom->base_link with z=0 (two_d_mode). MuJoCo, however, spawns the
+       chassis body 0.26 m above the ground (robot.xml: chassis pos="0 0 0.26").
+       To keep the URDF/planning model at the true physical height while base_link
+       stays on the ground, every base_link child offset below includes that
+       0.26 m chassis height (e.g. chassis box 0.14 -> 0.40, wheels -0.1 -> 0.16,
+       arm mount 0.19 -> 0.45). -->
   <link name="base_link">
     <inertial>
       <!-- MuJoCo chassis box:
            size="0.5 0.40 0.05" means full size 1.00 x 0.80 x 0.10
            mass="10"
       -->
-      <origin xyz="0 0 0.14" rpy="0 0 0"/>
+      <origin xyz="0 0 0.40" rpy="0 0 0"/>
       <mass value="10.0"/>
       <inertia
         ixx="0.542"
@@ -35,7 +43,7 @@
     </inertial>
 
     <visual>
-      <origin xyz="0 0 0.14" rpy="0 0 0"/>
+      <origin xyz="0 0 0.40" rpy="0 0 0"/>
       <geometry>
         <box size="1.00 0.80 0.10"/>
       </geometry>
@@ -43,7 +51,7 @@
     </visual>
 
     <collision>
-      <origin xyz="0 0 0.14" rpy="0 0 0"/>
+      <origin xyz="0 0 0.40" rpy="0 0 0"/>
       <geometry>
         <box size="1.00 0.80 0.10"/>
       </geometry>
@@ -56,7 +64,7 @@
   <joint name="front_lidar_joint" type="fixed">
     <parent link="base_link"/>
     <child link="front_lidar_frame"/>
-    <origin xyz="0.4 0 0.2" rpy="0 0 0"/>
+    <origin xyz="0.4 0 0.46" rpy="0 0 0"/>
   </joint>
 
 
@@ -65,7 +73,7 @@
   <joint name="back_lidar_joint" type="fixed">
     <parent link="base_link"/>
     <child link="back_lidar_frame"/>
-    <origin xyz="-0.4 0 0.2" rpy="0 0 3.1415926535"/>
+    <origin xyz="-0.4 0 0.46" rpy="0 0 3.1415926535"/>
   </joint>
 
   <!-- ROS optical frame matching robot.xml's forward-facing camera:
@@ -75,7 +83,7 @@
   <joint name="front_camera_joint" type="fixed">
     <parent link="base_link"/>
     <child link="front_camera_frame"/>
-    <origin xyz="0.51 0 0.22"
+    <origin xyz="0.51 0 0.48"
             rpy="-1.57079632679 0 -1.57079632679"/>
   </joint>
 
@@ -84,25 +92,25 @@
   <xacro:mecanum_wheel
     prefix="fl"
     parent="base_link"
-    xyz="0.35 0.25 -0.1"
+    xyz="0.35 0.25 0.16"
     rpy="0 0 0"/>
 
   <xacro:mecanum_wheel
     prefix="rl"
     parent="base_link"
-    xyz="-0.35 0.25 -0.1"
+    xyz="-0.35 0.25 0.16"
     rpy="0 0 0"/>
 
   <xacro:mecanum_wheel
     prefix="fr"
     parent="base_link"
-    xyz="0.35 -0.25 -0.1"
+    xyz="0.35 -0.25 0.16"
     rpy="0 0 0"/>
 
   <xacro:mecanum_wheel
     prefix="rr"
     parent="base_link"
-    xyz="-0.35 -0.25 -0.1"
+    xyz="-0.35 -0.25 0.16"
     rpy="0 0 0"/>
 
   <!-- Attach the arm rigidly to the mobile base. -->
@@ -110,7 +118,11 @@
   <joint name="base_to_arm_base" type="fixed">
     <parent link="base_link"/>
     <child link="arm_mount_link"/>
-    <origin xyz="0 0 0.19" rpy="0 0 0"/>
+    <!-- MuJoCo's arm_base body (mounted_arm.xml) is mounted with quat="0 0 0 -1",
+         a 180 degree yaw relative to its parent body. Match it here so the URDF
+         kinematic chain agrees with the physical mount orientation.
+         z = 0.26 (chassis height) + 0.19 (chassis top to arm base) = 0.45. -->
+    <origin xyz="0 0 0.45" rpy="0 0 3.14159265358979"/>
   </joint>
   <xacro:mujoco_ros2_control_config
     write_frequency="$(arg write_frequency)"

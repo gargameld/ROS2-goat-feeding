@@ -233,6 +233,8 @@ perform periodic work; its ``update()`` implementation is empty.
      - ``~/get_robot_state`` (``mujoco_ros2_control_msgs/srv/GetRobotState``)
    * - **Service**
      - ``~/set_obstacle`` (``mujoco_ros2_control_msgs/srv/SetObstacle``)
+   * - **Service**
+     - ``~/throw_food`` (``mujoco_ros2_control_msgs/srv/ThrowFood``)
 
 The state-service request is empty. Its response contains ``float64[] qpos`` with all ``model->nq``
 generalized position values, plus the managed box's ``obstacle_position`` and full
@@ -242,6 +244,15 @@ generalized position values, plus the managed box's ``obstacle_position`` and fu
 ``obstacle`` geom in the retained ``mjSpec`` and invokes ``mj_recompile`` while holding the
 simulation mutex. The requested Z position is ignored; the geom centre is always placed at half
 its height so its bottom face remains on the floor.
+
+``throw_food`` teleports a free-floating food body into one of the numbered parking areas. The
+request carries the target ``parking_index`` (1..``parking_count``), the ``food_name`` of the body
+to move, an ``x``/``y`` position expressed in that parking's frame, and a 4-element ``orientation``
+quaternion in MuJoCo order (``w, x, y, z``). The position and orientation are composed with the
+parking body's current world pose; the world-frame drop height is taken from the
+``throw_food_height`` parameter (the requested Z is fixed). The handler rewrites the body's
+free-joint ``qpos`` and zeroes its ``qvel`` while holding the simulation mutex, so the item starts
+at rest. The orientation is normalised, so an un-normalised quaternion is accepted.
 
 **Example**
 
@@ -254,6 +265,10 @@ its height so its bottom face remains on the floor.
      mujoco_ros2_control_msgs/srv/SetObstacle \
      "{position: {x: 1.0, y: -2.0}, size: {x: 0.8, y: 1.2, z: 1.0}}"
 
+   ros2 service call /simulation_management/throw_food \
+     mujoco_ros2_control_msgs/srv/ThrowFood \
+     "{parking_index: 1, food_name: 'food_box', x: 0.25, y: 0.0, orientation: [1.0, 0.0, 0.0, 0.0]}"
+
 **Example configuration**
 
 .. code-block:: yaml
@@ -263,6 +278,8 @@ its height so its bottom face remains on the floor.
        mujoco_plugins:
          simulation_management:
            type: "mujoco_ros2_control_plugins/SimulationManagementPlugin"
+           throw_food_height: 0.3
+           parking_count: 4
 
 
 Usage

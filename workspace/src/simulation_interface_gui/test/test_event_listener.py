@@ -5,7 +5,8 @@ from concurrent.futures import Future
 from simulation_interface_gui.event_listener import EventListener
 from simulation_interface_gui.models import ObstacleState
 from simulation_interface_gui.models import Point3D
-from simulation_interface_gui.models import VelocityCommand
+from simulation_interface_gui.models import Quaternion
+from simulation_interface_gui.models import ThrowFoodCommand
 
 
 class FakeSignal:
@@ -26,7 +27,7 @@ class FakeWindow:
     """Provide GUI inputs and record displayed statuses."""
 
     def __init__(self):
-        self.velocity_command_requested = FakeSignal()
+        self.throw_food_requested = FakeSignal()
         self.obstacle_update_requested = FakeSignal()
         self.statuses = []
 
@@ -38,11 +39,11 @@ class FakeClient:
     """Record commands forwarded to the ROS client."""
 
     def __init__(self):
-        self.velocity_calls = []
+        self.throw_calls = []
         self.obstacle_calls = []
 
-    def change_cmd_vel(self, **values):
-        self.velocity_calls.append(values)
+    def throw_food(self, command):
+        self.throw_calls.append(command)
         future = Future()
         future.set_result(None)
         return future
@@ -54,21 +55,24 @@ class FakeClient:
         return future
 
 
-def test_listener_forwards_velocity_command():
-    """A GUI velocity signal is forwarded with named ROS fields."""
+def test_listener_forwards_throw_food_command():
+    """A GUI throw-food signal is forwarded to the ROS client."""
     client = FakeClient()
     window = FakeWindow()
     listener = EventListener(client, window)
     listener.start()
-
-    window.velocity_command_requested.emit(
-        VelocityCommand(linear_x=1.25, linear_y=-0.5, angular_z=0.75)
+    command = ThrowFoodCommand(
+        food_name='box',
+        parking_index=2,
+        x=0.25,
+        y=-0.1,
+        orientation=Quaternion(1.0, 0.0, 0.0, 0.0),
     )
 
-    assert client.velocity_calls[-1]['linear_x'] == 1.25
-    assert client.velocity_calls[-1]['linear_y'] == -0.5
-    assert client.velocity_calls[-1]['angular_z'] == 0.75
-    assert window.statuses[-1] == ('Velocity command sent.', False)
+    window.throw_food_requested.emit(command)
+
+    assert client.throw_calls[-1] == command
+    assert window.statuses[-1] == ('Food thrown.', False)
 
 
 def test_listener_forwards_obstacle_update():

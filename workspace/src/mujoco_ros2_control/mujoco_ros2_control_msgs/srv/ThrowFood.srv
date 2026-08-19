@@ -1,0 +1,9 @@
+# Teleports a free-floating food body into a parking area.
+int32 parking_index        # Target parking, 1-4.
+string food_name           # Name of the food body to throw, e.g. "food_box".
+float64 x                  # X in the parking frame (origin at the parking centre).
+float64 y                  # Y in the parking frame (origin at the parking centre).
+float64[4] orientation     # Orientation quaternion in MuJoCo order (w, x, y, z).
+---
+bool success
+string message

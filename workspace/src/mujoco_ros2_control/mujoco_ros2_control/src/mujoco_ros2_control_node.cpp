@@ -176,8 +176,8 @@ void run_control_loop(
       const auto wall_deadline = std::chrono::steady_clock::now() + period;
 
       // Normally /clock reaches simulation_deadline first. The steady-clock
-      // deadline is a watchdog that guarantees another read/update/write cycle
-      // when the physics synchronizer is waiting for a fresh command.
+      // deadline is a watchdog that guarantees another control-loop cycle when
+      // the physics synchronizer is waiting for a fresh command.
       while (
         rclcpp::ok() && get_controller_manager_time(controller_manager) < simulation_deadline &&
         std::chrono::steady_clock::now() < wall_deadline)

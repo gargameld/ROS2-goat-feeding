@@ -24,7 +24,7 @@ def default_paths():
     """Return the source model and generated-map paths."""
     package_path = Path(__file__).resolve().parents[1]
     source_path = package_path.parent
-    model_path = source_path / "robot_description" / "mjcf" / "scene.xml"
+    model_path = source_path.parent / "mujoco_model" / "scene.xml"
     output_path = package_path / "maps" / "mujoco_arena.pgm"
     return model_path, output_path
 

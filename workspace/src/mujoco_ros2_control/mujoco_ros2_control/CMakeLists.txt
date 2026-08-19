@@ -8,6 +8,7 @@ find_package(ros2_control_cmake REQUIRED)
 find_package(ament_cmake REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 find_package(controller_manager REQUIRED)
+find_package(controller_manager_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(fmt REQUIRED)
 find_package(glfw3 REQUIRED)
@@ -185,6 +186,7 @@ PUBLIC
   hardware_interface::hardware_interface
   rclcpp::rclcpp
   rclcpp_lifecycle::rclcpp_lifecycle
+  ${controller_manager_msgs_TARGETS}
   ${nav_msgs_TARGETS}
   ${sensor_msgs_TARGETS}
   ${mujoco_ros2_control_msgs_TARGETS}
@@ -234,6 +236,7 @@ install(DIRECTORY include/ DESTINATION include)
 add_executable(ros2_control_node src/mujoco_ros2_control_node.cpp)
 target_link_libraries(ros2_control_node PUBLIC
   controller_manager::controller_manager
+  ${controller_manager_msgs_TARGETS}
 )
 install(
   TARGETS ros2_control_node

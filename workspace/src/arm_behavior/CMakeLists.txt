@@ -22,7 +22,11 @@ add_executable(arm_behavior_node
   src/payload_manager.cpp
   src/payload_service_server.cpp
 )
+add_executable(environment_loader
+  src/environment_loader.cpp
+)
 target_compile_features(arm_behavior_node PUBLIC cxx_std_17)
+target_compile_features(environment_loader PUBLIC cxx_std_17)
 target_include_directories(arm_behavior_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
@@ -36,8 +40,18 @@ ament_target_dependencies(arm_behavior_node
   rclcpp_action
   shape_msgs
 )
+ament_target_dependencies(environment_loader
+  geometry_msgs
+  moveit_msgs
+  rclcpp
+  shape_msgs
+)
 
-install(TARGETS arm_behavior_node
+install(TARGETS arm_behavior_node environment_loader
+  DESTINATION lib/${PROJECT_NAME}
+)
+install(PROGRAMS
+  scripts/compare_pose_frames.py
   DESTINATION lib/${PROJECT_NAME}
 )
 install(DIRECTORY config launch

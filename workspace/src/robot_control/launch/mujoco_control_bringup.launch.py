@@ -55,7 +55,7 @@ def load_extra_wait_time(controllers_file):
 
 def generate_launch_description():
     mujoco_start_delay = LaunchConfiguration("mujoco_start_delay")
-    mujoco_model_path = "src/robot_description/mjcf/scene.xml"
+    mujoco_model_path = "mujoco_model/scene.xml"
 
     declare_mujoco_start_delay = DeclareLaunchArgument(
         "mujoco_start_delay",

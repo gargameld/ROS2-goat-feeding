@@ -2,17 +2,17 @@
 
 from concurrent.futures import Future
 import math
-from typing import Sequence
 
-from geometry_msgs.msg import TwistStamped
 from mujoco_ros2_control_msgs.srv import GetRobotState
 from mujoco_ros2_control_msgs.srv import SetObstacle
+from mujoco_ros2_control_msgs.srv import ThrowFood
 from rclpy.time import Time
 
 from simulation_interface_gui.models import ObstacleState
 from simulation_interface_gui.models import Point3D
 from simulation_interface_gui.models import Pose2D
 from simulation_interface_gui.models import RobotState
+from simulation_interface_gui.models import ThrowFoodCommand
 from simulation_interface_gui.ros.ros_runtime import RosRuntime
 from tf2_ros import Buffer
 from tf2_ros import TransformListener
@@ -23,74 +23,77 @@ class ServiceUnavailableError(RuntimeError):
 
 
 class MujocoClient:
-    """Publish velocity commands and request live MuJoCo state."""
+    """Throw food, edit obstacles, and request live MuJoCo state."""
 
     def __init__(
         self,
         runtime: RosRuntime,
         *,
-        cmd_vel_topic: str = '/mecanum_drive_controller/reference',
         robot_state_service: str = '/simulation_management/get_robot_state',
         obstacle_service: str = '/simulation_management/set_obstacle',
+        throw_food_service: str = '/simulation_management/throw_food',
+        food_body_prefix: str = 'food_',
         map_frame: str = 'map',
         odom_frame: str = 'odom',
         base_frame: str = 'base_link',
-        cmd_vel_publish_period: float = 0.05,
     ) -> None:
-        """Create the ROS publisher and service client on the ROS thread."""
-        if (
-            not math.isfinite(cmd_vel_publish_period)
-            or cmd_vel_publish_period <= 0.0
-        ):
-            raise ValueError('The velocity publish period must be positive.')
+        """Create the ROS service clients on the ROS thread."""
         self._runtime = runtime
-        self._cmd_vel_topic = cmd_vel_topic
         self._robot_state_service = robot_state_service
         self._obstacle_service = obstacle_service
+        self._throw_food_service = throw_food_service
+        self._food_body_prefix = food_body_prefix
         self._map_frame = map_frame
         self._odom_frame = odom_frame
         self._base_frame = base_frame
-        self._cmd_vel_publish_period = cmd_vel_publish_period
-        self._publisher = None
-        self._command_timer = None
         self._state_client = None
         self._obstacle_client = None
+        self._throw_food_client = None
         self._tf_buffer = None
         self._tf_listener = None
-        self._current_velocity_values: tuple[float, ...] | None = None
         self._closed = False
         self._ready = runtime.submit(self._initialize)
 
-    def change_cmd_vel(
-        self,
-        linear_x: float = 0.0,
-        linear_y: float = 0.0,
-        linear_z: float = 0.0,
-        angular_x: float = 0.0,
-        angular_y: float = 0.0,
-        angular_z: float = 0.0,
-    ) -> Future[None]:
-        """
-        Queue a new ``TwistStamped`` controller reference for publication.
+    def throw_food(self, command: ThrowFoodCommand) -> Future[None]:
+        """Request that a food body be teleported into a parking area."""
+        values = self._validate_throw_food(command)
+        result: Future[None] = Future()
 
-        Values are copied before scheduling, so callers may safely invoke this
-        method from a GUI event handler.
-        """
-        values = self._validate_values((
-            linear_x,
-            linear_y,
-            linear_z,
-            angular_x,
-            angular_y,
-            angular_z,
-        ))
+        def request_throw() -> None:
+            if not result.set_running_or_notify_cancel():
+                return
+            try:
+                self._ensure_open()
+                if not self._throw_food_client.service_is_ready():
+                    raise ServiceUnavailableError(
+                        f'ROS service {self._throw_food_service!r} is unavailable.'
+                    )
+                request = ThrowFood.Request()
+                request.parking_index = values[0]
+                request.food_name = values[1]
+                request.x, request.y = values[2:4]
+                request.orientation = list(values[4])
+                response_future = self._throw_food_client.call_async(request)
+                response_future.add_done_callback(finish_request)
+            except BaseException as error:
+                result.set_exception(error)
 
-        def publish() -> None:
-            self._ensure_open()
-            self._current_velocity_values = values
-            self._publish_velocity(values)
+        def finish_request(response_future: object) -> None:
+            try:
+                response = response_future.result()
+                if response is None:
+                    raise RuntimeError('The throw-food service returned no response.')
+                if not response.success:
+                    raise RuntimeError(response.message or 'Throwing food failed.')
+                result.set_result(None)
+            except BaseException as error:
+                result.set_exception(error)
 
-        return self._runtime.submit(publish)
+        try:
+            self._runtime.submit(request_throw)
+        except BaseException as error:
+            result.set_exception(error)
+        return result
 
     def get_robot_state(self) -> Future[RobotState]:
         """Request MuJoCo robot and obstacle state through a GUI-safe future."""
@@ -219,15 +222,6 @@ class MujocoClient:
         return self._runtime.submit(self._close_on_ros_thread)
 
     def _initialize(self) -> None:
-        self._publisher = self._runtime.node.create_publisher(
-            TwistStamped,
-            self._cmd_vel_topic,
-            10,
-        )
-        self._command_timer = self._runtime.node.create_timer(
-            self._cmd_vel_publish_period,
-            self._republish_velocity,
-        )
         self._state_client = self._runtime.node.create_client(
             GetRobotState,
             self._robot_state_service,
@@ -235,6 +229,10 @@ class MujocoClient:
         self._obstacle_client = self._runtime.node.create_client(
             SetObstacle,
             self._obstacle_service,
+        )
+        self._throw_food_client = self._runtime.node.create_client(
+            ThrowFood,
+            self._throw_food_service,
         )
         self._tf_buffer = Buffer()
         self._tf_listener = TransformListener(
@@ -254,37 +252,18 @@ class MujocoClient:
         )
         return Pose2D(float(translation.x), float(translation.y), yaw)
 
-    def _republish_velocity(self) -> None:
-        if self._current_velocity_values is not None and not self._closed:
-            self._publish_velocity(self._current_velocity_values)
-
-    def _publish_velocity(self, values: tuple[float, ...]) -> None:
-        message = TwistStamped()
-        message.header.stamp = self._runtime.node.get_clock().now().to_msg()
-        message.twist.linear.x, message.twist.linear.y = values[:2]
-        message.twist.linear.z = values[2]
-        message.twist.angular.x, message.twist.angular.y = values[3:5]
-        message.twist.angular.z = values[5]
-        self._publisher.publish(message)
-
     def _close_on_ros_thread(self) -> None:
         if self._closed:
             return
-        if self._publisher is not None and self._current_velocity_values is not None:
-            self._publish_velocity((0.0,) * 6)
-            self._current_velocity_values = None
-        if self._command_timer is not None:
-            self._runtime.node.destroy_timer(self._command_timer)
-            self._command_timer = None
-        if self._publisher is not None:
-            self._runtime.node.destroy_publisher(self._publisher)
-            self._publisher = None
         if self._state_client is not None:
             self._runtime.node.destroy_client(self._state_client)
             self._state_client = None
         if self._obstacle_client is not None:
             self._runtime.node.destroy_client(self._obstacle_client)
             self._obstacle_client = None
+        if self._throw_food_client is not None:
+            self._runtime.node.destroy_client(self._throw_food_client)
+            self._throw_food_client = None
         if self._tf_listener is not None:
             self._tf_listener.unregister()
             self._tf_listener = None
@@ -296,12 +275,31 @@ class MujocoClient:
         if self._closed:
             raise RuntimeError('The MuJoCo client is closed.')
 
-    @staticmethod
-    def _validate_values(values: Sequence[float]) -> tuple[float, ...]:
-        converted = tuple(float(value) for value in values)
-        if not all(math.isfinite(value) for value in converted):
-            raise ValueError('Velocity values must be finite numbers.')
-        return converted
+    def _validate_throw_food(
+        self, command: ThrowFoodCommand
+    ) -> tuple[int, str, float, float, tuple[float, float, float, float]]:
+        name = command.food_name.strip()
+        if not name:
+            raise ValueError('The food object name must not be empty.')
+        body_name = (
+            name if name.startswith(self._food_body_prefix)
+            else self._food_body_prefix + name
+        )
+        parking_index = int(command.parking_index)
+        planar = (float(command.x), float(command.y))
+        if not all(math.isfinite(value) for value in planar):
+            raise ValueError('The throw x/y position must be finite numbers.')
+        orientation = (
+            float(command.orientation.w),
+            float(command.orientation.x),
+            float(command.orientation.y),
+            float(command.orientation.z),
+        )
+        if not all(math.isfinite(value) for value in orientation):
+            raise ValueError('The orientation quaternion must be finite numbers.')
+        if all(value == 0.0 for value in orientation):
+            raise ValueError('The orientation quaternion must be non-zero.')
+        return (parking_index, body_name, planar[0], planar[1], orientation)
 
     @staticmethod
     def _validate_obstacle(obstacle: ObstacleState) -> tuple[float, ...]:

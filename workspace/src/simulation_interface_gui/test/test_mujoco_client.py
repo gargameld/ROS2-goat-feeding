@@ -7,20 +7,10 @@ import pytest
 
 from simulation_interface_gui.models import ObstacleState
 from simulation_interface_gui.models import Point3D
+from simulation_interface_gui.models import Quaternion
+from simulation_interface_gui.models import ThrowFoodCommand
 from simulation_interface_gui.ros.mujoco_client import MujocoClient
 from simulation_interface_gui.ros.mujoco_client import ServiceUnavailableError
-
-
-class FakePublisher:
-    """Record published messages."""
-
-    def __init__(self):
-        """Create an empty message list."""
-        self.messages = []
-
-    def publish(self, message):
-        """Record one message."""
-        self.messages.append(message)
 
 
 class FakeServiceClient:
@@ -59,49 +49,48 @@ class FakeObstacleServiceClient(FakeServiceClient):
         return super().call_async(request)
 
 
+class FakeThrowFoodServiceClient(FakeServiceClient):
+    """Record throw-food requests and return a successful response."""
+
+    def __init__(self):
+        super().__init__()
+        self.requests = []
+        self.response = SimpleNamespace(success=True, message='thrown')
+
+    def call_async(self, request):
+        self.requests.append(request)
+        return super().call_async(request)
+
+
+class FakeThrowFoodRequest:
+    """Capture throw-food request fields set by the client."""
+
+    def __init__(self):
+        self.parking_index = 0
+        self.food_name = ''
+        self.x = 0.0
+        self.y = 0.0
+        self.orientation = [0.0, 0.0, 0.0, 0.0]
+
+
 class FakeNode:
     """Provide the node operations used by ``MujocoClient``."""
 
     def __init__(self):
         """Create fake ROS entities."""
-        self.publisher = FakePublisher()
         self.state_client = FakeServiceClient()
         self.obstacle_client = FakeObstacleServiceClient()
+        self.throw_food_client = FakeThrowFoodServiceClient()
         self.client = self.state_client
-        self.publisher_message_type = None
-        self.publisher_topic = None
-        self.timer_callback = None
-        self.timer_period = None
-        self.timer_destroyed = False
         self.service_names = []
-        self.stamp = SimpleNamespace(sec=12, nanosec=34)
-
-    def create_publisher(self, message_type, topic, _depth):
-        """Return the fake publisher."""
-        self.publisher_message_type = message_type
-        self.publisher_topic = topic
-        return self.publisher
-
-    def get_clock(self):
-        """Return a clock that provides a deterministic ROS timestamp."""
-        time = SimpleNamespace(to_msg=lambda: self.stamp)
-        return SimpleNamespace(now=lambda: time)
-
-    def create_timer(self, period, callback):
-        """Record the periodic command publisher."""
-        self.timer_period = period
-        self.timer_callback = callback
-        return callback
-
-    def destroy_timer(self, _timer):
-        """Record timer destruction."""
-        self.timer_destroyed = True
 
     def create_client(self, service_type, service_name):
-        """Return the fake service client."""
+        """Return the fake service client for the requested service type."""
         self.service_names.append(service_name)
         if service_type.__name__ == 'SetObstacle':
             return self.obstacle_client
+        if service_type.__name__ == 'ThrowFood':
+            return self.throw_food_client
         return self.state_client
 
     def create_subscription(self, *_args, **_kwargs):
@@ -110,9 +99,6 @@ class FakeNode:
 
     def destroy_subscription(self, _subscription):
         """Accept TF-listener subscription destruction."""
-
-    def destroy_publisher(self, _publisher):
-        """Accept publisher destruction."""
 
     def destroy_client(self, _client):
         """Accept client destruction."""
@@ -142,63 +128,91 @@ def client_and_runtime():
     return MujocoClient(runtime), runtime
 
 
-def test_change_cmd_vel_maps_all_twist_fields(client_and_runtime):
-    """The six GUI velocity fields are mapped to one stamped reference."""
+@pytest.fixture(autouse=True)
+def _throw_food_request(monkeypatch):
+    """Replace the ROS throw-food request with a lightweight stand-in."""
+    monkeypatch.setattr(
+        'simulation_interface_gui.ros.mujoco_client.ThrowFood',
+        SimpleNamespace(Request=FakeThrowFoodRequest),
+    )
+
+
+def test_throw_food_maps_command_and_adds_prefix(client_and_runtime):
+    """A GUI command becomes one prefixed throw-food service request."""
     client, runtime = client_and_runtime
 
-    client.change_cmd_vel(1, 2, 3, 4, 5, 6).result()
+    client.throw_food(ThrowFoodCommand(
+        food_name='box',
+        parking_index=2,
+        x=0.25,
+        y=-0.1,
+        orientation=Quaternion(1.0, 0.0, 0.0, 0.0),
+    )).result()
 
-    message = runtime.node.publisher.messages[-1]
-    assert message.header.stamp is runtime.node.stamp
-    assert (
-        message.twist.linear.x,
-        message.twist.linear.y,
-        message.twist.linear.z,
-    ) == (1, 2, 3)
-    assert (
-        message.twist.angular.x,
-        message.twist.angular.y,
-        message.twist.angular.z,
-    ) == (4, 5, 6)
-
-
-def test_client_uses_mecanum_controller_reference_topic(client_and_runtime):
-    """The default publisher matches the Jazzy mecanum command interface."""
-    _client, runtime = client_and_runtime
-
-    assert runtime.node.publisher_message_type.__name__ == 'TwistStamped'
-    assert runtime.node.publisher_topic == '/mecanum_drive_controller/reference'
+    request = runtime.node.throw_food_client.requests[-1]
+    assert request.parking_index == 2
+    assert request.food_name == 'food_box'
+    assert (request.x, request.y) == (0.25, -0.1)
+    assert list(request.orientation) == [1.0, 0.0, 0.0, 0.0]
 
 
-def test_velocity_command_is_republished_for_the_controller(client_and_runtime):
-    """A selected command remains available across controller updates."""
+def test_throw_food_keeps_existing_prefix(client_and_runtime):
+    """A name that already carries the prefix is not doubled."""
     client, runtime = client_and_runtime
-    client.change_cmd_vel(linear_x=1.5).result()
 
-    runtime.node.timer_callback()
+    client.throw_food(ThrowFoodCommand(
+        food_name='food_box', parking_index=1, x=0.0, y=0.0,
+    )).result()
 
-    assert runtime.node.timer_period == pytest.approx(0.05)
-    assert len(runtime.node.publisher.messages) == 2
-    assert runtime.node.publisher.messages[-1].twist.linear.x == 1.5
-
-
-def test_close_publishes_stop_and_destroys_command_timer(client_and_runtime):
-    """Closing the GUI leaves the velocity controller with a stop command."""
-    client, runtime = client_and_runtime
-    client.change_cmd_vel(linear_x=1.0).result()
-
-    client.close().result()
-
-    assert runtime.node.publisher.messages[-1].twist.linear.x == 0.0
-    assert runtime.node.timer_destroyed
+    assert runtime.node.throw_food_client.requests[-1].food_name == 'food_box'
 
 
-def test_change_cmd_vel_rejects_non_finite_values(client_and_runtime):
-    """Invalid textbox values are rejected before publishing."""
+def test_throw_food_rejects_empty_name(client_and_runtime):
+    """An empty food name is rejected before any service call."""
     client, _runtime = client_and_runtime
 
     with pytest.raises(ValueError):
-        client.change_cmd_vel(linear_x=float('nan'))
+        client.throw_food(ThrowFoodCommand(
+            food_name='   ', parking_index=1, x=0.0, y=0.0,
+        ))
+
+
+def test_throw_food_rejects_zero_orientation(client_and_runtime):
+    """A degenerate zero quaternion is rejected before any service call."""
+    client, _runtime = client_and_runtime
+
+    with pytest.raises(ValueError):
+        client.throw_food(ThrowFoodCommand(
+            food_name='box',
+            parking_index=1,
+            x=0.0,
+            y=0.0,
+            orientation=Quaternion(0.0, 0.0, 0.0, 0.0),
+        ))
+
+
+def test_throw_food_reports_unavailable_service(client_and_runtime):
+    """An unavailable throw-food service completes with a useful exception."""
+    client, runtime = client_and_runtime
+    runtime.node.throw_food_client.available = False
+
+    with pytest.raises(ServiceUnavailableError):
+        client.throw_food(ThrowFoodCommand(
+            food_name='box', parking_index=1, x=0.0, y=0.0,
+        )).result()
+
+
+def test_throw_food_reports_service_failure(client_and_runtime):
+    """A failed throw response surfaces the plugin error message."""
+    client, runtime = client_and_runtime
+    runtime.node.throw_food_client.response = SimpleNamespace(
+        success=False, message='no such body'
+    )
+
+    with pytest.raises(RuntimeError, match='no such body'):
+        client.throw_food(ThrowFoodCommand(
+            food_name='box', parking_index=1, x=0.0, y=0.0,
+        )).result()
 
 
 def test_get_robot_state_returns_float_list(client_and_runtime):
@@ -225,12 +239,13 @@ def test_get_sim_pose_decodes_free_joint_xy_and_yaw(client_and_runtime):
 def test_client_uses_simulation_management_service_namespace(
     client_and_runtime,
 ):
-    """The default service matches the plugin sub-node namespace."""
+    """The default services match the plugin sub-node namespace."""
     _client, runtime = client_and_runtime
 
     assert runtime.node.service_names == [
         '/simulation_management/get_robot_state',
         '/simulation_management/set_obstacle',
+        '/simulation_management/throw_food',
     ]
 
 

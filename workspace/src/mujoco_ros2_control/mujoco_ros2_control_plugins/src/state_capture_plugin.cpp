@@ -18,6 +18,7 @@
 #include <chrono>
 #include <iomanip>
 #include <limits>
+#include <string_view>
 #include <system_error>
 #include <utility>
 
@@ -61,12 +62,17 @@ bool StateCapturePlugin::init(rclcpp::Node::SharedPtr node, const mjModel* model
   {
     node_->declare_parameter("output_file", std::string("simulation_states.csv"));
   }
+  if (!node_->has_parameter("food_body_prefix"))
+  {
+    node_->declare_parameter("food_body_prefix", food_body_prefix_);
+  }
 
   capture_rate_hz_ = node_->get_parameter("capture_rate").as_double();
   flush_interval_seconds_ = node_->get_parameter("flush_interval").as_double();
   const int64_t configured_capacity = node_->get_parameter("buffer_capacity").as_int();
   const std::filesystem::path output_directory = node_->get_parameter("output_directory").as_string();
   const std::filesystem::path output_file = node_->get_parameter("output_file").as_string();
+  food_body_prefix_ = node_->get_parameter("food_body_prefix").as_string();
 
   if (capture_rate_hz_ <= 0.0 || flush_interval_seconds_ <= 0.0 || configured_capacity < 2)
   {
@@ -82,6 +88,39 @@ bool StateCapturePlugin::init(rclcpp::Node::SharedPtr node, const mjModel* model
   buffer_capacity_ = static_cast<std::size_t>(configured_capacity);
   nq_ = static_cast<std::size_t>(model->nq);
   output_path_ = output_directory / output_file;
+
+  // Discover the free-floating STL food bodies by name prefix and record the
+  // slice of qpos that stores each one's free-joint state.
+  food_bodies_.clear();
+  food_qpos_total_ = 0;
+  if (!food_body_prefix_.empty())
+  {
+    for (int body_id = 0; body_id < model->nbody; ++body_id)
+    {
+      const char* body_name = mj_id2name(model, mjOBJ_BODY, body_id);
+      if (!body_name || std::string_view(body_name).substr(0, food_body_prefix_.size()) != food_body_prefix_)
+      {
+        continue;
+      }
+
+      const int joint_count = model->body_jntnum[body_id];
+      const int first_joint = model->body_jntadr[body_id];
+      for (int joint = first_joint; joint < first_joint + joint_count; ++joint)
+      {
+        if (model->jnt_type[joint] != mjJNT_FREE)
+        {
+          continue;
+        }
+        FoodBody food_body;
+        food_body.name = body_name;
+        food_body.qpos_address = model->jnt_qposadr[joint];
+        food_body.qpos_count = 7;  // free joint: 3 translation + 4 quaternion
+        food_qpos_total_ += static_cast<std::size_t>(food_body.qpos_count);
+        food_bodies_.push_back(std::move(food_body));
+        break;  // one free joint per food body
+      }
+    }
+  }
 
   std::error_code filesystem_error;
   std::filesystem::create_directories(output_directory, filesystem_error);
@@ -105,6 +144,13 @@ bool StateCapturePlugin::init(rclcpp::Node::SharedPtr node, const mjModel* model
   {
     output_stream_ << ",qpos_" << index;
   }
+  for (const FoodBody& food_body : food_bodies_)
+  {
+    for (int component = 0; component < food_body.qpos_count; ++component)
+    {
+      output_stream_ << ',' << food_body.name << "_qpos_" << component;
+    }
+  }
   output_stream_ << '\n';
   output_stream_.flush();
 
@@ -119,6 +165,7 @@ bool StateCapturePlugin::init(rclcpp::Node::SharedPtr node, const mjModel* model
   for (auto& sample : ring_buffer_)
   {
     sample.qpos.resize(nq_);
+    sample.food_qpos.resize(food_qpos_total_);
   }
 
   write_sequence_.store(0, std::memory_order_relaxed);
@@ -138,6 +185,8 @@ bool StateCapturePlugin::init(rclcpp::Node::SharedPtr node, const mjModel* model
 
   RCLCPP_INFO(logger_, "Capturing qpos at %.2f Hz to '%s'; flushing every %.2f seconds.", capture_rate_hz_,
               output_path_.string().c_str(), flush_interval_seconds_);
+  RCLCPP_INFO(logger_, "Also logging qpos for %zu STL food body(ies) matching prefix '%s'.", food_bodies_.size(),
+              food_body_prefix_.c_str());
   return true;
 }
 
@@ -184,6 +233,15 @@ void StateCapturePlugin::update(const mjModel* /*model*/, mjData* data)
     sample.qpos[index] = static_cast<double>(data->qpos[index]);
   }
 
+  std::size_t food_offset = 0;
+  for (const FoodBody& food_body : food_bodies_)
+  {
+    for (int component = 0; component < food_body.qpos_count; ++component)
+    {
+      sample.food_qpos[food_offset++] = static_cast<double>(data->qpos[food_body.qpos_address + component]);
+    }
+  }
+
   write_sequence_.store(write_sequence + 1, std::memory_order_release);
 }
 
@@ -221,6 +279,10 @@ void StateCapturePlugin::drain_buffer()
     for (const double position : sample.qpos)
     {
       output_stream_ << ',' << position;
+    }
+    for (const double food_position : sample.food_qpos)
+    {
+      output_stream_ << ',' << food_position;
     }
     output_stream_ << '\n';
 

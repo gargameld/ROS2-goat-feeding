@@ -51,15 +51,31 @@ bool SimulationManagementPlugin::init(rclcpp::Node::SharedPtr node, const mjMode
     return false;
   }
 
+  if (!node_->has_parameter("throw_food_height"))
+  {
+    node_->declare_parameter("throw_food_height", 0.3);
+  }
+  if (!node_->has_parameter("parking_count"))
+  {
+    node_->declare_parameter("parking_count", static_cast<int64_t>(4));
+  }
+  const double throw_food_height = node_->get_parameter("throw_food_height").as_double();
+  const int parking_count = static_cast<int>(node_->get_parameter("parking_count").as_int());
+  food_management_ = std::make_unique<FoodManagement>(model_, data_, throw_food_height, parking_count);
+
   get_robot_state_service_ = node_->create_service<GetRobotState>(
       "get_robot_state", std::bind(&SimulationManagementPlugin::handle_get_robot_state, this,
                                    std::placeholders::_1, std::placeholders::_2));
   set_obstacle_service_ = node_->create_service<SetObstacle>(
       "set_obstacle", std::bind(&SimulationManagementPlugin::handle_set_obstacle, this, std::placeholders::_1,
                                 std::placeholders::_2));
+  throw_food_service_ = node_->create_service<ThrowFood>(
+      "throw_food", std::bind(&SimulationManagementPlugin::handle_throw_food, this, std::placeholders::_1,
+                              std::placeholders::_2));
 
-  RCLCPP_INFO(logger_, "SimulationManagementPlugin initialized. Services available at '%s' and '%s'.",
-              get_robot_state_service_->get_service_name(), set_obstacle_service_->get_service_name());
+  RCLCPP_INFO(logger_, "SimulationManagementPlugin initialized. Services available at '%s', '%s' and '%s'.",
+              get_robot_state_service_->get_service_name(), set_obstacle_service_->get_service_name(),
+              throw_food_service_->get_service_name());
   return true;
 }
 
@@ -69,8 +85,10 @@ void SimulationManagementPlugin::update(const mjModel* /*model*/, mjData* /*data
 
 void SimulationManagementPlugin::cleanup()
 {
+  throw_food_service_.reset();
   set_obstacle_service_.reset();
   get_robot_state_service_.reset();
+  food_management_.reset();
   obstacle_management_.reset();
   model_ = nullptr;
   data_ = nullptr;
@@ -122,6 +140,37 @@ void SimulationManagementPlugin::handle_set_obstacle(const SetObstacle::Request:
   if (!response->success)
   {
     RCLCPP_WARN(logger_, "Could not update obstacle: %s", error.c_str());
+  }
+}
+
+void SimulationManagementPlugin::handle_throw_food(const ThrowFood::Request::SharedPtr request,
+                                                   ThrowFood::Response::SharedPtr response)
+{
+  auto* mutex = simulation_mutex();
+  if (!mutex || !food_management_)
+  {
+    response->message = "The MuJoCo simulation is unavailable.";
+    RCLCPP_ERROR(logger_, "%s", response->message.c_str());
+    return;
+  }
+  if (request->orientation.size() != 4)
+  {
+    response->message = "The orientation must contain exactly 4 quaternion values (w, x, y, z).";
+    RCLCPP_WARN(logger_, "%s", response->message.c_str());
+    return;
+  }
+
+  const double quat[4] = { request->orientation[0], request->orientation[1], request->orientation[2],
+                           request->orientation[3] };
+
+  const std::unique_lock<std::recursive_mutex> lock(*mutex);
+  std::string error;
+  response->success =
+      food_management_->throw_food(request->parking_index, request->food_name, request->x, request->y, quat, error);
+  response->message = response->success ? "Food thrown." : error;
+  if (!response->success)
+  {
+    RCLCPP_WARN(logger_, "Could not throw food: %s", error.c_str());
   }
 }
 

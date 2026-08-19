@@ -9,6 +9,7 @@ import rclpy
 
 from mujoco_ros2_control_msgs.srv import GetRobotState
 from mujoco_ros2_control_msgs.srv import SetObstacle
+from mujoco_ros2_control_msgs.srv import ThrowFood
 
 
 def call(node, client, request):
@@ -66,6 +67,20 @@ def main():
         if any(abs(left - right) > 1e-9 for left, right in zip(actual, expected)):
             raise AssertionError(f'Expected {expected}, received {actual}.')
         print(f'Live obstacle state: {actual}')
+
+        throw_client = node.create_client(
+            ThrowFood, '/simulation_management/throw_food'
+        )
+        throw_request = ThrowFood.Request()
+        throw_request.parking_index = 1
+        throw_request.food_name = 'food_box'
+        throw_request.x = 0.25
+        throw_request.y = 0.0
+        throw_request.orientation = [1.0, 0.0, 0.0, 0.0]
+        throw_response = call(node, throw_client, throw_request)
+        if not throw_response.success:
+            raise RuntimeError(throw_response.message)
+        print(f'Threw food: {throw_response.message}')
     finally:
         node.destroy_node()
         rclpy.shutdown()

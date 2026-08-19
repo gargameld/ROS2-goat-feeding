@@ -23,6 +23,7 @@
   <depend>ament_index_cpp</depend>
   <depend>control_toolbox</depend>
   <depend>controller_manager</depend>
+  <depend>controller_manager_msgs</depend>
   <depend>hardware_interface</depend>
   <depend>fmt</depend>
   <depend>nav_msgs</depend>

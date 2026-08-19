@@ -66,12 +66,13 @@ class SimulationSnapshot:
 
 
 @dataclass(frozen=True, slots=True)
-class VelocityCommand:
-    """Contain the six components of a ROS ``Twist`` command."""
+class ThrowFoodCommand:
+    """Contain one request to teleport a food body into a parking area."""
 
-    linear_x: float = 0.0
-    linear_y: float = 0.0
-    linear_z: float = 0.0
-    angular_x: float = 0.0
-    angular_y: float = 0.0
-    angular_z: float = 0.0
+    food_name: str
+    parking_index: int
+    x: float
+    y: float
+    orientation: Quaternion = field(
+        default_factory=lambda: Quaternion(1.0, 0.0, 0.0, 0.0)
+    )

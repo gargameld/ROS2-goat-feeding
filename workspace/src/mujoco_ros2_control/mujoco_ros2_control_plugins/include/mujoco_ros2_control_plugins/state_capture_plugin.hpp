@@ -49,6 +49,18 @@ private:
   {
     double simulation_time{ 0.0 };
     std::vector<double> qpos;
+    // Free-joint qpos values of the tracked STL food bodies, concatenated in
+    // food_bodies_ order (7 values per free joint: px, py, pz, qw, qx, qy, qz).
+    std::vector<double> food_qpos;
+  };
+
+  // A free-floating STL food body tracked by name prefix, and the slice of the
+  // MuJoCo qpos array that stores its free-joint state.
+  struct FoodBody
+  {
+    std::string name;
+    int qpos_address{ 0 };
+    int qpos_count{ 0 };
   };
 
   void consumer_loop();
@@ -63,6 +75,9 @@ private:
   std::vector<StateSample> ring_buffer_;
   std::size_t buffer_capacity_{ 4096 };
   std::size_t nq_{ 0 };
+  std::vector<FoodBody> food_bodies_;
+  std::size_t food_qpos_total_{ 0 };
+  std::string food_body_prefix_{ "food_" };
   std::atomic<uint64_t> write_sequence_{ 0 };
   std::atomic<uint64_t> read_sequence_{ 0 };
   std::atomic<uint64_t> dropped_samples_{ 0 };

@@ -25,6 +25,7 @@
 #include <cmath>
 #include <cstring>
 #include <limits>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <sys/resource.h>
@@ -74,6 +75,29 @@ double extract_safety_interval(const hardware_interface::HardwareInfo& hardware_
   return interval;
 }
 
+std::vector<std::string> extract_required_controller_names(
+  const hardware_interface::HardwareInfo& hardware_info)
+{
+  const auto parameter = hardware_info.hardware_parameters.find("required_active_controllers");
+  if (parameter == hardware_info.hardware_parameters.end() || parameter->second.empty())
+  {
+    throw std::invalid_argument("Missing hardware parameter: required_active_controllers");
+  }
+
+  std::vector<std::string> controller_names;
+  std::istringstream names(parameter->second);
+  std::string controller_name;
+  while (std::getline(names, controller_name, ','))
+  {
+    if (controller_name.empty())
+    {
+      throw std::invalid_argument("Hardware parameter 'required_active_controllers' contains an empty name");
+    }
+    controller_names.push_back(controller_name);
+  }
+  return controller_names;
+}
+
 std::chrono::duration<double, std::milli> extract_extra_wait_time(
   const hardware_interface::HardwareInfo& hardware_info)
 {
@@ -114,7 +138,8 @@ PhysicsLoopSynchronizer::PhysicsLoopSynchronizer(MujocoSimulation* simulation,
     last_ros_write_time_mutex_(last_ros_write_time_mutex),
     write_period_seconds_(1.0 / static_cast<double>(extract_write_rate(hardware_info, "write_frequency"))),
     safety_time_interval_seconds_(extract_safety_interval(hardware_info)),
-    extra_wait_time_(extract_extra_wait_time(hardware_info))
+    extra_wait_time_(extract_extra_wait_time(hardware_info)),
+    required_controller_names_(extract_required_controller_names(hardware_info))
 {
   if (!simulation_ || !last_ros_write_time_ || !last_ros_write_time_mutex_)
   {
@@ -126,6 +151,8 @@ PhysicsLoopSynchronizer::PhysicsLoopSynchronizer(MujocoSimulation* simulation,
     next_expected_write_time_ =
         *last_ros_write_time_ + rclcpp::Duration::from_seconds(write_period_seconds_);
   }
+
+  initialize_controller_state_node();
 
   expected_write_time_thread_ =
       std::thread(&PhysicsLoopSynchronizer::update_expected_write_time_loop, this);
@@ -142,14 +169,44 @@ PhysicsLoopSynchronizer::PhysicsLoopSynchronizer(MujocoSimulation* simulation,
 PhysicsLoopSynchronizer::~PhysicsLoopSynchronizer()
 {
   updater_running_.store(false);
+  controller_state_executor_->cancel();
   if (expected_write_time_thread_.joinable())
   {
     expected_write_time_thread_.join();
+  }
+  if (controller_state_executor_thread_.joinable())
+  {
+    controller_state_executor_thread_.join();
   }
 }
 
 void PhysicsLoopSynchronizer::sync_physics_loop() const
 {
+  // Let the first physics step publish a non-zero /clock value. The controller
+  // manager needs that initial tick to leave wait_until_started() and process
+  // controller activation requests. All subsequent steps wait for activation.
+  if (!initial_sync_completed_.exchange(true, std::memory_order_acq_rel))
+  {
+    return;
+  }
+
+  while (!all_controllers_are_active() && !simulation_->exit_requested())
+  {
+    std::this_thread::yield();
+  }
+
+  if (simulation_->exit_requested())
+  {
+    return;
+  }
+
+  if (!controller_activation_logged_.exchange(true, std::memory_order_acq_rel))
+  {
+    RCLCPP_INFO(
+      rclcpp::get_logger("PhysicsLoopSynchronizer"),
+      "All required controllers are active; releasing the physics loop.");
+  }
+
   std::this_thread::sleep_for(extra_wait_time_);
 
   const double current_simulation_time = simulation_->simulation_time();
@@ -171,14 +228,79 @@ void PhysicsLoopSynchronizer::sync_physics_loop() const
   }
 }
 
+bool PhysicsLoopSynchronizer::all_controllers_are_active() const
+{
+  return controllers_active_.load(std::memory_order_acquire);
+}
+
+void PhysicsLoopSynchronizer::initialize_controller_state_node()
+{
+  synchronizer_node_ = std::make_shared<rclcpp::Node>("physics_loop_synchronizer");
+  list_controllers_client_ =
+    synchronizer_node_->create_client<controller_manager_msgs::srv::ListControllers>(
+    "/controller_manager/list_controllers");
+  controller_state_executor_ = std::make_unique<rclcpp::executors::SingleThreadedExecutor>();
+  controller_state_executor_->add_node(synchronizer_node_);
+  controller_state_executor_thread_ =
+    std::thread([this]() { controller_state_executor_->spin(); });
+}
+
+void PhysicsLoopSynchronizer::request_controller_states()
+{
+  if (controller_request_in_flight_.exchange(true, std::memory_order_acq_rel))
+  {
+    return;
+  }
+
+  if (!list_controllers_client_->service_is_ready())
+  {
+    controller_request_in_flight_.store(false, std::memory_order_release);
+    return;
+  }
+
+  list_controllers_client_->async_send_request(
+    std::make_shared<controller_manager_msgs::srv::ListControllers::Request>(),
+    [this](rclcpp::Client<controller_manager_msgs::srv::ListControllers>::SharedFuture future) {
+      bool all_active = false;
+      try
+      {
+        const auto response = future.get();
+        all_active = std::all_of(
+          required_controller_names_.cbegin(), required_controller_names_.cend(),
+          [&response](const std::string & required_name) {
+            const auto controller = std::find_if(
+              response->controller.cbegin(), response->controller.cend(),
+              [&required_name](const auto & controller_state) {
+                return controller_state.name == required_name;
+              });
+            return controller != response->controller.cend() && controller->state == "active";
+          });
+      }
+      catch (const std::exception &)
+      {
+        all_active = false;
+      }
+
+      controllers_active_.store(all_active, std::memory_order_release);
+      controller_request_in_flight_.store(false, std::memory_order_release);
+    });
+}
+
 void PhysicsLoopSynchronizer::update_expected_write_time_loop()
 {
   using namespace std::chrono_literals;
   set_current_thread_to_low_priority();
 
   rclcpp::Time observed_write_time(0, 0, RCL_ROS_TIME);
+  auto next_controller_state_request = std::chrono::steady_clock::now();
   while (updater_running_.load())
   {
+    if (std::chrono::steady_clock::now() >= next_controller_state_request)
+    {
+      request_controller_states();
+      next_controller_state_request = std::chrono::steady_clock::now() + 20ms;
+    }
+
     rclcpp::Time current_write_time(0, 0, RCL_ROS_TIME);
     {
       const std::lock_guard<std::mutex> write_time_lock(*last_ros_write_time_mutex_);

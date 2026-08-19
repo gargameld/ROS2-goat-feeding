@@ -21,6 +21,7 @@ set(srv_files
   srv/ApplyExternalWrench.srv
   srv/GetRobotState.srv
   srv/SetObstacle.srv
+  srv/ThrowFood.srv
 )
 
 

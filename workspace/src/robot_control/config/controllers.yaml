@@ -4,6 +4,12 @@ controller_manager:
     physics_sync_safety_interval: 3
     extra_wait_time: 10  # milliseconds of wall-clock time
     use_sim_time: true
+    required_active_controllers:
+      - joint_state_broadcaster
+      - imu_sensor_broadcaster
+      - mecanum_drive_controller
+      - arm_trajectory_controller
+      - gripper_controller
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
@@ -58,6 +64,29 @@ arm_trajectory_controller:
     state_interfaces:
       - position
       - velocity
+    # Default FollowJointTrajectory action tolerances (radians and seconds).
+    constraints:
+      stopped_velocity_tolerance: 0.01
+      goal_time: 4.0
+      arm_shoulder_pan_joint:
+        trajectory: 0.1
+        goal: 0.01
+      arm_shoulder_lift_joint:
+        trajectory: 0.1
+        goal: 0.01
+      arm_elbow_joint:
+        trajectory: 0.1
+        goal: 0.01
+      arm_wrist_1_joint:
+        trajectory: 0.1
+        goal: 0.01
+      arm_wrist_2_joint:
+        trajectory: 0.1
+        goal: 0.01
+      arm_wrist_3_joint:
+        trajectory: 0.1
+        goal: 0.01
+
 
 gripper_controller:
   ros__parameters:
@@ -69,3 +98,7 @@ imu_sensor_broadcaster:
     use_sim_time: true
     sensor_name: imu_sensor
     frame_id: base_link
+
+joint_state_broadcaster:
+  ros__parameters:
+    use_sim_time: true

@@ -90,7 +90,8 @@ void ArmActionServer::handleMoveToPoseAccepted(
 {
   launchWorker([this, goal_handle]() {
     executeGoal<MoveToPose>(goal_handle, [this, goal_handle]() {
-      return motion_executor_.moveToPose(goal_handle->get_goal()->target_pose);
+      const auto goal = goal_handle->get_goal();
+      return motion_executor_.moveToPose(goal->target_pose, goal->reference_frame);
     });
   });
 }

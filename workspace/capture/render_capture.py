@@ -35,7 +35,7 @@ except ImportError as exc:
 
 SCRIPT_DIRECTORY = Path(__file__).resolve().parent
 DEFAULT_CSV = SCRIPT_DIRECTORY / "simulation_states.csv"
-DEFAULT_MODEL = SCRIPT_DIRECTORY.parent / "src" / "robot_description" / "mjcf" / "scene.xml"
+DEFAULT_MODEL = SCRIPT_DIRECTORY.parent / "mujoco_model" / "scene.xml"
 DEFAULT_OUTPUT = SCRIPT_DIRECTORY / "simulation.mp4"
 CAMERA_NAME = "capture_render_camera"
 
@@ -81,6 +81,12 @@ def parse_arguments() -> argparse.Namespace:
         default=None,
         help="render only the first N frames (useful for testing a camera position)",
     )
+    parser.add_argument(
+        "--last-seconds",
+        type=float,
+        default=None,
+        help="render only the last N seconds of simulation time from the capture",
+    )
     parser.add_argument("--overwrite", action="store_true", help="replace the output file if it already exists")
     return parser.parse_args()
 
@@ -108,6 +114,8 @@ def validate_arguments(args: argparse.Namespace) -> None:
         raise SystemExit("--crf must be in the range [0, 51]")
     if args.max_frames is not None and args.max_frames <= 0:
         raise SystemExit("--max-frames must be positive")
+    if args.last_seconds is not None and args.last_seconds <= 0:
+        raise SystemExit("--last-seconds must be positive")
     if shutil.which("ffmpeg") is None:
         raise SystemExit("FFmpeg was not found in PATH. Install ffmpeg before running this program.")
 
@@ -344,7 +352,10 @@ def ffmpeg_command(args: argparse.Namespace, fps: float) -> list[str]:
 def render_video(args: argparse.Namespace) -> None:
     qpos_columns, sample_count, first_timestamp, last_timestamp = inspect_capture(args.csv)
     capture_duration = last_timestamp - first_timestamp
-    frame_count = output_frame_count(first_timestamp, last_timestamp, args.fps)
+    render_start_timestamp = first_timestamp
+    if args.last_seconds is not None:
+        render_start_timestamp = max(first_timestamp, last_timestamp - args.last_seconds)
+    frame_count = output_frame_count(render_start_timestamp, last_timestamp, args.fps)
     if args.max_frames is not None:
         frame_count = min(frame_count, args.max_frames)
     fps = args.fps
@@ -373,9 +384,11 @@ def render_video(args: argparse.Namespace) -> None:
         if encoder.stdin is None:
             raise RuntimeError("Failed to open the FFmpeg input pipe")
 
+        window_duration = last_timestamp - render_start_timestamp
         print(
             f"Rendering {frame_count} frames at {fps:.3f} FPS from {sample_count} samples "
             f"spanning {capture_duration:.3f} seconds of simulation time"
+            + (f" (last {window_duration:.3f}s window)" if args.last_seconds is not None else "")
         )
         print(f"Camera: {vector_attribute(camera_position)} -> {vector_attribute(look_at)}")
         print(f"Output: {args.output}")
@@ -386,7 +399,7 @@ def render_video(args: argparse.Namespace) -> None:
         next_sample = next(samples, None)
 
         for frame_index in range(frame_count):
-            frame_time = first_timestamp + frame_index / fps
+            frame_time = render_start_timestamp + frame_index / fps
             while next_sample is not None and next_sample[0] <= frame_time + 1e-12:
                 _, current_qpos = next_sample
                 next_sample = next(samples, None)

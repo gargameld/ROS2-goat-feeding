@@ -34,6 +34,7 @@ add_library(mujoco_ros2_control_plugins SHARED
   src/external_wrench_plugin.cpp
   src/mujoco_3d_lidar_plugin.cpp
   src/obstacle_management.cpp
+  src/food_management.cpp
   src/simulation_management_plugin.cpp
   src/state_capture_plugin.cpp
 )

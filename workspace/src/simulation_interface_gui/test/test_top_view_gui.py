@@ -21,20 +21,42 @@ def _application():
     return QApplication.instance() or QApplication([])
 
 
-def test_window_emits_velocity_values():
-    """Numeric controls produce the manager's velocity-command contract."""
+def test_window_emits_throw_food_command():
+    """Numeric and text controls produce the throw-food contract."""
     application = _application()
     window = TopViewWindow()
     commands = []
-    window.velocity_command_requested.connect(commands.append)
-    window._spin_boxes['linear_x'].setValue(1.25)
-    window._spin_boxes['angular_z'].setValue(-0.5)
+    window.throw_food_requested.connect(commands.append)
+    window._food_name_edit.setText('box')
+    window._parking_box.setValue(3)
+    window._throw_boxes['throw_x'].setValue(0.25)
+    window._throw_boxes['throw_y'].setValue(-0.1)
+    window._throw_boxes['z'].setValue(0.5)
 
-    window._send_velocity()
+    window._send_throw_food()
     application.processEvents()
 
-    assert commands[-1].linear_x == 1.25
-    assert commands[-1].angular_z == -0.5
+    assert commands[-1].food_name == 'box'
+    assert commands[-1].parking_index == 3
+    assert commands[-1].x == 0.25
+    assert commands[-1].y == -0.1
+    assert commands[-1].orientation.w == 1.0
+    assert commands[-1].orientation.z == 0.5
+    window.close()
+
+
+def test_window_requires_food_name_before_throwing():
+    """Throwing with an empty name reports an error instead of emitting."""
+    application = _application()
+    window = TopViewWindow()
+    commands = []
+    window.throw_food_requested.connect(commands.append)
+
+    window._send_throw_food()
+    application.processEvents()
+
+    assert commands == []
+    assert 'Enter a food object name' in window._status_label.text()
     window.close()
 
 

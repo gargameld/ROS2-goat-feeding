@@ -1,0 +1,44 @@
+planning_plugins:
+  - ompl_interface/OMPLPlanner
+
+request_adapters:
+  - default_planning_request_adapters/ResolveConstraintFrames
+  - default_planning_request_adapters/ValidateWorkspaceBounds
+  - default_planning_request_adapters/CheckStartStateBounds
+  - default_planning_request_adapters/CheckStartStateCollision
+
+response_adapters:
+  - default_planning_response_adapters/AddTimeOptimalParameterization
+  - default_planning_response_adapters/ValidateSolution
+  - default_planning_response_adapters/DisplayMotionPath
+
+planner_configs:
+  RRTConnect:
+    type: geometric::RRTConnect
+    # Maximum length (rad, in joint space) of a single tree extension. The
+    # default (0.0) auto-picks a large range that overshoots narrow gaps in one
+    # jump, so the connection almost always lands in collision. A smaller range
+    # takes shorter, more deliberate steps that can thread the passage -- slower
+    # per iteration, which the larger planning-time budget below pays for.
+    range: 1.2
+  RRT:
+    type: geometric::RRT
+    range: 1.2
+    goal_bias: 0.05
+
+arm_planning_group:
+  # RRTConnect (bidirectional) is the primary planner; RRT is available as a
+  # fallback to select from RViz for goals RRTConnect keeps missing.
+  planner_configs:
+    - RRTConnect
+    - RRT
+  # OMPL's default (0.01, i.e. 1% of the state space extent) lets an edge
+  # sweep the ~0.85m arm through tens of centimeters between collision
+  # checks -- enough to tunnel through the 0.1m-thick quoridor walls
+  # (environment_boxes.yaml). Tighten it so planning-time checks match what
+  # ValidateSolution enforces afterward.
+  longest_valid_segment_fraction: 0.001
+  # Simplify/shortcut the raw path once found. Narrow-passage solutions from a
+  # small range come out jagged; smoothing keeps execution clean without
+  # re-tunnelling the walls (the smoother is collision-checked too).
+  simplify_solutions: true

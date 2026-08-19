@@ -16,16 +16,19 @@ from PyQt5.QtWidgets import QGridLayout
 from PyQt5.QtWidgets import QGroupBox
 from PyQt5.QtWidgets import QHBoxLayout
 from PyQt5.QtWidgets import QLabel
+from PyQt5.QtWidgets import QLineEdit
 from PyQt5.QtWidgets import QMainWindow
 from PyQt5.QtWidgets import QPushButton
 from PyQt5.QtWidgets import QSizePolicy
+from PyQt5.QtWidgets import QSpinBox
 from PyQt5.QtWidgets import QVBoxLayout
 from PyQt5.QtWidgets import QWidget
 
 from simulation_interface_gui.models import ObstacleState
 from simulation_interface_gui.models import Point3D
 from simulation_interface_gui.models import Pose2D
-from simulation_interface_gui.models import VelocityCommand
+from simulation_interface_gui.models import Quaternion
+from simulation_interface_gui.models import ThrowFoodCommand
 from simulation_interface_gui.presentation.scene import Point2D
 from simulation_interface_gui.presentation.scene import Polygon2D
 from simulation_interface_gui.presentation.scene import TopViewScene
@@ -145,35 +148,37 @@ class TopViewCanvas(QWidget):
 
 
 class TopViewWindow(QMainWindow):
-    """Show the top view and emit validated velocity commands."""
+    """Show the top view and emit validated food-throwing commands."""
 
     _OBSTACLE_MOVE_STEP = 0.5
 
-    velocity_command_requested = pyqtSignal(object)
+    throw_food_requested = pyqtSignal(object)
     obstacle_update_requested = pyqtSignal(object)
     _status_received = pyqtSignal(str, bool)
     _poses_received = pyqtSignal(object, object, object)
     _obstacle_received = pyqtSignal(object)
 
-    _VELOCITY_FIELDS = (
-        ('Linear X', 'linear_x'),
-        ('Linear Y', 'linear_y'),
-        ('Linear Z', 'linear_z'),
-        ('Angular X', 'angular_x'),
-        ('Angular Y', 'angular_y'),
-        ('Angular Z', 'angular_z'),
+    _THROW_FIELDS = (
+        ('Quaternion W', 'w'),
+        ('Quaternion X', 'x'),
+        ('Quaternion Y', 'y'),
+        ('Quaternion Z', 'z'),
+        ('Throw X', 'throw_x'),
+        ('Throw Y', 'throw_y'),
     )
 
     def __init__(
         self,
-        velocity_handler: Callable[[VelocityCommand], None] | None = None,
+        throw_food_handler: Callable[[ThrowFoodCommand], None] | None = None,
     ) -> None:
         """Create the window and optionally connect its command callback."""
         super().__init__()
         self.setWindowTitle('Simulation Interface')
         self.resize(900, 720)
         self.canvas = TopViewCanvas(self)
-        self._spin_boxes: dict[str, QDoubleSpinBox] = {}
+        self._throw_boxes: dict[str, QDoubleSpinBox] = {}
+        self._food_name_edit: QLineEdit | None = None
+        self._parking_box: QSpinBox | None = None
         self._dimension_boxes: dict[str, QDoubleSpinBox] = {}
         self._obstacle_state: ObstacleState | None = None
         self._amcl_pose_label = QLabel('Waiting for map to base_link transform...')
@@ -186,8 +191,8 @@ class TopViewWindow(QMainWindow):
             self._apply_obstacle_state, Qt.QueuedConnection
         )
         self.setCentralWidget(self._create_content())
-        if velocity_handler is not None:
-            self.velocity_command_requested.connect(velocity_handler)
+        if throw_food_handler is not None:
+            self.throw_food_requested.connect(throw_food_handler)
 
     def update_scene(self, scene: TopViewScene) -> None:
         """Queue a scene for display from any thread."""
@@ -218,29 +223,33 @@ class TopViewWindow(QMainWindow):
         panel = QWidget(self)
         layout = QVBoxLayout(panel)
 
-        command_group = QGroupBox('Velocity command', panel)
-        form = QFormLayout(command_group)
-        for label, field_name in self._VELOCITY_FIELDS:
-            spin_box = QDoubleSpinBox(command_group)
-            spin_box.setRange(-10.0, 10.0)
+        throw_group = QGroupBox('Throw food', panel)
+        form = QFormLayout(throw_group)
+        self._food_name_edit = QLineEdit(throw_group)
+        self._food_name_edit.setPlaceholderText('food object name (no prefix)')
+        form.addRow('Food name', self._food_name_edit)
+        self._parking_box = QSpinBox(throw_group)
+        self._parking_box.setRange(1, 4)
+        form.addRow('Parking number', self._parking_box)
+        for label, field_name in self._THROW_FIELDS:
+            spin_box = QDoubleSpinBox(throw_group)
+            spin_box.setRange(-100.0, 100.0)
             spin_box.setDecimals(3)
             spin_box.setSingleStep(0.1)
-            spin_box.setSuffix(
-                ' m/s' if field_name.startswith('linear') else ' rad/s'
-            )
-            self._spin_boxes[field_name] = spin_box
+            if field_name.startswith('throw'):
+                spin_box.setSuffix(' m')
+            elif field_name == 'w':
+                spin_box.setValue(1.0)
+            self._throw_boxes[field_name] = spin_box
             form.addRow(label, spin_box)
 
-        send_button = QPushButton('Send command', panel)
-        send_button.clicked.connect(self._send_velocity)
-        stop_button = QPushButton('Stop robot', panel)
-        stop_button.clicked.connect(self._send_stop)
+        throw_button = QPushButton('Throw food', panel)
+        throw_button.clicked.connect(self._send_throw_food)
 
         self._status_label.setWordWrap(True)
         self._status_label.setMinimumWidth(210)
-        layout.addWidget(command_group)
-        layout.addWidget(send_button)
-        layout.addWidget(stop_button)
+        layout.addWidget(throw_group)
+        layout.addWidget(throw_button)
         obstacle_group = QGroupBox('Obstacle box', panel)
         obstacle_layout = QVBoxLayout(obstacle_group)
         dimension_form = QFormLayout()
@@ -288,17 +297,23 @@ class TopViewWindow(QMainWindow):
         layout.addWidget(self._status_label)
         return panel
 
-    def _send_velocity(self) -> None:
-        values = {
-            field_name: spin_box.value()
-            for field_name, spin_box in self._spin_boxes.items()
-        }
-        self.velocity_command_requested.emit(VelocityCommand(**values))
-
-    def _send_stop(self) -> None:
-        for spin_box in self._spin_boxes.values():
-            spin_box.setValue(0.0)
-        self.velocity_command_requested.emit(VelocityCommand())
+    def _send_throw_food(self) -> None:
+        food_name = self._food_name_edit.text().strip()
+        if not food_name:
+            self.set_status('Enter a food object name to throw.', is_error=True)
+            return
+        self.throw_food_requested.emit(ThrowFoodCommand(
+            food_name=food_name,
+            parking_index=self._parking_box.value(),
+            x=self._throw_boxes['throw_x'].value(),
+            y=self._throw_boxes['throw_y'].value(),
+            orientation=Quaternion(
+                w=self._throw_boxes['w'].value(),
+                x=self._throw_boxes['x'].value(),
+                y=self._throw_boxes['y'].value(),
+                z=self._throw_boxes['z'].value(),
+            ),
+        ))
 
     def _apply_obstacle_dimensions(self) -> None:
         if self._obstacle_state is None:

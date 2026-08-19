@@ -26,6 +26,8 @@
         <joint name="arm_wrist_2_joint" value="1.5621"/>
         <joint name="arm_wrist_3_joint" value="0"/>
     </group_state>
+    <!--VIRTUAL JOINT: Purpose: this element defines a virtual joint between a robot link and an external frame of reference (considered fixed with respect to the robot)-->
+    <virtual_joint name="map_to_base_link" type="floating" parent_frame="map" child_link="base_link"/>
     <!--DISABLE COLLISIONS: By default it is assumed that any link of the robot could potentially come into collision with any other link in the robot. This tag disables collision checking between a specified pair of links. -->
     <disable_collisions link1="arm_base_link_inertia" link2="arm_shoulder_link" reason="Adjacent"/>
     <disable_collisions link1="arm_base_link_inertia" link2="base_link" reason="Adjacent"/>

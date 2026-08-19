@@ -24,11 +24,15 @@ public:
     std::string tcp_link,
     std::string home_pose_name);
 
-  OperationResult moveToPose(const geometry_msgs::msg::Pose & target_pose);
+  OperationResult moveToPose(
+    const geometry_msgs::msg::Pose & target_pose,
+    const std::string & reference_frame);
   OperationResult moveToHomePose();
   OperationResult lift(double distance);
 
 private:
+  void log_path(const MoveGroupInterface::Plan & plan, const std::string & motion_description) const;
+  void log_planning_context(const std::string & motion_description) const;
   OperationResult planAndExecute(const std::string & motion_description);
 
   std::shared_ptr<MoveGroupInterface> move_group_;

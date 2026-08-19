@@ -104,6 +104,7 @@
   </default>
 
   <include file="robot.xml"/>
+  <include file="food_loader.xml"/>
 
   <worldbody>
     <light pos="0 -3 6" dir="0 0 -1" diffuse="0.7 0.7 0.7" specular="0.25 0.25 0.25"/>
