@@ -23,6 +23,7 @@
 #include <sensor_msgs/point_cloud2_iterator.hpp>
 
 #include <exception>
+#include <limits>
 #include <utility>
 
 using namespace std::chrono_literals;
@@ -122,7 +123,10 @@ void MujocoCameras::initialize_pointcloud_message(CameraData& camera) const
   message.height = camera.height;
   message.width = camera.width;
   message.is_bigendian = false;
-  message.is_dense = true;
+  // Pixels whose ray hits nothing (open space beyond any geometry) are marked
+  // NaN by linearize_and_flip_depth rather than reporting the far clipping
+  // plane as a real surface, so the cloud is not dense.
+  message.is_dense = false;
   message.point_step = 3U * static_cast<uint32_t>(sizeof(float));
   message.row_step = message.width * message.point_step;
   sensor_msgs::msg::PointField x_field;
@@ -145,13 +149,27 @@ void MujocoCameras::initialize_pointcloud_message(CameraData& camera) const
 
 void MujocoCameras::linearize_and_flip_depth(CameraData& camera, float near, float depth_scale) const
 {
+  // The scene's ground plane is 200m across and there is no explicit
+  // <statistic extent="..."/>, so MuJoCo auto-derives near/far from that
+  // plane's bounding box: far ends up thousands of metres out. Grazing rays
+  // near the horizon legitimately intersect that distant floor, so their raw
+  // depth is not exactly 1 (the literal clip value) -- it is just very close
+  // to it -- yet 1/(1-depth) still blows the linearized distance up to
+  // hundreds or thousands of metres. Those returns are technically real
+  // intersections but are physically useless for this camera's tabletop-scale
+  // task, so anything past a sane working range is treated as invalid rather
+  // than polluting the cloud with kilometre-scale outliers.
+  constexpr float kMaxValidDepthMetres = 10.0f;
   for (uint32_t row = 0; row < camera.height; ++row)
   {
     for (uint32_t column = 0; column < camera.width; ++column)
     {
       const auto index = row * camera.width + column;
       const auto flipped_index = (camera.height - 1 - row) * camera.width + column;
-      camera.depth_buffer_flipped[flipped_index] = near / (1.0f - camera.depth_buffer[index] * depth_scale);
+      const float raw_depth = camera.depth_buffer[index];
+      const float linear_depth = near / (1.0f - raw_depth * depth_scale);
+      camera.depth_buffer_flipped[flipped_index] =
+          (linear_depth > kMaxValidDepthMetres) ? std::numeric_limits<float>::quiet_NaN() : linear_depth;
     }
   }
 }

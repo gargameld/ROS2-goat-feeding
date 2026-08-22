@@ -90,6 +90,38 @@ def generate_launch_description():
         launch_arguments={'use_sim_time': 'true'}.items(),
     )
 
+    grasp_pose_provider = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([
+                FindPackageShare('grasp_pose_provider'),
+                'launch',
+                'grasp_pose_provider.launch.py',
+            ])
+        )
+    )
+
+    gpd_server = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([
+                FindPackageShare('gpd_ros2'),
+                'launch',
+                'detect_constrained_grasps.launch.py',
+            ])
+        ),
+        launch_arguments={'use_sim_time': 'true'}.items(),
+    )
+
+    grasp_rvis = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([
+                FindPackageShare('grasp_rvis'),
+                'launch',
+                'grasp_rvis.launch.py',
+            ])
+        ),
+        launch_arguments={'use_sim_time': 'true'}.items(),
+    )
+
     lifecycle_manager = Node(
         package='nav2_lifecycle_manager',
         executable='lifecycle_manager',
@@ -129,5 +161,8 @@ def generate_launch_description():
         navigation,
         move_group,
         arm_behavior,
+        grasp_pose_provider,
+        gpd_server,
+        grasp_rvis,
         start_lifecycle_manager_after_controllers,
     ])

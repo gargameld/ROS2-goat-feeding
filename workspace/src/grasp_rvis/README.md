@@ -1,0 +1,10 @@
+# grasp_rvis
+
+This package starts a low-frame-rate RViz view of the robot, all four camera
+point clouds, and the most recent candidates returned by `provide_grasp_pose`.
+
+The provider publishes the action result on `/grasp_pose_candidates` with
+transient-local durability. `grasp_marker_node` converts each pose into a
+permanent XYZ-axis marker namespace named `grasp_NNN`. Expand **Grasp
+Candidates** in RViz and toggle those namespaces to choose which static poses
+are displayed. Pose timestamps are deliberately ignored.

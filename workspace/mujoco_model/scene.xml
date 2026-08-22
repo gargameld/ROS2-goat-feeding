@@ -1,6 +1,14 @@
 <mujoco>
   <option cone="elliptic" impratio="10"/>
   <option timestep="0.001" iterations="10"/>
+
+  <!-- The food items park at x~50 y~50, so the auto-computed model bounding box
+       is 63 m across. MuJoCo scales the clipping planes by stat.extent, which
+       put near at znear*63 = 0.63 m: the whole robot sat inside the near plane
+       and on-board cameras rendered straight through the chassis. Pinning the
+       extent to arena scale gives near = 0.02 m and far = 100 m. mujoco_cameras
+       reads the same two values when it linearizes the depth buffer. -->
+  <statistic extent="2" center="0 0 0.5"/>
   <visual>
     <quality shadowsize="0"/>
     <global realtime="0.1"/>

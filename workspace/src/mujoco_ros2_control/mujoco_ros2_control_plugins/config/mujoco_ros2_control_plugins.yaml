@@ -26,6 +26,6 @@
       simulation_management:
         type: "mujoco_ros2_control_plugins/SimulationManagementPlugin"
         # Constant world-frame z height (metres) that thrown food is placed at.
-        throw_food_height: 0.3
+        throw_food_height: 0.5
         # Number of parking areas addressable by the throw_food service (1..N).
         parking_count: 4

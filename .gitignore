@@ -10,6 +10,10 @@
 !/workspace/src/
 !/workspace/src/**
 
+# Keep important saved simulation states.
+!/workspace/important states/
+!/workspace/important states/**
+
 # Keep the capture rendering utility, but ignore generated captures and its local environment.
 !/workspace/capture/
 /workspace/capture/*

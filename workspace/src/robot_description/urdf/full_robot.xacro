@@ -77,14 +77,51 @@
   </joint>
 
   <!-- ROS optical frame matching robot.xml's forward-facing camera:
-       +X right, +Y down, and +Z forward along the chassis +X axis. -->
+       +X right, +Y down, and +Z forward, tilted 30 deg downward from the
+       chassis +X axis (rotation about the chassis +Y axis). -->
   <link name="front_camera_frame"/>
 
   <joint name="front_camera_joint" type="fixed">
     <parent link="base_link"/>
     <child link="front_camera_frame"/>
-    <origin xyz="0.51 0 0.48"
-            rpy="-1.57079632679 0 -1.57079632679"/>
+    <origin xyz="0.5 0 0.64"
+            rpy="-2.09439510239 0 -1.57079632679"/>
+  </joint>
+
+  <!-- The left-facing camera trio (robot.xml: left_camera /
+       left_front_camera / left_back_camera), sitting on the chassis +Y edge
+       at y = 0.4 and at front_camera_frame's height. All three keep that
+       30 deg downward tilt (the -2.0944 roll) but point along the chassis
+       +Y axis instead of +X, which in this rpy convention is a zero yaw.
+       left_front_camera_frame and left_back_camera_frame are 0.3 m fore and
+       aft of left_camera_frame and are yawed 30 deg (pi/6) back towards it.
+       The grasp pose provider merges all three clouds into left_camera_frame
+       using these transforms, so they must stay in sync with robot.xml. -->
+  <link name="left_camera_frame"/>
+
+  <joint name="left_camera_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="left_camera_frame"/>
+    <origin xyz="0 0.4 0.64"
+            rpy="-2.09439510239 0 0"/>
+  </joint>
+
+  <link name="left_front_camera_frame"/>
+
+  <joint name="left_front_camera_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="left_front_camera_frame"/>
+    <origin xyz="0.3 0.4 0.64"
+            rpy="-2.09439510239 0 0.52359877560"/>
+  </joint>
+
+  <link name="left_back_camera_frame"/>
+
+  <joint name="left_back_camera_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="left_back_camera_frame"/>
+    <origin xyz="-0.3 0.4 0.64"
+            rpy="-2.09439510239 0 -0.52359877560"/>
   </joint>
 
   <!-- Match the MuJoCo chassis frame exactly: +X is front and +Y is left. -->

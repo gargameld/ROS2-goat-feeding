@@ -1,0 +1,34 @@
+magenta hole arm pose:
+ros2 action send_goal /move_arm_to_pose arm_interface/action/MoveArmToPose "{target_pose: {position: {x: -2.6, y: 2, z: 0.42}, orientation: {x: 0.0, y: -0.7071068, z: 0.0, w: 0.7071068}}, reference_frame: map}"
+
+red hole robot pose:
+ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose "{pose: {header: {frame_id: map}, pose: {position: {x: -1.65, y: 2.1, z: 0.0}, orientation: {z: 1, w: 1.57}}}}" --feedback
+
+black hole robot pose:
+ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose "{pose: {header: {frame_id: map}, pose: {position: {x: -1.65, y: 6.1, z: 0.0}, orientation: {z: 1, w: 1.57}}}}" --feedback
+
+black hole arm pose:
+ros2 action send_goal /move_arm_to_pose arm_interface/action/MoveArmToPose "{target_pose: {position: {x: -2.6, y: 6.1, z: 0.25}, orientation: {x: 0.0, y: -0.7071068, z: 0.0, w: 0.7071068}}, reference_frame: map}"
+
+red hole arm pose:
+ros2 action send_goal /move_arm_to_pose arm_interface/action/MoveArmToPose "{target_pose: {position: {x: 2.6, y: 6.0, z: 0.55}, orientation: {x: 0.0, y: 0.7071068, z: 0.0, w: 0.7071068}}, reference_frame: map}" 
+
+red hole robot pose:
+ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose "{pose: {header: {frame_id: map}, pose: {position: {x: 1.55, y: 6.1, z: 0.0}, orientation: {z: 1, w: 1.57}}}}" --feedback
+
+blue hole arm pose:
+ros2 action send_goal /move_arm_to_pose arm_interface/action/MoveArmToPose "{target_pose: {position: {x: 2.6, y: 2.0, z: 0.75}, orientation: {x: 0.0, y: 0.7071068, z: 0.0, w: 0.7071068}}, reference_frame: map}" 
+
+3d debugger:
+source .venv/bin/activate && python3 simulation_3d_interface/live_view.py
+
+
+navigate to parking 1:
+ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose "{pose: {header: {frame_id: map}, pose: {position: {x: 1.95, y: -7.0, z: 0.0}, orientation: {x: 0.0, y: 0.0, z: -0.7071068, w: 0.7071068}}}}"
+
+move arm to home pose:
+ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose "{pose: {header: {frame_id: map}, pose: {position: {x: 1.8, y: -7, z: 0.0}, orientation: {z: 0 , w: 1}}}}" --feedback
+
+launch full system:
+ros2 launch robot_behavior full_system.launch.py   > /config/workspace/capture/launch.log 2>&1
+

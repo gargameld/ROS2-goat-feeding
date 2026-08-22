@@ -21,10 +21,37 @@
 
       <!-- 320x240 keeps software-rendered RGB-D frames below the DDS message
            and processing bottleneck seen with 640x480 in the headless container. -->
-      <!-- Look straight along chassis +X. MuJoCo camera +X is image-right,
-           +Y is image-up, and -Z is the viewing direction. -->
-      <camera name="robot_camera" mode="fixed" pos="0.51 0 0.22"
-              xyaxes="0 -1 0  0 0 1" resolution="320 240"/>
+      <!-- Look along chassis +X, tilted 30 deg downward (rotation about +Y).
+           MuJoCo camera +X is image-right, +Y is image-up, and -Z is the
+           viewing direction. Must match front_camera_joint in full_robot.xacro. -->
+      <camera name="robot_camera" mode="fixed" pos="0.5 0 0.38"
+              xyaxes="0 -1 0  0.5 0 0.866025" resolution="320 240"/>
+
+      <site name = "camera_site" pos = "0.5 0 0.38"/>
+
+      <!-- A trio of cameras on the chassis +Y (left) edge, where the box
+           half-size is 0.40, all at robot_camera's height. left_camera looks
+           straight along chassis +Y, tilted 30 deg downward; left_front_camera
+           and left_back_camera sit 0.3 m fore and aft of it and are each yawed
+           30 deg about the chassis +Z axis back towards left_camera, so the
+           three views together cover the sides of the food that a single
+           head-on view occludes. Must match left_camera_joint /
+           left_front_camera_joint / left_back_camera_joint in
+           full_robot.xacro. -->
+      <camera name="left_camera" mode="fixed" pos="0 0.4 0.38"
+              xyaxes="1 0 0  0 0.5 0.866025" resolution="320 240"/>
+
+      <site name="left_camera_site" pos="0 0.4 0.38"/>
+
+      <camera name="left_front_camera" mode="fixed" pos="0.3 0.4 0.38"
+              xyaxes="0.866025 0.5 0  -0.25 0.433013 0.866025" resolution="320 240"/>
+
+      <site name="left_front_camera_site" pos="0.3 0.4 0.38"/>
+
+      <camera name="left_back_camera" mode="fixed" pos="-0.3 0.4 0.38"
+              xyaxes="0.866025 -0.5 0  0.25 0.433013 0.866025" resolution="320 240"/>
+
+      <site name="left_back_camera_site" pos="-0.3 0.4 0.38"/>
 
       <!--
         The chassis is forward along local +X and left along local +Y.  Keep

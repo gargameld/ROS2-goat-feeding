@@ -131,6 +131,24 @@
         <param name="frame_name">front_camera_frame</param>
         <param name="pointcloud_topic">/front_camera/points</param>
       </sensor>
+
+      <!-- The left-facing MuJoCo camera trio (robot.xml: left_camera /
+           left_front_camera / left_back_camera). The grasp pose provider
+           merges all three of these clouds into left_camera_frame. -->
+      <sensor name="left_camera">
+        <param name="frame_name">left_camera_frame</param>
+        <param name="pointcloud_topic">/left_camera/points</param>
+      </sensor>
+
+      <sensor name="left_front_camera">
+        <param name="frame_name">left_front_camera_frame</param>
+        <param name="pointcloud_topic">/left_front_camera/points</param>
+      </sensor>
+
+      <sensor name="left_back_camera">
+        <param name="frame_name">left_back_camera_frame</param>
+        <param name="pointcloud_topic">/left_back_camera/points</param>
+      </sensor>
     </ros2_control>
   </xacro:macro>
 

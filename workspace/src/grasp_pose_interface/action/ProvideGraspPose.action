@@ -1,0 +1,10 @@
+# Goal: no parameters for now; the node resolves the stored model and camera
+# topic from its own parameters.
+
+---
+# Result: the candidate TCP grasp poses found for the detected food.
+geometry_msgs/PoseStamped[] grasp_poses
+
+---
+# Feedback: a short description of the current pipeline stage.
+string stage

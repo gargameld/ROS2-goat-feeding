@@ -16,6 +16,7 @@
 
 #include <functional>
 #include <mutex>
+#include <string>
 #include <utility>
 
 #include <pluginlib/class_list_macros.hpp>
@@ -51,16 +52,27 @@ bool SimulationManagementPlugin::init(rclcpp::Node::SharedPtr node, const mjMode
     return false;
   }
 
-  if (!node_->has_parameter("throw_food_height"))
+  // Parameters are nested below the configured ROS plugin key. The plugin is given a sub-node whose
+  // sub-namespace is that key, but sub-namespaces only affect topic and service names, so the
+  // parameter names have to carry the prefix explicitly.
+  const std::string plugin_key =
+      node_->get_sub_namespace().empty() ? std::string("simulation_management") : node_->get_sub_namespace();
+  const std::string param_prefix = "mujoco_plugins." + plugin_key + ".";
+  const std::string throw_food_height_param = param_prefix + "throw_food_height";
+  const std::string parking_count_param = param_prefix + "parking_count";
+
+  if (!node_->has_parameter(throw_food_height_param))
   {
-    node_->declare_parameter("throw_food_height", 0.3);
+    node_->declare_parameter(throw_food_height_param, 0.3);
   }
-  if (!node_->has_parameter("parking_count"))
+  if (!node_->has_parameter(parking_count_param))
   {
-    node_->declare_parameter("parking_count", static_cast<int64_t>(4));
+    node_->declare_parameter(parking_count_param, static_cast<int64_t>(4));
   }
-  const double throw_food_height = node_->get_parameter("throw_food_height").as_double();
-  const int parking_count = static_cast<int>(node_->get_parameter("parking_count").as_int());
+  const double throw_food_height = node_->get_parameter(throw_food_height_param).as_double();
+  const int parking_count = static_cast<int>(node_->get_parameter(parking_count_param).as_int());
+  RCLCPP_INFO(logger_, "Using '%s' = %.3f and '%s' = %d.", throw_food_height_param.c_str(), throw_food_height,
+              parking_count_param.c_str(), parking_count);
   food_management_ = std::make_unique<FoodManagement>(model_, data_, throw_food_height, parking_count);
 
   get_robot_state_service_ = node_->create_service<GetRobotState>(
