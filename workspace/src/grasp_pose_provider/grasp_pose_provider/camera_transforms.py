@@ -1,15 +1,17 @@
-"""Transforms between the camera frames, taken from the robot state publisher.
+"""Transforms between camera frames and ``base_link``.
 
 The three on-board cameras each publish their cloud in their own optical frame
 (``left_camera_frame``, ``left_back_camera_frame``,
 ``left_front_camera_frame``). Those frames are part of the robot description,
 so ``robot_state_publisher`` broadcasts them on ``/tf_static``; this module
-listens to that broadcast and hands back the rigid transform between any two of
-them as a 4x4 homogeneous matrix ready to be applied to an Nx3 point array.
+listens to that broadcast and hands back the rigid transform between any two
+frames as a 4x4 homogeneous matrix ready to be applied to an Nx3 point array.
+Convenience methods expose camera-to-``base_link`` transforms for geometry
+checks that need the robot's gravity-aligned Z axis.
 
-:class:`CameraTransformResolver` owns the tf2 buffer and listener. Construct one
-per node and keep it alive: the buffer only answers lookups for transforms it
-has already received, so a short-lived resolver would spend its whole life
+:class:`CameraTransformResolver` owns the tf2 buffer and listener. Construct
+one per node and keep it alive: the buffer only answers lookups for transforms
+it has already received, so a short-lived resolver would spend its whole life
 waiting for the first ``/tf_static`` message. Used by
 :mod:`grasp_pose_provider.combine_pointclouds` to patch the three clouds into a
 single one.
@@ -27,6 +29,7 @@ DEFAULT_TF_TIMEOUT_SEC = 5.0
 # How much history the buffer keeps. The camera frames are static, so this only
 # needs to be long enough to cover a stale cloud stamp.
 DEFAULT_CACHE_TIME_SEC = 30.0
+BASE_LINK_FRAME = 'base_link'
 
 
 def transform_to_matrix(transform):
@@ -76,7 +79,7 @@ def apply_transform(matrix, points):
 
 
 class CameraTransformResolver:
-    """Looks up transforms between frames published by robot_state_publisher.
+    """Looks up camera and base transforms from robot_state_publisher.
 
     ``node`` is only used to create the tf2 subscriptions. ``TransformListener``
     puts them on a reentrant callback group, so a multi-threaded executor keeps
@@ -117,7 +120,11 @@ class CameraTransformResolver:
         if target_frame == source_frame:
             return np.identity(4, dtype=np.float64)
 
-        time = rclpy.time.Time() if stamp is None else rclpy.time.Time.from_msg(stamp)
+        time = (
+            rclpy.time.Time()
+            if stamp is None
+            else rclpy.time.Time.from_msg(stamp)
+        )
         transform = self._buffer.lookup_transform(
             target_frame,
             source_frame,
@@ -125,6 +132,34 @@ class CameraTransformResolver:
             timeout=Duration(seconds=timeout_sec),
         )
         return transform_to_matrix(transform.transform)
+
+    def lookup_base_from_camera(
+        self,
+        camera_frame,
+        stamp=None,
+        timeout_sec=DEFAULT_TF_TIMEOUT_SEC,
+    ):
+        """Map points from ``camera_frame`` into ``base_link``."""
+        return self.lookup_matrix(
+            BASE_LINK_FRAME,
+            camera_frame,
+            stamp=stamp,
+            timeout_sec=timeout_sec,
+        )
+
+    def lookup_camera_from_base(
+        self,
+        camera_frame,
+        stamp=None,
+        timeout_sec=DEFAULT_TF_TIMEOUT_SEC,
+    ):
+        """Map points from ``base_link`` into ``camera_frame``."""
+        return self.lookup_matrix(
+            camera_frame,
+            BASE_LINK_FRAME,
+            stamp=stamp,
+            timeout_sec=timeout_sec,
+        )
 
     def destroy(self):
         """Drop the listener's tf subscriptions.

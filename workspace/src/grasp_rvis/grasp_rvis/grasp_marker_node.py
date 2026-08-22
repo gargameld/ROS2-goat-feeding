@@ -12,6 +12,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 
 DEFAULT_POSES_TOPIC = '/grasp_pose_candidates'
 DEFAULT_MARKERS_TOPIC = '/grasp_rvis/grasp_markers'
+DEFAULT_GRIPPER_MARKERS_TOPIC = '/grasp_rvis/gripper_markers'
 
 _AXES = (
     ((1.0, 0.0, 0.0), (1.0, 0.1, 0.1, 1.0)),
@@ -27,7 +28,15 @@ class GraspMarkerNode(Node):
         super().__init__('grasp_marker_node')
         self.declare_parameter('poses_topic', DEFAULT_POSES_TOPIC)
         self.declare_parameter('markers_topic', DEFAULT_MARKERS_TOPIC)
-        self.declare_parameter('axis_length', 0.12)
+        self.declare_parameter(
+            'gripper_markers_topic', DEFAULT_GRIPPER_MARKERS_TOPIC
+        )
+        self.declare_parameter('axis_length', 0.04)
+        self.declare_parameter('republish_period_sec', 0.5)
+        self.declare_parameter('finger_width', 0.012)
+        self.declare_parameter('hand_outer_diameter', 0.102)
+        self.declare_parameter('hand_depth', 0.037)
+        self.declare_parameter('hand_height', 0.022)
 
         static_qos = QoSProfile(
             depth=1,
@@ -39,26 +48,59 @@ class GraspMarkerNode(Node):
             self.get_parameter('markers_topic').value,
             static_qos,
         )
+        self._gripper_publisher = self.create_publisher(
+            MarkerArray,
+            self.get_parameter('gripper_markers_topic').value,
+            static_qos,
+        )
         self._subscription = self.create_subscription(
             GraspPoseArray,
             self.get_parameter('poses_topic').value,
             self._poses_callback,
             static_qos,
         )
+        self._cached_pose_markers = None
+        self._cached_gripper_markers = None
+        period = float(self.get_parameter('republish_period_sec').value)
+        if period <= 0.0:
+            raise ValueError('republish_period_sec must be positive.')
+        self._republish_timer = self.create_timer(period, self._republish)
 
     def _poses_callback(self, message):
-        markers = MarkerArray()
-        clear = Marker()
-        clear.action = Marker.DELETEALL
-        markers.markers.append(clear)
+        pose_markers = MarkerArray()
+        gripper_markers = MarkerArray()
 
         for index, pose in enumerate(message.poses):
-            markers.markers.extend(self._pose_markers(index, pose))
+            pose_markers.markers.extend(self._pose_markers(index, pose))
+            gripper_markers.markers.extend(
+                self._gripper_markers(index, pose)
+            )
 
-        self._publisher.publish(markers)
+        # Clear candidates from the previous result once, then cache only ADD
+        # markers. Re-sending the ADD markers lets RViz restore a namespace
+        # after its checkbox is disabled and enabled again.
+        self._publish_with_clear(self._publisher, pose_markers)
+        self._publish_with_clear(self._gripper_publisher, gripper_markers)
+        self._cached_pose_markers = pose_markers
+        self._cached_gripper_markers = gripper_markers
         self.get_logger().info(
             f'Visualizing {len(message.poses)} static grasp candidates'
         )
+
+    @staticmethod
+    def _publish_with_clear(publisher, markers):
+        update = MarkerArray()
+        clear = Marker()
+        clear.action = Marker.DELETEALL
+        update.markers = [clear, *markers.markers]
+        publisher.publish(update)
+
+    def _republish(self):
+        """Re-send ADD markers so RViz namespace toggles are reversible."""
+        if self._cached_pose_markers is not None:
+            self._publisher.publish(self._cached_pose_markers)
+        if self._cached_gripper_markers is not None:
+            self._gripper_publisher.publish(self._cached_gripper_markers)
 
     def _pose_markers(self, index, pose):
         namespace = f'grasp_{index:03d}'
@@ -92,7 +134,9 @@ class GraspMarkerNode(Node):
         label.id = len(_AXES)
         label.type = Marker.TEXT_VIEW_FACING
         label.action = Marker.ADD
-        label.pose.position = _point_at(pose, (0.0, 0.0, axis_length + 0.025))
+        label.pose.position = _point_at(
+            pose, (0.0, 0.0, axis_length + 0.025)
+        )
         label.pose.orientation.w = 1.0
         label.scale.z = 0.035
         label.color.r = 1.0
@@ -101,6 +145,49 @@ class GraspMarkerNode(Node):
         label.color.a = 1.0
         label.text = f'grasp {index}'
         markers.append(label)
+        return markers
+
+    def _gripper_markers(self, index, pose):
+        """Create a parallel-jaw gripper behind an ``arm_tcp`` pose.
+
+        ``arm_tcp`` is at the fingertips with +Z along approach, +Y along the
+        finger-closing direction, and +X across the finger height.
+        """
+        namespace = f'grasp_{index:03d}'
+        finger_width = float(self.get_parameter('finger_width').value)
+        outer_diameter = float(
+            self.get_parameter('hand_outer_diameter').value
+        )
+        hand_depth = float(self.get_parameter('hand_depth').value)
+        hand_height = float(self.get_parameter('hand_height').value)
+        half_spacing = 0.5 * (outer_diameter - finger_width)
+
+        specs = (
+            # Center offsets and dimensions in TCP [height, closing, approach].
+            ((0.0, -half_spacing, -0.5 * hand_depth),
+             (hand_height, finger_width, hand_depth)),
+            ((0.0, half_spacing, -0.5 * hand_depth),
+             (hand_height, finger_width, hand_depth)),
+            ((0.0, 0.0, -hand_depth - 0.01),
+             (hand_height, 2.0 * half_spacing, 0.02)),
+        )
+        markers = []
+        for marker_id, (offset, dimensions) in enumerate(specs):
+            marker = Marker()
+            marker.header.frame_id = pose.header.frame_id
+            marker.ns = namespace
+            marker.id = marker_id
+            marker.type = Marker.CUBE
+            marker.action = Marker.ADD
+            rotated_offset = _rotate_vector(pose, offset)
+            marker.pose.position = _point_at(pose, rotated_offset)
+            marker.pose.orientation = pose.pose.orientation
+            marker.scale.x, marker.scale.y, marker.scale.z = dimensions
+            marker.color.r = 0.08
+            marker.color.g = 0.35
+            marker.color.b = 1.0
+            marker.color.a = 0.65
+            markers.append(marker)
         return markers
 
 

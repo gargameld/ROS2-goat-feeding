@@ -7,4 +7,10 @@ The provider publishes the action result on `/grasp_pose_candidates` with
 transient-local durability. `grasp_marker_node` converts each pose into a
 permanent XYZ-axis marker namespace named `grasp_NNN`. Expand **Grasp
 Candidates** in RViz and toggle those namespaces to choose which static poses
-are displayed. Pose timestamps are deliberately ignored.
+are displayed. Pose timestamps are deliberately ignored. Static markers are
+republished twice per second so a namespace appears again after it is
+re-enabled.
+
+Enable the **Candidate Grippers** display to show a simple Robotiq-style
+parallel-jaw model. Its `grasp_NNN` namespace checkboxes allow the gripper for
+each candidate to be shown independently of the pose axes.

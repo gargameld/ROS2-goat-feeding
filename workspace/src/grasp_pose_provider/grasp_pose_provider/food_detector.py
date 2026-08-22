@@ -20,6 +20,7 @@ import numpy as np
 import open3d as o3d
 
 from grasp_pose_provider import (
+    camera_transforms,
     debug_dump,
     pointcloud_conversion,
     subtract_pointclouds,
@@ -28,13 +29,25 @@ from grasp_pose_provider import (
 
 # ICP max correspondence distance (metres). Pairs farther apart are ignored.
 DEFAULT_MAX_CORRESPONDENCE_DISTANCE = 0.05
+# DBSCAN parameters for separating disconnected food/subtraction regions.
+DEFAULT_CLUSTER_EPS = 0.02
+DEFAULT_CLUSTER_MIN_POINTS = 10
+# Shelves and walls are approximately constant along at least one base_link
+# axis. A food cluster must occupy more than this distance along every axis.
+# The middle 90% is used so a few depth-camera outliers cannot preserve a plane.
+DEFAULT_MIN_CLUSTER_AXIS_SPAN = 0.01
+CLUSTER_SPAN_PERCENTILES = (5.0, 95.0)
 
 
 def detect_food(
     stored_cloud,
     captured_cloud_msg,
+    base_from_cloud_matrix,
     max_correspondence_distance=DEFAULT_MAX_CORRESPONDENCE_DISTANCE,
     distance_threshold=subtract_pointclouds.DEFAULT_DISTANCE_THRESHOLD,
+    cluster_eps=DEFAULT_CLUSTER_EPS,
+    cluster_min_points=DEFAULT_CLUSTER_MIN_POINTS,
+    min_cluster_axis_span=DEFAULT_MIN_CLUSTER_AXIS_SPAN,
 ):
     """Return the indices of the food points within ``captured_cloud_msg``.
 
@@ -44,8 +57,15 @@ def detect_food(
     ``captured_cloud_msg`` is the merged ``sensor_msgs/msg/PointCloud2``
     captured from the cameras. The returned value is an ``int64`` array of
     indices into that message's point ordering (NaN points included)
-    identifying the points that belong to the food -- the same indexing the GPD
-    server expects in a ``CloudIndexed``.
+    identifying the largest spatial cluster with meaningful variation along
+    all three ``base_link`` axes -- the same indexing the GPD server expects in
+    a ``CloudIndexed``. Candidate clusters that are roughly constant in X, Y,
+    or Z are treated as wall or shelf surfaces and excluded before the largest
+    remaining cluster is chosen.
+
+    ``base_from_cloud_matrix`` maps points from ``captured_cloud_msg``'s frame
+    into ``base_link``. It should come from
+    :meth:`CameraTransformResolver.lookup_base_from_camera`.
     """
     # ``original_indices`` maps each surviving Open3D point back to its row in
     # the original message, since converting to Open3D drops NaN points.
@@ -74,8 +94,29 @@ def detect_food(
         distance_threshold=distance_threshold,
     )
 
+    # Cluster the subtraction result. DBSCAN label -1 represents noise and is
+    # never sent to GPD. Reject shelf- and wall-like planar clusters in
+    # base_link before selecting the remaining cluster containing most points.
+    food_cloud = captured_cloud.select_by_index(food_indices.tolist())
+    if len(food_cloud.points) > 0:
+        cluster_labels = np.asarray(
+            food_cloud.cluster_dbscan(
+                eps=cluster_eps,
+                min_points=cluster_min_points,
+                print_progress=False,
+            ),
+            dtype=np.int64,
+        )
+        selected_mask = _largest_non_planar_cluster_mask(
+            np.asarray(food_cloud.points),
+            cluster_labels,
+            base_from_cloud_matrix,
+            min_axis_span=min_cluster_axis_span,
+        )
+        food_indices = food_indices[selected_mask]
+
     # Intermediate debugging aid: dump the transform, the stored, captured and
-    # food clouds, and the food indices (indices here are into
+    # food clouds, and the largest-cluster indices (indices here are into
     # ``captured_cloud``). Remove once detection is trusted.
     debug_dump.dump_detection(
         stored_cloud, captured_cloud, result.transformation, food_indices
@@ -83,3 +124,41 @@ def detect_food(
 
     # Translate Open3D indices back to indices into the original message.
     return original_indices[food_indices].astype(np.int64)
+
+
+def _largest_non_planar_cluster_mask(
+    points,
+    cluster_labels,
+    base_from_cloud_matrix,
+    min_axis_span=DEFAULT_MIN_CLUSTER_AXIS_SPAN,
+):
+    """Select the largest cluster spanning X, Y and Z in ``base_link``."""
+    points = np.asarray(points, dtype=np.float64).reshape(-1, 3)
+    cluster_labels = np.asarray(cluster_labels, dtype=np.int64)
+    if cluster_labels.shape != (points.shape[0],):
+        raise ValueError('cluster_labels must contain one label per point.')
+    if min_axis_span < 0.0:
+        raise ValueError('min_axis_span must be non-negative.')
+
+    base_points = camera_transforms.apply_transform(
+        np.asarray(base_from_cloud_matrix, dtype=np.float64), points
+    )
+    selected_label = None
+    selected_size = -1
+    for label in np.unique(cluster_labels[cluster_labels >= 0]):
+        cluster_mask = cluster_labels == label
+        low, high = np.percentile(
+            base_points[cluster_mask],
+            CLUSTER_SPAN_PERCENTILES,
+            axis=0,
+        )
+        if np.any(high - low <= min_axis_span):
+            continue
+        cluster_size = int(np.count_nonzero(cluster_mask))
+        if cluster_size > selected_size:
+            selected_label = label
+            selected_size = cluster_size
+
+    if selected_label is None:
+        return np.zeros(points.shape[0], dtype=bool)
+    return cluster_labels == selected_label

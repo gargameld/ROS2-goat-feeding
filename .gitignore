@@ -4,11 +4,17 @@
 # Keep the ignore rules themselves in the repository.
 !/.gitignore
 
-# Keep only the ROS source tree.
+# Keep the container build definition.
+!/Dockerfile
+
+# Keep the ROS source tree and simulation model sources.
 !/workspace/
 /workspace/*
 !/workspace/src/
 !/workspace/src/**
+!/workspace/mujoco_model/
+!/workspace/mujoco_model/**
+/workspace/mujoco_model/live_view_*/
 
 # Keep important saved simulation states.
 !/workspace/important states/
@@ -19,6 +25,44 @@
 /workspace/capture/*
 !/workspace/capture/render_capture.py
 
-# Python bytecode caches.
+# ROS 2 / colcon generated output.
+/workspace/build/
+/workspace/install/
+/workspace/log/
+/workspace/MUJOCO_LOG.TXT
+
+# Python generated files and local environments.
 __pycache__/
 *.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.venv/
+venv/
+*.egg-info/
+
+# Test, profiling, and runtime artifacts.
+*.log
+*.prof
+*.trace
+core
+core.*
+rosbag2_*/
+*.bag
+*.db3
+*.mcap
+
+# Editor and operating-system metadata.
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+*:Zone.Identifier

@@ -22,7 +22,10 @@ controller_server:
 
     goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
-      stateful: true
+      # Require position and yaw tolerances to hold on the same control cycle.
+      stateful: false
+      # Do not report success while the base is still almost a metre from the
+      # required path endpoint.
       xy_goal_tolerance: 0.15
       yaw_goal_tolerance: 0.05
 

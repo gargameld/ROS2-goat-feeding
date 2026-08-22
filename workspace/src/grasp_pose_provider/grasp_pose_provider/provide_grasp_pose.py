@@ -62,7 +62,9 @@ GPD_SERVICE_NAME = 'detect_constrained_grasps'
 # How long to wait for the GPD service to be available / to answer (seconds).
 # A full detection on the merged three-camera cloud has been measured at ~130 s
 # end to end, so this has to stay well clear of two minutes.
-DEFAULT_SERVICE_TIMEOUT_SEC = 300.0
+DEFAULT_SERVICE_TIMEOUT_SEC = 600.0
+# Only local scene geometry is needed to evaluate grasps around the food.
+DEFAULT_GPD_CLOUD_CROP_RADIUS = 0.10
 
 
 def _emit(feedback_cb, stage):
@@ -89,7 +91,8 @@ def provide_grasp_pose(
     ``transform_resolver`` is a
     :class:`~grasp_pose_provider.camera_transforms.CameraTransformResolver`
     kept alive by the caller; it supplies the camera-to-camera transforms both
-    merges need.
+    merges need and the merged-camera-to-base transform used to reject shelf
+    surfaces.
 
     Returns a list of ``geometry_msgs/msg/PoseStamped`` -- one per grasp
     candidate returned by the GPD service -- stamped in the merged cloud's
@@ -115,13 +118,32 @@ def provide_grasp_pose(
     )
 
     _emit(feedback_cb, 'Detecting food in the combined cloud')
-    food_indices = food_detector.detect_food(stored_cloud, combined.msg)
+    base_from_cloud_matrix = transform_resolver.lookup_base_from_camera(
+        combined.frame_id,
+        stamp=combined.msg.header.stamp,
+        timeout_sec=tf_timeout_sec,
+    )
+    food_indices = food_detector.detect_food(
+        stored_cloud,
+        combined.msg,
+        base_from_cloud_matrix,
+    )
+
+    _emit(feedback_cb, 'Cropping the GPD cloud around the detected food')
+    cropped_msg, cropped_food_indices, cropped_camera_source = (
+        gpd_request_builder.crop_cloud_around_indices(
+            combined.msg,
+            food_indices,
+            camera_source=combined.camera_source,
+            radius=DEFAULT_GPD_CLOUD_CROP_RADIUS,
+        )
+    )
 
     _emit(feedback_cb, 'Building the GPD service request')
     request = gpd_request_builder.build_service_request(
-        food_indices,
-        combined.msg,
-        camera_source=combined.camera_source,
+        cropped_food_indices,
+        cropped_msg,
+        camera_source=cropped_camera_source,
         view_points=combined.view_points,
     )
 

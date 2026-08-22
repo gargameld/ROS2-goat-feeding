@@ -22,7 +22,9 @@ def test_one_pose_has_selectable_static_namespace():
     node = GraspMarkerNode()
     try:
         capture = _CapturePublisher()
+        gripper_capture = _CapturePublisher()
         node._publisher = capture
+        node._gripper_publisher = gripper_capture
 
         pose = PoseStamped()
         pose.header.frame_id = 'map'
@@ -45,6 +47,28 @@ def test_one_pose_has_selectable_static_namespace():
         assert all(marker.header.stamp.nanosec == 0 for marker in grasp_markers)
         assert all(marker.lifetime.sec == 0 for marker in grasp_markers)
         assert all(marker.lifetime.nanosec == 0 for marker in grasp_markers)
+
+        gripper_markers = gripper_capture.message.markers[1:]
+        assert len(gripper_markers) == 3
+        assert {marker.ns for marker in gripper_markers} == {'grasp_000'}
+        assert all(marker.type == Marker.CUBE for marker in gripper_markers)
+        # Identity arm_tcp: fingers extend behind the TCP along -Z.
+        assert math.isclose(gripper_markers[0].pose.position.y, 1.955)
+        assert math.isclose(gripper_markers[0].pose.position.z, 2.9815)
+        assert math.isclose(gripper_markers[0].scale.x, 0.022)
+        assert math.isclose(gripper_markers[0].scale.y, 0.012)
+        assert math.isclose(gripper_markers[0].scale.z, 0.037)
+
+        # RViz discards a disabled namespace's visuals. The periodic ADD-only
+        # update makes it visible again after the checkbox is re-enabled.
+        capture.message = None
+        gripper_capture.message = None
+        node._republish()
+        assert len(capture.message.markers) == 4
+        assert len(gripper_capture.message.markers) == 3
+        assert all(
+            marker.action == Marker.ADD for marker in capture.message.markers
+        )
     finally:
         node.destroy_node()
         rclpy.shutdown()

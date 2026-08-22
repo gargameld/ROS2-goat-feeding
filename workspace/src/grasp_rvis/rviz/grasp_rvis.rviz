@@ -164,6 +164,17 @@ Visualization Manager:
         Reliability Policy: Reliable
         Value: /grasp_rvis/grasp_markers
       Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: false
+      Name: Candidate Grippers
+      Namespaces: {}
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /grasp_rvis/gripper_markers
+      Value: false
   Enabled: true
   Global Options:
     Background Color: 35; 35; 35

@@ -7,7 +7,9 @@ planner_server:
 
     GridBased:
       plugin: "nav2_smac_planner::SmacPlanner2D"
-      tolerance: 0.15
+      # Do not substitute a nearby reachable endpoint for the requested goal.
+      # If the requested goal cell is unreachable, planning must fail.
+      tolerance: 0.0
       downsample_costmap: false
       downsampling_factor: 1
       allow_unknown: true
