@@ -32,6 +32,7 @@
 #include <rclcpp/executors/single_threaded_executor.hpp>
 #include <rclcpp/node.hpp>
 #include <rclcpp/time.hpp>
+#include <std_srvs/srv/trigger.hpp>
 
 namespace mujoco_ros2_control
 {
@@ -63,7 +64,7 @@ public:
 
 private:
   bool all_controllers_are_active() const;
-  void initialize_controller_state_node();
+  void initialize_physics_sync_node();
   void request_controller_states();
   void update_expected_write_time_loop();
 
@@ -78,12 +79,15 @@ private:
 
   rclcpp::Node::SharedPtr synchronizer_node_;
   rclcpp::Client<controller_manager_msgs::srv::ListControllers>::SharedPtr list_controllers_client_;
-  std::unique_ptr<rclcpp::executors::SingleThreadedExecutor> controller_state_executor_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr pause_simulation_service_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr resume_simulation_service_;
+  std::unique_ptr<rclcpp::executors::SingleThreadedExecutor> physics_sync_executor_;
   std::atomic<bool> controllers_active_{ false };
   std::atomic<bool> controller_request_in_flight_{ false };
+  mutable std::atomic<bool> simulation_paused_{ false };
   mutable std::atomic<bool> initial_sync_completed_{ false };
   mutable std::atomic<bool> controller_activation_logged_{ false };
-  std::thread controller_state_executor_thread_;
+  std::thread physics_sync_executor_thread_;
 
   mutable std::mutex expected_write_time_mutex_;
   rclcpp::Time next_expected_write_time_{ 0, 0, RCL_ROS_TIME };

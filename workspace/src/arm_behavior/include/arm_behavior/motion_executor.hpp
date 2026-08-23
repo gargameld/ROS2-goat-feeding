@@ -27,13 +27,23 @@ public:
   OperationResult moveToPose(
     const geometry_msgs::msg::Pose & target_pose,
     const std::string & reference_frame);
+  OperationResult checkPoseReachability(
+    const geometry_msgs::msg::Pose & target_pose,
+    const std::string & reference_frame);
   OperationResult moveToHomePose();
   OperationResult lift(double distance);
 
 private:
-  void log_path(const MoveGroupInterface::Plan & plan, const std::string & motion_description) const;
+  void log_path(
+    const MoveGroupInterface::Plan & plan,
+    const std::string & motion_description) const;
   void log_planning_context(const std::string & motion_description) const;
   OperationResult planAndExecute(const std::string & motion_description);
+  OperationResult planOnly(const std::string & motion_description);
+  OperationResult setPoseTarget(
+    const geometry_msgs::msg::Pose & target_pose,
+    const std::string & reference_frame,
+    std::string & target_frame);
 
   std::shared_ptr<MoveGroupInterface> move_group_;
   std::shared_ptr<std::mutex> moveit_mutex_;

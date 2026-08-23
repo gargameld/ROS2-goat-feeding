@@ -20,6 +20,12 @@ ArmActionServer::ArmActionServer(
     [this](const auto goal_handle) {return handleCancel(goal_handle);},
     std::bind(&ArmActionServer::handleMoveToPoseAccepted, this, _1));
 
+  check_pose_reachability_server_ = rclcpp_action::create_server<CheckPoseReachability>(
+    node, "check_pose_reachability",
+    std::bind(&ArmActionServer::handleCheckPoseReachabilityGoal, this, _1, _2),
+    [this](const auto goal_handle) {return handleCancel(goal_handle);},
+    std::bind(&ArmActionServer::handleCheckPoseReachabilityAccepted, this, _1));
+
   move_to_home_server_ = rclcpp_action::create_server<MoveToHome>(
     node, "move_arm_to_home_pose",
     std::bind(&ArmActionServer::handleMoveToHomeGoal, this, _1, _2),
@@ -65,6 +71,19 @@ rclcpp_action::GoalResponse ArmActionServer::handleMoveToHomeGoal(
          rclcpp_action::GoalResponse::REJECT;
 }
 
+rclcpp_action::GoalResponse ArmActionServer::handleCheckPoseReachabilityGoal(
+  const rclcpp_action::GoalUUID &,
+  std::shared_ptr<const CheckPoseReachability::Goal> goal)
+{
+  if (!isValidPose(goal->target_pose)) {
+    RCLCPP_WARN(logger_, "Rejected invalid check_pose_reachability goal");
+    return rclcpp_action::GoalResponse::REJECT;
+  }
+  return reserveMotion() ?
+         rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE :
+         rclcpp_action::GoalResponse::REJECT;
+}
+
 rclcpp_action::GoalResponse ArmActionServer::handleLiftGoal(
   const rclcpp_action::GoalUUID &,
   std::shared_ptr<const LiftGripper::Goal> goal)
@@ -89,9 +108,9 @@ void ArmActionServer::handleMoveToPoseAccepted(
   std::shared_ptr<rclcpp_action::ServerGoalHandle<MoveToPose>> goal_handle)
 {
   launchWorker([this, goal_handle]() {
-    executeGoal<MoveToPose>(goal_handle, [this, goal_handle]() {
-      const auto goal = goal_handle->get_goal();
-      return motion_executor_.moveToPose(goal->target_pose, goal->reference_frame);
+      executeGoal<MoveToPose>(goal_handle, [this, goal_handle]() {
+        const auto goal = goal_handle->get_goal();
+        return motion_executor_.moveToPose(goal->target_pose, goal->reference_frame);
     });
   });
 }
@@ -100,9 +119,21 @@ void ArmActionServer::handleMoveToHomeAccepted(
   std::shared_ptr<rclcpp_action::ServerGoalHandle<MoveToHome>> goal_handle)
 {
   launchWorker([this, goal_handle]() {
-    executeGoal<MoveToHome>(goal_handle, [this]() {
-      return motion_executor_.moveToHomePose();
+      executeGoal<MoveToHome>(goal_handle, [this]() {
+        return motion_executor_.moveToHomePose();
     });
+  });
+}
+
+void ArmActionServer::handleCheckPoseReachabilityAccepted(
+  std::shared_ptr<rclcpp_action::ServerGoalHandle<CheckPoseReachability>> goal_handle)
+{
+  launchWorker([this, goal_handle]() {
+      executeGoal<CheckPoseReachability>(goal_handle, [this, goal_handle]() {
+        const auto goal = goal_handle->get_goal();
+        return motion_executor_.checkPoseReachability(
+        goal->target_pose, goal->reference_frame);
+    }, "planning");
   });
 }
 
@@ -110,8 +141,8 @@ void ArmActionServer::handleLiftAccepted(
   std::shared_ptr<rclcpp_action::ServerGoalHandle<LiftGripper>> goal_handle)
 {
   launchWorker([this, goal_handle]() {
-    executeGoal<LiftGripper>(goal_handle, [this, goal_handle]() {
-      return motion_executor_.lift(goal_handle->get_goal()->distance);
+      executeGoal<LiftGripper>(goal_handle, [this, goal_handle]() {
+        return motion_executor_.lift(goal_handle->get_goal()->distance);
     });
   });
 }

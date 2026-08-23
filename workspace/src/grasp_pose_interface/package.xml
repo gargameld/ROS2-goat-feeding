@@ -3,8 +3,8 @@
 <package format="3">
   <name>grasp_pose_interface</name>
   <version>0.0.0</version>
-  <description>Action interface for the grasp pose provider: request grasp pose
-    detection and receive the candidate TCP grasp poses.</description>
+  <description>Action interface for detecting and returning a reachable TCP
+    grasp pose.</description>
   <maintainer email="nambar@gmail.com">gargameld</maintainer>
   <license>Apache-2.0</license>
 

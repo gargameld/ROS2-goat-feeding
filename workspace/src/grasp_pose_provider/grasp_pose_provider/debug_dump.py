@@ -33,6 +33,7 @@ def dump_detection(
     transform,
     food_indices,
     directory=DEBUG_DIR,
+    stage=None,
 ):
     """Write the detection intermediates to the debug folder (best-effort).
 
@@ -41,27 +42,30 @@ def dump_detection(
     Any failure is swallowed on purpose: this debugging aid must never break
     the detection pipeline.
     """
+    suffix = '' if stage is None else f'_{stage}'
     try:
         os.makedirs(directory, exist_ok=True)
         o3d.io.write_point_cloud(
-            os.path.join(directory, 'stored_cloud.pcd'), stored_cloud
+            os.path.join(directory, f'stored_cloud{suffix}.pcd'), stored_cloud
         )
         o3d.io.write_point_cloud(
-            os.path.join(directory, 'captured_cloud.pcd'), captured_cloud
+            os.path.join(directory, f'captured_cloud{suffix}.pcd'),
+            captured_cloud,
         )
         # The food points on their own, so the segmentation can be eyeballed
         # without having to re-apply the indices to the captured cloud.
         o3d.io.write_point_cloud(
-            os.path.join(directory, 'food_cloud.pcd'),
+            os.path.join(directory, f'food_cloud{suffix}.pcd'),
             captured_cloud.select_by_index(
                 np.asarray(food_indices, dtype=np.int64).tolist()
             ),
         )
         np.savetxt(
-            os.path.join(directory, 'transform.txt'), np.asarray(transform)
+            os.path.join(directory, f'transform{suffix}.txt'),
+            np.asarray(transform),
         )
         np.savetxt(
-            os.path.join(directory, 'food_indices.txt'),
+            os.path.join(directory, f'food_indices{suffix}.txt'),
             np.asarray(food_indices, dtype=np.int64),
             fmt='%d',
         )

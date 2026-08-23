@@ -6,7 +6,10 @@
       <body name="arm_mount" pos="0 0 0.10">
         <include file="mounted_arm.xml"/>
       </body>
-      <geom type="box" size="0.5 0.40 0.05" pos="0 0 0.14" mass="10"/>
+      <!-- The mobile platform carries a 26 kg wheel set plus the UR5e arm.
+           A 10 kg chassis let arm and contact reactions displace the base
+           while it was supposed to be stationary. -->
+      <geom type="box" size="0.5 0.40 0.05" pos="0 0 0.14" mass="40"/>
       <site name="imu_sensor" pos="0 0 0.200" size="0.015"/>
       <site name="rear_right" pos="-0.40 -0.405 0.14" zaxis="-0.707107 -0.707107 0" size="0.01"/>
       <site name="front_right" pos="-0.40 0.405 0.14" zaxis="-0.707107 0.707107 0" size="0.01"/>
@@ -90,11 +93,13 @@
   </sensor>
 
   <actuator>
-    <!-- Native wheel-velocity servos for mecanum_drive_controller. -->
-    <velocity name="motor_fr" joint="fr_wheel_joint" kv="10"/>
-    <velocity name="motor_fl" joint="fl_wheel_joint" kv="10"/>
-    <velocity name="motor_rr" joint="rr_wheel_joint" kv="10"/>
-    <velocity name="motor_rl" joint="rl_wheel_joint" kv="10"/>
+    <!-- Native wheel-velocity servos for mecanum_drive_controller. The higher
+         gain supplies enough drive and zero-speed holding torque for the
+         heavier chassis without using an excessively stiff wheel servo. -->
+    <velocity name="motor_fr" joint="fr_wheel_joint" kv="25"/>
+    <velocity name="motor_fl" joint="fl_wheel_joint" kv="25"/>
+    <velocity name="motor_rr" joint="rr_wheel_joint" kv="25"/>
+    <velocity name="motor_rl" joint="rl_wheel_joint" kv="25"/>
     <include file="arm_actuators.xml"/>
   </actuator>
 

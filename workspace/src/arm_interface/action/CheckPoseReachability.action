@@ -1,0 +1,10 @@
+# Target pose of arm_tcp.
+geometry_msgs/Pose target_pose
+# Frame in which target_pose is expressed. Empty uses MoveIt's current planning frame.
+string reference_frame
+---
+# True when MoveIt found a collision-free plan. The plan is never executed.
+bool success
+string message
+---
+string state

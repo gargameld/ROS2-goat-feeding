@@ -2,50 +2,87 @@
 
 A ``GraspConfig`` uses GPD's hand frame: X is approach, Y is the closing
 binormal, Z is the hand axis, and position is the base of the fingers. The
-robot's ``arm_tcp`` frame instead approaches along +Z and sits at the finger
-tips. This module applies that fixed axis and position conversion before the
-poses are handed to MoveIt.
+robot's ``arm_tcp`` frame instead approaches along +Z and the Robotiq fingers
+close along +X/-X. It is close to, but not at, the physical fingertips: the
+Robotiq pads extend 13.9 mm beyond it. This module applies that fixed axis and
+position conversion before the poses are handed to MoveIt.
 """
 
-import numpy as np
 from geometry_msgs.msg import PoseStamped
+import numpy as np
 
 
-DEFAULT_HAND_DEPTH = 0.037
+DEFAULT_GPD_HAND_DEPTH = 0.037
+DEFAULT_FINGER_TIP_FROM_TCP = 0.0139
+DEFAULT_TCP_FROM_FINGER_BASE = (
+    DEFAULT_GPD_HAND_DEPTH - DEFAULT_FINGER_TIP_FROM_TCP
+)
 
 
 def grasp_configs_to_poses(
     grasp_config_list,
-    hand_depth=DEFAULT_HAND_DEPTH,
+    tcp_from_finger_base=DEFAULT_TCP_FROM_FINGER_BASE,
+    target_from_grasp_frame=None,
+    target_frame=None,
 ):
     """Convert a ``GraspConfigList`` into a list of TCP grasp poses.
 
-    ``hand_depth`` is the distance from GPD's finger-base position to
-    ``arm_tcp`` at the fingertips. In TCP coordinates, +Z is GPD approach, +Y
-    is GPD binormal (finger closing), and +X is negative GPD axis. The sign on
-    X keeps the resulting rotation right-handed.
+    ``tcp_from_finger_base`` is the distance from GPD's finger-base position to
+    ``arm_tcp``. In TCP coordinates, +Z is GPD approach, +X is GPD binormal
+    (finger closing), and +Y is GPD axis. This matches the Robotiq URDF, whose
+    left and right finger chains are mounted along the TCP X axis.
+
+    If ``target_from_grasp_frame`` and ``target_frame`` are supplied, the
+    resulting poses are transformed using the transform captured with the
+    input point cloud. This anchors them before a moving camera frame changes
+    while GPD is processing.
     """
-    if hand_depth < 0.0:
-        raise ValueError('hand_depth must be non-negative.')
+    if tcp_from_finger_base < 0.0:
+        raise ValueError('tcp_from_finger_base must be non-negative.')
+    if (target_from_grasp_frame is None) != (target_frame is None):
+        raise ValueError(
+            'target_from_grasp_frame and target_frame must be supplied '
+            'together.'
+        )
+
+    target_matrix = None
+    if target_from_grasp_frame is not None:
+        target_matrix = np.asarray(target_from_grasp_frame, dtype=np.float64)
+        if target_matrix.shape != (4, 4):
+            raise ValueError('target_from_grasp_frame must be a 4x4 matrix.')
 
     poses = []
     for grasp in grasp_config_list.grasps:
         pose = PoseStamped()
-        pose.header = grasp_config_list.header
-
-        pose.pose.position.x = (
-            grasp.position.x + hand_depth * grasp.approach.x
-        )
-        pose.pose.position.y = (
-            grasp.position.y + hand_depth * grasp.approach.y
-        )
-        pose.pose.position.z = (
-            grasp.position.z + hand_depth * grasp.approach.z
+        pose.header.stamp = grasp_config_list.header.stamp
+        pose.header.frame_id = (
+            grasp_config_list.header.frame_id
+            if target_frame is None
+            else target_frame
         )
 
-        qx, qy, qz, qw = _grasp_axes_to_tcp_quaternion(
+        position = np.array(
+            [grasp.position.x, grasp.position.y, grasp.position.z],
+            dtype=np.float64,
+        ) + tcp_from_finger_base * np.array(
+            [grasp.approach.x, grasp.approach.y, grasp.approach.z],
+            dtype=np.float64,
+        )
+
+        rotation = _grasp_axes_to_tcp_rotation(
             grasp.approach, grasp.binormal, grasp.axis
         )
+        if target_matrix is not None:
+            position = (
+                target_matrix[:3, :3] @ position + target_matrix[:3, 3]
+            )
+            rotation = target_matrix[:3, :3] @ rotation
+
+        pose.pose.position.x = float(position[0])
+        pose.pose.position.y = float(position[1])
+        pose.pose.position.z = float(position[2])
+
+        qx, qy, qz, qw = _rotation_matrix_to_quaternion(rotation)
         pose.pose.orientation.x = qx
         pose.pose.orientation.y = qy
         pose.pose.orientation.z = qz
@@ -58,18 +95,25 @@ def grasp_configs_to_poses(
 def _grasp_axes_to_tcp_quaternion(approach, binormal, axis):
     """Return the TCP quaternion corresponding to GPD's hand axes.
 
-    The TCP rotation columns are ``[-axis, binormal, approach]`` so its +Z axis
-    is the direction in which the gripper advances onto the object.
+    The TCP rotation columns are ``[binormal, axis, approach]``: TCP +X is the
+    Robotiq closing direction and TCP +Z is the direction in which the gripper
+    advances onto the object.
     """
-    rotation = np.array(
+    return _rotation_matrix_to_quaternion(
+        _grasp_axes_to_tcp_rotation(approach, binormal, axis)
+    )
+
+
+def _grasp_axes_to_tcp_rotation(approach, binormal, axis):
+    """Return the TCP rotation matrix corresponding to GPD's hand axes."""
+    return np.array(
         [
-            [-axis.x, binormal.x, approach.x],
-            [-axis.y, binormal.y, approach.y],
-            [-axis.z, binormal.z, approach.z],
+            [binormal.x, axis.x, approach.x],
+            [binormal.y, axis.y, approach.y],
+            [binormal.z, axis.z, approach.z],
         ],
         dtype=np.float64,
     )
-    return _rotation_matrix_to_quaternion(rotation)
 
 
 def _rotation_matrix_to_quaternion(rotation):

@@ -151,33 +151,25 @@ OperationResult MotionExecutor::moveToPose(
   const std::string & reference_frame)
 {
   std::lock_guard<std::mutex> lock(*moveit_mutex_);
-  move_group_->setStartStateToCurrentState();
-  move_group_->clearPoseTargets();
-  geometry_msgs::msg::PoseStamped stamped_target;
-  stamped_target.header.frame_id =
-    reference_frame.empty() ? move_group_->getPlanningFrame() : reference_frame;
-  stamped_target.pose = target_pose;
-  const auto logger = rclcpp::get_logger("arm.motion_executor");
-  log_pose(logger, "Requested arm_tcp target", target_pose);
-  const double target_quaternion_norm = quaternion_norm(target_pose);
-  RCLCPP_INFO(
-    logger, "Target frame='%s', planning frame='%s', target quaternion norm=%.9f",
-    stamped_target.header.frame_id.c_str(), move_group_->getPlanningFrame().c_str(),
-    target_quaternion_norm);
-  if (std::abs(target_quaternion_norm - 1.0) > 1e-3) {
-    RCLCPP_WARN(
-      logger, "Target quaternion is not normalized (norm=%.9f); this can prevent IK/planning",
-      target_quaternion_norm);
+  std::string target_frame;
+  const auto target_result = setPoseTarget(target_pose, reference_frame, target_frame);
+  if (!target_result.success) {
+    return target_result;
   }
-  if (!move_group_->setPoseTarget(stamped_target, tcp_link_)) {
-    RCLCPP_ERROR(logger, "MoveIt rejected the pose target before planning");
-    return {
-      false,
-      "MoveIt rejected the arm_tcp target pose in frame '" +
-      stamped_target.header.frame_id + "'"
-    };
+  return planAndExecute("target pose in frame '" + target_frame + "'");
+}
+
+OperationResult MotionExecutor::checkPoseReachability(
+  const geometry_msgs::msg::Pose & target_pose,
+  const std::string & reference_frame)
+{
+  std::lock_guard<std::mutex> lock(*moveit_mutex_);
+  std::string target_frame;
+  const auto target_result = setPoseTarget(target_pose, reference_frame, target_frame);
+  if (!target_result.success) {
+    return target_result;
   }
-  return planAndExecute("target pose in frame '" + stamped_target.header.frame_id + "'");
+  return planOnly("target pose in frame '" + target_frame + "'");
 }
 
 OperationResult MotionExecutor::moveToHomePose()
@@ -318,6 +310,58 @@ OperationResult MotionExecutor::planAndExecute(const std::string & motion_descri
     };
   }
   return {true, "Arm motion to " + motion_description + " completed"};
+}
+
+OperationResult MotionExecutor::planOnly(const std::string & motion_description)
+{
+  log_planning_context(motion_description);
+  MoveGroupInterface::Plan plan;
+  const auto planning_result = move_group_->plan(plan);
+  if (planning_result != moveit::core::MoveItErrorCode::SUCCESS) {
+    const auto error_description = describe_moveit_error(planning_result);
+    RCLCPP_INFO(
+      rclcpp::get_logger("arm.motion_executor"),
+      "Pose is not reachable for %s: code=%d (%s)", motion_description.c_str(),
+      planning_result.val, error_description.c_str());
+    move_group_->clearPoseTargets();
+    return {
+      false,
+      "Failed to plan arm motion to " + motion_description + "; MoveIt code=" +
+      std::to_string(planning_result.val) + " (" + error_description + ")"
+    };
+  }
+  log_path(plan, motion_description);
+  move_group_->clearPoseTargets();
+  return {true, "Arm pose is reachable: " + motion_description};
+}
+
+OperationResult MotionExecutor::setPoseTarget(
+  const geometry_msgs::msg::Pose & target_pose,
+  const std::string & reference_frame,
+  std::string & target_frame)
+{
+  move_group_->setStartStateToCurrentState();
+  move_group_->clearPoseTargets();
+  geometry_msgs::msg::PoseStamped stamped_target;
+  target_frame = reference_frame.empty() ? move_group_->getPlanningFrame() : reference_frame;
+  stamped_target.header.frame_id = target_frame;
+  stamped_target.pose = target_pose;
+  const auto logger = rclcpp::get_logger("arm.motion_executor");
+  log_pose(logger, "Requested arm_tcp target", target_pose);
+  const double target_quaternion_norm = quaternion_norm(target_pose);
+  RCLCPP_INFO(
+    logger, "Target frame='%s', planning frame='%s', target quaternion norm=%.9f",
+    target_frame.c_str(), move_group_->getPlanningFrame().c_str(), target_quaternion_norm);
+  if (std::abs(target_quaternion_norm - 1.0) > 1e-3) {
+    RCLCPP_WARN(
+      logger, "Target quaternion is not normalized (norm=%.9f); this can prevent IK/planning",
+      target_quaternion_norm);
+  }
+  if (!move_group_->setPoseTarget(stamped_target, tcp_link_)) {
+    RCLCPP_ERROR(logger, "MoveIt rejected the pose target before planning");
+    return {false, "MoveIt rejected the arm_tcp target pose in frame '" + target_frame + "'"};
+  }
+  return {true, "Pose target accepted"};
 }
 
 }  // namespace arm

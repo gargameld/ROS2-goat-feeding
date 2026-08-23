@@ -37,6 +37,7 @@ class GraspMarkerNode(Node):
         self.declare_parameter('hand_outer_diameter', 0.102)
         self.declare_parameter('hand_depth', 0.037)
         self.declare_parameter('hand_height', 0.022)
+        self.declare_parameter('finger_tip_from_tcp', 0.0139)
 
         static_qos = QoSProfile(
             depth=1,
@@ -150,8 +151,9 @@ class GraspMarkerNode(Node):
     def _gripper_markers(self, index, pose):
         """Create a parallel-jaw gripper behind an ``arm_tcp`` pose.
 
-        ``arm_tcp`` is at the fingertips with +Z along approach, +Y along the
-        finger-closing direction, and +X across the finger height.
+        ``arm_tcp`` has +Z along approach, +X along the finger-closing
+        direction, and +Y across the finger height. The pads extend beyond
+        the TCP by ``finger_tip_from_tcp``.
         """
         namespace = f'grasp_{index:03d}'
         finger_width = float(self.get_parameter('finger_width').value)
@@ -160,16 +162,21 @@ class GraspMarkerNode(Node):
         )
         hand_depth = float(self.get_parameter('hand_depth').value)
         hand_height = float(self.get_parameter('hand_height').value)
+        finger_tip_from_tcp = float(
+            self.get_parameter('finger_tip_from_tcp').value
+        )
         half_spacing = 0.5 * (outer_diameter - finger_width)
+        finger_center = finger_tip_from_tcp - 0.5 * hand_depth
+        finger_base = finger_tip_from_tcp - hand_depth
 
         specs = (
-            # Center offsets and dimensions in TCP [height, closing, approach].
-            ((0.0, -half_spacing, -0.5 * hand_depth),
-             (hand_height, finger_width, hand_depth)),
-            ((0.0, half_spacing, -0.5 * hand_depth),
-             (hand_height, finger_width, hand_depth)),
-            ((0.0, 0.0, -hand_depth - 0.01),
-             (hand_height, 2.0 * half_spacing, 0.02)),
+            # Center offsets and dimensions in TCP [closing, height, approach].
+            ((-half_spacing, 0.0, finger_center),
+             (finger_width, hand_height, hand_depth)),
+            ((half_spacing, 0.0, finger_center),
+             (finger_width, hand_height, hand_depth)),
+            ((0.0, 0.0, finger_base - 0.01),
+             (2.0 * half_spacing, hand_height, 0.02)),
         )
         markers = []
         for marker_id, (offset, dimensions) in enumerate(specs):

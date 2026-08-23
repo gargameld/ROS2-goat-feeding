@@ -2,8 +2,12 @@
 # topic from its own parameters.
 
 ---
-# Result: the candidate TCP grasp poses found for the detected food.
-geometry_msgs/PoseStamped[] grasp_poses
+# Result: the highest-ranked reachable TCP grasp pose.
+# Callers must check this flag before using the pose fields.
+bool food_found
+# The frame remains explicit because geometry_msgs/Pose has no frame metadata.
+geometry_msgs/Pose grasp_pose
+string reference_frame
 
 ---
 # Feedback: a short description of the current pipeline stage.

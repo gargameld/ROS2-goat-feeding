@@ -52,12 +52,16 @@ def test_one_pose_has_selectable_static_namespace():
         assert len(gripper_markers) == 3
         assert {marker.ns for marker in gripper_markers} == {'grasp_000'}
         assert all(marker.type == Marker.CUBE for marker in gripper_markers)
-        # Identity arm_tcp: fingers extend behind the TCP along -Z.
-        assert math.isclose(gripper_markers[0].pose.position.y, 1.955)
-        assert math.isclose(gripper_markers[0].pose.position.z, 2.9815)
-        assert math.isclose(gripper_markers[0].scale.x, 0.022)
-        assert math.isclose(gripper_markers[0].scale.y, 0.012)
+        # The real pads extend 13.9 mm beyond TCP and 23.1 mm behind it.
+        # The Robotiq finger chains are separated along arm_tcp X.
+        assert math.isclose(gripper_markers[0].pose.position.x, 0.955)
+        assert math.isclose(gripper_markers[0].pose.position.y, 2.0)
+        assert math.isclose(gripper_markers[0].pose.position.z, 2.9954)
+        assert math.isclose(gripper_markers[0].scale.x, 0.012)
+        assert math.isclose(gripper_markers[0].scale.y, 0.022)
         assert math.isclose(gripper_markers[0].scale.z, 0.037)
+        assert math.isclose(gripper_markers[2].scale.x, 0.09)
+        assert math.isclose(gripper_markers[2].scale.y, 0.022)
 
         # RViz discards a disabled namespace's visuals. The periodic ADD-only
         # update makes it visible again after the checkbox is re-enabled.

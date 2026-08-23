@@ -33,10 +33,13 @@ DEFAULT_MAX_CORRESPONDENCE_DISTANCE = 0.05
 DEFAULT_CLUSTER_EPS = 0.02
 DEFAULT_CLUSTER_MIN_POINTS = 10
 # Shelves and walls are approximately constant along at least one base_link
-# axis. A food cluster must occupy more than this distance along every axis.
-# The middle 90% is used so a few depth-camera outliers cannot preserve a plane.
+# axis, while large subtraction artifacts can be much bigger than food. A food
+# cluster must fit between these dimensions along every base_link axis. The
+# middle 90% is used so a few depth-camera outliers do not decide the result.
 DEFAULT_MIN_CLUSTER_AXIS_SPAN = 0.01
+DEFAULT_MAX_CLUSTER_AXIS_SPAN = 0.10
 CLUSTER_SPAN_PERCENTILES = (5.0, 95.0)
+CLUSTER_SPAN_ABSOLUTE_TOLERANCE = 1e-12
 
 
 def detect_food(
@@ -48,6 +51,8 @@ def detect_food(
     cluster_eps=DEFAULT_CLUSTER_EPS,
     cluster_min_points=DEFAULT_CLUSTER_MIN_POINTS,
     min_cluster_axis_span=DEFAULT_MIN_CLUSTER_AXIS_SPAN,
+    max_cluster_axis_span=DEFAULT_MAX_CLUSTER_AXIS_SPAN,
+    debug_stage=None,
 ):
     """Return the indices of the food points within ``captured_cloud_msg``.
 
@@ -58,10 +63,11 @@ def detect_food(
     captured from the cameras. The returned value is an ``int64`` array of
     indices into that message's point ordering (NaN points included)
     identifying the largest spatial cluster with meaningful variation along
-    all three ``base_link`` axes -- the same indexing the GPD server expects in
-    a ``CloudIndexed``. Candidate clusters that are roughly constant in X, Y,
-    or Z are treated as wall or shelf surfaces and excluded before the largest
-    remaining cluster is chosen.
+    all three ``base_link`` axes, without exceeding 10 cm along any axis -- the
+    same indexing the GPD server expects in a ``CloudIndexed``. Candidate
+    clusters that are roughly constant in X, Y, or Z are treated as wall or
+    shelf surfaces, while oversized clusters are treated as non-food objects.
+    The largest remaining cluster is chosen.
 
     ``base_from_cloud_matrix`` maps points from ``captured_cloud_msg``'s frame
     into ``base_link``. It should come from
@@ -95,8 +101,8 @@ def detect_food(
     )
 
     # Cluster the subtraction result. DBSCAN label -1 represents noise and is
-    # never sent to GPD. Reject shelf- and wall-like planar clusters in
-    # base_link before selecting the remaining cluster containing most points.
+    # never sent to GPD. Reject planar and oversized clusters in base_link
+    # before selecting the remaining cluster containing most points.
     food_cloud = captured_cloud.select_by_index(food_indices.tolist())
     if len(food_cloud.points) > 0:
         cluster_labels = np.asarray(
@@ -112,6 +118,7 @@ def detect_food(
             cluster_labels,
             base_from_cloud_matrix,
             min_axis_span=min_cluster_axis_span,
+            max_axis_span=max_cluster_axis_span,
         )
         food_indices = food_indices[selected_mask]
 
@@ -119,7 +126,11 @@ def detect_food(
     # food clouds, and the largest-cluster indices (indices here are into
     # ``captured_cloud``). Remove once detection is trusted.
     debug_dump.dump_detection(
-        stored_cloud, captured_cloud, result.transformation, food_indices
+        stored_cloud,
+        captured_cloud,
+        result.transformation,
+        food_indices,
+        stage=debug_stage,
     )
 
     # Translate Open3D indices back to indices into the original message.
@@ -131,14 +142,17 @@ def _largest_non_planar_cluster_mask(
     cluster_labels,
     base_from_cloud_matrix,
     min_axis_span=DEFAULT_MIN_CLUSTER_AXIS_SPAN,
+    max_axis_span=DEFAULT_MAX_CLUSTER_AXIS_SPAN,
 ):
-    """Select the largest cluster spanning X, Y and Z in ``base_link``."""
+    """Select the largest cluster whose ``base_link`` dimensions are valid."""
     points = np.asarray(points, dtype=np.float64).reshape(-1, 3)
     cluster_labels = np.asarray(cluster_labels, dtype=np.int64)
     if cluster_labels.shape != (points.shape[0],):
         raise ValueError('cluster_labels must contain one label per point.')
     if min_axis_span < 0.0:
         raise ValueError('min_axis_span must be non-negative.')
+    if max_axis_span < min_axis_span:
+        raise ValueError('max_axis_span must not be smaller than min_axis_span.')
 
     base_points = camera_transforms.apply_transform(
         np.asarray(base_from_cloud_matrix, dtype=np.float64), points
@@ -152,7 +166,10 @@ def _largest_non_planar_cluster_mask(
             CLUSTER_SPAN_PERCENTILES,
             axis=0,
         )
-        if np.any(high - low <= min_axis_span):
+        axis_spans = high - low
+        if np.any(axis_spans <= min_axis_span):
+            continue
+        if np.any(axis_spans > max_axis_span + CLUSTER_SPAN_ABSOLUTE_TOLERANCE):
             continue
         cluster_size = int(np.count_nonzero(cluster_mask))
         if cluster_size > selected_size:

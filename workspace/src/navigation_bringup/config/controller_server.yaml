@@ -26,7 +26,7 @@ controller_server:
       stateful: false
       # Do not report success while the base is still almost a metre from the
       # required path endpoint.
-      xy_goal_tolerance: 0.15
+      xy_goal_tolerance: 0.07
       yaw_goal_tolerance: 0.05
 
     FollowPath:

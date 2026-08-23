@@ -152,7 +152,7 @@ PhysicsLoopSynchronizer::PhysicsLoopSynchronizer(MujocoSimulation* simulation,
         *last_ros_write_time_ + rclcpp::Duration::from_seconds(write_period_seconds_);
   }
 
-  initialize_controller_state_node();
+  initialize_physics_sync_node();
 
   expected_write_time_thread_ =
       std::thread(&PhysicsLoopSynchronizer::update_expected_write_time_loop, this);
@@ -169,19 +169,29 @@ PhysicsLoopSynchronizer::PhysicsLoopSynchronizer(MujocoSimulation* simulation,
 PhysicsLoopSynchronizer::~PhysicsLoopSynchronizer()
 {
   updater_running_.store(false);
-  controller_state_executor_->cancel();
+  physics_sync_executor_->cancel();
   if (expected_write_time_thread_.joinable())
   {
     expected_write_time_thread_.join();
   }
-  if (controller_state_executor_thread_.joinable())
+  if (physics_sync_executor_thread_.joinable())
   {
-    controller_state_executor_thread_.join();
+    physics_sync_executor_thread_.join();
   }
 }
 
 void PhysicsLoopSynchronizer::sync_physics_loop() const
 {
+  while (simulation_paused_.load(std::memory_order_acquire) && !simulation_->exit_requested())
+  {
+    std::this_thread::yield();
+  }
+
+  if (simulation_->exit_requested())
+  {
+    return;
+  }
+
   // Let the first physics step publish a non-zero /clock value. The controller
   // manager needs that initial tick to leave wait_until_started() and process
   // controller activation requests. All subsequent steps wait for activation.
@@ -213,6 +223,12 @@ void PhysicsLoopSynchronizer::sync_physics_loop() const
 
   while (!simulation_->exit_requested())
   {
+    if (simulation_paused_.load(std::memory_order_acquire))
+    {
+      std::this_thread::yield();
+      continue;
+    }
+
     double next_expected_write_time = 0.0;
     {
       const std::lock_guard<std::mutex> expected_time_lock(expected_write_time_mutex_);
@@ -233,16 +249,34 @@ bool PhysicsLoopSynchronizer::all_controllers_are_active() const
   return controllers_active_.load(std::memory_order_acquire);
 }
 
-void PhysicsLoopSynchronizer::initialize_controller_state_node()
+void PhysicsLoopSynchronizer::initialize_physics_sync_node()
 {
-  synchronizer_node_ = std::make_shared<rclcpp::Node>("physics_loop_synchronizer");
+  rclcpp::NodeOptions node_options;
+  node_options.use_global_arguments(false);
+  synchronizer_node_ = std::make_shared<rclcpp::Node>("physics_sync_node", node_options);
   list_controllers_client_ =
     synchronizer_node_->create_client<controller_manager_msgs::srv::ListControllers>(
     "/controller_manager/list_controllers");
-  controller_state_executor_ = std::make_unique<rclcpp::executors::SingleThreadedExecutor>();
-  controller_state_executor_->add_node(synchronizer_node_);
-  controller_state_executor_thread_ =
-    std::thread([this]() { controller_state_executor_->spin(); });
+  pause_simulation_service_ = synchronizer_node_->create_service<std_srvs::srv::Trigger>(
+    "~/pause_simulation",
+    [this](const std::shared_ptr<std_srvs::srv::Trigger::Request>,
+           std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
+      simulation_paused_.store(true, std::memory_order_release);
+      response->success = true;
+      response->message = "Physics simulation paused.";
+    });
+  resume_simulation_service_ = synchronizer_node_->create_service<std_srvs::srv::Trigger>(
+    "~/resume_simulation",
+    [this](const std::shared_ptr<std_srvs::srv::Trigger::Request>,
+           std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
+      simulation_paused_.store(false, std::memory_order_release);
+      response->success = true;
+      response->message = "Physics simulation resumed.";
+    });
+  physics_sync_executor_ = std::make_unique<rclcpp::executors::SingleThreadedExecutor>();
+  physics_sync_executor_->add_node(synchronizer_node_);
+  physics_sync_executor_thread_ =
+    std::thread([this]() { physics_sync_executor_->spin(); });
 }
 
 void PhysicsLoopSynchronizer::request_controller_states()
