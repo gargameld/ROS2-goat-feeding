@@ -153,6 +153,7 @@ class TopViewWindow(QMainWindow):
     _OBSTACLE_MOVE_STEP = 0.5
 
     throw_food_requested = pyqtSignal(object)
+    food_request_requested = pyqtSignal(int)
     obstacle_update_requested = pyqtSignal(object)
     _status_received = pyqtSignal(str, bool)
     _poses_received = pyqtSignal(object, object, object)
@@ -179,6 +180,7 @@ class TopViewWindow(QMainWindow):
         self._throw_boxes: dict[str, QDoubleSpinBox] = {}
         self._food_name_edit: QLineEdit | None = None
         self._parking_box: QSpinBox | None = None
+        self._request_parking_box: QSpinBox | None = None
         self._dimension_boxes: dict[str, QDoubleSpinBox] = {}
         self._obstacle_state: ObstacleState | None = None
         self._amcl_pose_label = QLabel('Waiting for map to base_link transform...')
@@ -250,6 +252,17 @@ class TopViewWindow(QMainWindow):
         self._status_label.setMinimumWidth(210)
         layout.addWidget(throw_group)
         layout.addWidget(throw_button)
+
+        request_group = QGroupBox('Request food', panel)
+        request_form = QFormLayout(request_group)
+        self._request_parking_box = QSpinBox(request_group)
+        self._request_parking_box.setRange(1, 4)
+        request_form.addRow('Parking number', self._request_parking_box)
+        request_button = QPushButton('Send food request', request_group)
+        request_button.clicked.connect(self._send_food_request)
+        request_form.addRow(request_button)
+        layout.addWidget(request_group)
+
         obstacle_group = QGroupBox('Obstacle box', panel)
         obstacle_layout = QVBoxLayout(obstacle_group)
         dimension_form = QFormLayout()
@@ -314,6 +327,10 @@ class TopViewWindow(QMainWindow):
                 z=self._throw_boxes['z'].value(),
             ),
         ))
+
+    def _send_food_request(self) -> None:
+        """Ask the behavior node to collect food from the selected parking."""
+        self.food_request_requested.emit(self._request_parking_box.value())
 
     def _apply_obstacle_dimensions(self) -> None:
         if self._obstacle_state is None:

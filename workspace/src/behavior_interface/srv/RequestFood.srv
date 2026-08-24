@@ -1,0 +1,5 @@
+# Ask the robot to collect food from one of the four parking areas.
+int32 parking_number
+---
+bool success
+string message

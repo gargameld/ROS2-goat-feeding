@@ -55,19 +55,11 @@ RUN git clone https://github.com/rohitmenon86/gpd.git /opt/tmp/gpd && \
     ldconfig && \
     rm -rf /opt/tmp/gpd
 
-# The build context must contain the workspace directory beside this Dockerfile.
-# COPY --chown=${DEFAULT_USERNAME}:${DEFAULT_USERNAME} workspace/ /config/workspace/
-RUN mkdir -p /config/.ros && \
-    sudo chown -R abc:abc /config/.ros && \
-    rosdep init && \
-    rosdep update && \
-    apt-get update && \
-    rosdep install --from-paths /config/workspace/src --ignore-src \
-        --rosdistro ${ROS_DISTRO} -r -y \
-        --skip-keys="pytest warehouse_ros_mongo" && \
-    rm -rf /var/lib/apt/lists/* && \
-    chmod -R a+rwX /config/workspace /opt/ros/${ROS_DISTRO}
+RUN mkdir -p /config/.XDG /config/.ros && \
+    chown -R abc:abc /config/.ros && \
+    chown -R ${PUID:-911}:${PGID:-911} /config/.XDG /config/workspace && \
+    /usr/sbin/sshd
 
 EXPOSE 3000 3001 22
 
-ENTRYPOINT ["/bin/bash", "-c", "mkdir -p /config/.XDG /config/.ros; chown -R abc:abc /config/.ros; chown -R ${PUID:-911}:${PGID:-911} /config/.XDG /config/workspace; /usr/sbin/sshd; exec /init"]
+ENTRYPOINT ["/init"]

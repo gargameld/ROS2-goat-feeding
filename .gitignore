@@ -20,10 +20,11 @@
 !/workspace/important states/
 !/workspace/important states/**
 
-# Keep the capture rendering utility, but ignore generated captures and its local environment.
+# Keep all Python modules in capture, but ignore generated captures and the local environment.
 !/workspace/capture/
 /workspace/capture/*
-!/workspace/capture/render_capture.py
+!/workspace/capture/**/
+!/workspace/capture/**/*.py
 
 # ROS 2 / colcon generated output.
 /workspace/build/

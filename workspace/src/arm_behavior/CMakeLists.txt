@@ -13,6 +13,7 @@ find_package(moveit_ros_planning_interface REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(shape_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 
 add_executable(arm_behavior_node
   src/arm_action_server.cpp
@@ -21,6 +22,7 @@ add_executable(arm_behavior_node
   src/motion_executor.cpp
   src/payload_manager.cpp
   src/payload_service_server.cpp
+  src/simulation_control.cpp
 )
 add_executable(environment_loader
   src/environment_loader.cpp
@@ -39,6 +41,7 @@ ament_target_dependencies(arm_behavior_node
   rclcpp
   rclcpp_action
   shape_msgs
+  std_srvs
 )
 ament_target_dependencies(environment_loader
   geometry_msgs

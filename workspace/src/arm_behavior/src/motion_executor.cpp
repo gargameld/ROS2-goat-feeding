@@ -13,6 +13,8 @@
 #include "moveit_msgs/msg/robot_trajectory.hpp"
 #include "rclcpp/rclcpp.hpp"
 
+#include "arm_behavior/simulation_control.hpp"
+
 namespace
 {
 
@@ -130,11 +132,13 @@ namespace arm
 {
 
 MotionExecutor::MotionExecutor(
+  rclcpp::Node::SharedPtr node,
   std::shared_ptr<MoveGroupInterface> move_group,
   std::shared_ptr<std::mutex> moveit_mutex,
   std::string tcp_link,
   std::string home_pose_name)
 : move_group_(std::move(move_group)),
+  node_(std::move(node)),
   moveit_mutex_(std::move(moveit_mutex)),
   tcp_link_(std::move(tcp_link)),
   home_pose_name_(std::move(home_pose_name))
@@ -200,8 +204,21 @@ OperationResult MotionExecutor::lift(double distance)
   }
 
   moveit_msgs::msg::RobotTrajectory trajectory;
-  const double fraction = move_group_->computeCartesianPath(
-    {target_pose}, kCartesianLiftStep, trajectory, true);
+  pause_simulation(node_);
+  double fraction;
+  try {
+    fraction = move_group_->computeCartesianPath(
+      {target_pose}, kCartesianLiftStep, trajectory, true);
+  } catch (...) {
+    try {
+      resume_simulation(node_);
+    } catch (const std::exception & error) {
+      RCLCPP_ERROR(
+        logger, "Failed to resume simulation after Cartesian planning error: %s", error.what());
+    }
+    throw;
+  }
+  resume_simulation(node_);
   move_group_->clearPoseTargets();
   if (fraction < kRequiredCartesianPathFraction) {
     return {false, "Unable to compute a complete collision-free Cartesian lift"};
@@ -277,7 +294,21 @@ OperationResult MotionExecutor::planAndExecute(const std::string & motion_descri
 {
   log_planning_context(motion_description);
   MoveGroupInterface::Plan plan;
-  const auto planning_result = move_group_->plan(plan);
+  pause_simulation(node_);
+  moveit::core::MoveItErrorCode planning_result;
+  try {
+    planning_result = move_group_->plan(plan);
+  } catch (...) {
+    try {
+      resume_simulation(node_);
+    } catch (const std::exception & error) {
+      RCLCPP_ERROR(
+        rclcpp::get_logger("arm.motion_executor"),
+        "Failed to resume simulation after planning error: %s", error.what());
+    }
+    throw;
+  }
+  resume_simulation(node_);
   if (planning_result != moveit::core::MoveItErrorCode::SUCCESS) {
     const auto error_description = describe_moveit_error(planning_result);
     const auto logger = rclcpp::get_logger("arm.motion_executor");
@@ -316,7 +347,21 @@ OperationResult MotionExecutor::planOnly(const std::string & motion_description)
 {
   log_planning_context(motion_description);
   MoveGroupInterface::Plan plan;
-  const auto planning_result = move_group_->plan(plan);
+  pause_simulation(node_);
+  moveit::core::MoveItErrorCode planning_result;
+  try {
+    planning_result = move_group_->plan(plan);
+  } catch (...) {
+    try {
+      resume_simulation(node_);
+    } catch (const std::exception & error) {
+      RCLCPP_ERROR(
+        rclcpp::get_logger("arm.motion_executor"),
+        "Failed to resume simulation after planning error: %s", error.what());
+    }
+    throw;
+  }
+  resume_simulation(node_);
   if (planning_result != moveit::core::MoveItErrorCode::SUCCESS) {
     const auto error_description = describe_moveit_error(planning_result);
     RCLCPP_INFO(

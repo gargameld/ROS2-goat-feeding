@@ -19,6 +19,7 @@ public:
   using MoveGroupInterface = moveit::planning_interface::MoveGroupInterface;
 
   MotionExecutor(
+    rclcpp::Node::SharedPtr node,
     std::shared_ptr<MoveGroupInterface> move_group,
     std::shared_ptr<std::mutex> moveit_mutex,
     std::string tcp_link,
@@ -46,6 +47,7 @@ private:
     std::string & target_frame);
 
   std::shared_ptr<MoveGroupInterface> move_group_;
+  rclcpp::Node::SharedPtr node_;
   std::shared_ptr<std::mutex> moveit_mutex_;
   std::string tcp_link_;
   std::string home_pose_name_;

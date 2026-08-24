@@ -9,6 +9,14 @@
 
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>grasp_pose_interface</exec_depend>
+  <exec_depend>nav2_msgs</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>behavior_interface</exec_depend>
+  <exec_depend>arm_interface</exec_depend>
   <exec_depend>arm_behavior</exec_depend>
   <exec_depend>grasp_pose_provider</exec_depend>
   <exec_depend>grasp_rvis</exec_depend>

@@ -62,6 +62,19 @@ class FakeThrowFoodServiceClient(FakeServiceClient):
         return super().call_async(request)
 
 
+class FakeFoodRequestServiceClient(FakeServiceClient):
+    """Record behavior food requests and return an accepted response."""
+
+    def __init__(self):
+        super().__init__()
+        self.requests = []
+        self.response = SimpleNamespace(success=True, message='accepted')
+
+    def call_async(self, request):
+        self.requests.append(request)
+        return super().call_async(request)
+
+
 class FakeThrowFoodRequest:
     """Capture throw-food request fields set by the client."""
 
@@ -73,6 +86,13 @@ class FakeThrowFoodRequest:
         self.orientation = [0.0, 0.0, 0.0, 0.0]
 
 
+class FakeFoodRequest:
+    """Capture the parking number sent to the behavior service."""
+
+    def __init__(self):
+        self.parking_number = 0
+
+
 class FakeNode:
     """Provide the node operations used by ``MujocoClient``."""
 
@@ -81,6 +101,7 @@ class FakeNode:
         self.state_client = FakeServiceClient()
         self.obstacle_client = FakeObstacleServiceClient()
         self.throw_food_client = FakeThrowFoodServiceClient()
+        self.food_request_client = FakeFoodRequestServiceClient()
         self.client = self.state_client
         self.service_names = []
 
@@ -91,6 +112,8 @@ class FakeNode:
             return self.obstacle_client
         if service_type.__name__ == 'ThrowFood':
             return self.throw_food_client
+        if service_type.__name__ == 'RequestFood':
+            return self.food_request_client
         return self.state_client
 
     def create_subscription(self, *_args, **_kwargs):
@@ -129,11 +152,15 @@ def client_and_runtime():
 
 
 @pytest.fixture(autouse=True)
-def _throw_food_request(monkeypatch):
-    """Replace the ROS throw-food request with a lightweight stand-in."""
+def _service_requests(monkeypatch):
+    """Replace generated ROS requests with lightweight stand-ins."""
     monkeypatch.setattr(
         'simulation_interface_gui.ros.mujoco_client.ThrowFood',
-        SimpleNamespace(Request=FakeThrowFoodRequest),
+        SimpleNamespace(__name__='ThrowFood', Request=FakeThrowFoodRequest),
+    )
+    monkeypatch.setattr(
+        'simulation_interface_gui.ros.mujoco_client.RequestFood',
+        SimpleNamespace(__name__='RequestFood', Request=FakeFoodRequest),
     )
 
 
@@ -215,6 +242,28 @@ def test_throw_food_reports_service_failure(client_and_runtime):
         )).result()
 
 
+def test_request_food_sends_selected_parking(client_and_runtime):
+    """A selected parking number is sent to the behavior service."""
+    client, runtime = client_and_runtime
+
+    client.request_food(3).result()
+
+    assert runtime.node.food_request_client.requests[-1].parking_number == 3
+
+
+@pytest.mark.parametrize('parking_number', [0, 5])
+def test_request_food_rejects_invalid_parking(
+    client_and_runtime, parking_number,
+):
+    """Parking numbers outside the arena range are rejected locally."""
+    client, runtime = client_and_runtime
+
+    with pytest.raises(ValueError, match='between 1 and 4'):
+        client.request_food(parking_number)
+
+    assert runtime.node.food_request_client.requests == []
+
+
 def test_get_robot_state_returns_float_list(client_and_runtime):
     """The service response is exposed through immutable GUI state."""
     client, _runtime = client_and_runtime
@@ -246,6 +295,7 @@ def test_client_uses_simulation_management_service_namespace(
         '/simulation_management/get_robot_state',
         '/simulation_management/set_obstacle',
         '/simulation_management/throw_food',
+        '/request_food',
     ]
 
 

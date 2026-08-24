@@ -164,6 +164,10 @@ class GraspPoseProviderNode(Node):
                 f'Published {len(rviz_grasp_poses)} static grasp candidates'
             )
 
+            feedback_cb('Resuming physics before arm motion planning')
+            simulation_control.resume_simulation(self)
+            simulation_paused = False
+
             feedback_cb('Checking reachability of the top grasp candidates')
             reachable_grasp = self._reachability_checker.first_reachable(
                 grasp_poses

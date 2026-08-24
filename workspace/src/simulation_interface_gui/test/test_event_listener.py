@@ -28,6 +28,7 @@ class FakeWindow:
 
     def __init__(self):
         self.throw_food_requested = FakeSignal()
+        self.food_request_requested = FakeSignal()
         self.obstacle_update_requested = FakeSignal()
         self.statuses = []
 
@@ -40,6 +41,7 @@ class FakeClient:
 
     def __init__(self):
         self.throw_calls = []
+        self.food_request_calls = []
         self.obstacle_calls = []
 
     def throw_food(self, command):
@@ -50,6 +52,12 @@ class FakeClient:
 
     def set_obstacle(self, obstacle):
         self.obstacle_calls.append(obstacle)
+        future = Future()
+        future.set_result(None)
+        return future
+
+    def request_food(self, parking_number):
+        self.food_request_calls.append(parking_number)
         future = Future()
         future.set_result(None)
         return future
@@ -87,3 +95,16 @@ def test_listener_forwards_obstacle_update():
 
     assert client.obstacle_calls[-1] == obstacle
     assert window.statuses[-1] == ('Obstacle updated.', False)
+
+
+def test_listener_forwards_food_request():
+    """A GUI food request is forwarded to the behavior service client."""
+    client = FakeClient()
+    window = FakeWindow()
+    listener = EventListener(client, window)
+    listener.start()
+
+    window.food_request_requested.emit(3)
+
+    assert client.food_request_calls[-1] == 3
+    assert window.statuses[-1] == ('Food requested.', False)

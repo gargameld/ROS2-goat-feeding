@@ -3,6 +3,7 @@
 from concurrent.futures import Future
 import math
 
+from behavior_interface.srv import RequestFood
 from mujoco_ros2_control_msgs.srv import GetRobotState
 from mujoco_ros2_control_msgs.srv import SetObstacle
 from mujoco_ros2_control_msgs.srv import ThrowFood
@@ -32,6 +33,7 @@ class MujocoClient:
         robot_state_service: str = '/simulation_management/get_robot_state',
         obstacle_service: str = '/simulation_management/set_obstacle',
         throw_food_service: str = '/simulation_management/throw_food',
+        food_request_service: str = '/request_food',
         food_body_prefix: str = 'food_',
         map_frame: str = 'map',
         odom_frame: str = 'odom',
@@ -42,6 +44,7 @@ class MujocoClient:
         self._robot_state_service = robot_state_service
         self._obstacle_service = obstacle_service
         self._throw_food_service = throw_food_service
+        self._food_request_service = food_request_service
         self._food_body_prefix = food_body_prefix
         self._map_frame = map_frame
         self._odom_frame = odom_frame
@@ -49,6 +52,7 @@ class MujocoClient:
         self._state_client = None
         self._obstacle_client = None
         self._throw_food_client = None
+        self._food_request_client = None
         self._tf_buffer = None
         self._tf_listener = None
         self._closed = False
@@ -91,6 +95,51 @@ class MujocoClient:
 
         try:
             self._runtime.submit(request_throw)
+        except BaseException as error:
+            result.set_exception(error)
+        return result
+
+    def request_food(self, parking_number: int) -> Future[None]:
+        """Send a parking-specific food request to the behavior node."""
+        parking_number = int(parking_number)
+        if not 1 <= parking_number <= 4:
+            raise ValueError('The parking number must be between 1 and 4.')
+        result: Future[None] = Future()
+
+        def send_request() -> None:
+            if not result.set_running_or_notify_cancel():
+                return
+            try:
+                self._ensure_open()
+                if not self._food_request_client.service_is_ready():
+                    raise ServiceUnavailableError(
+                        'ROS service '
+                        f'{self._food_request_service!r} is unavailable.'
+                    )
+                request = RequestFood.Request()
+                request.parking_number = parking_number
+                response_future = self._food_request_client.call_async(request)
+                response_future.add_done_callback(finish_request)
+            except BaseException as error:
+                result.set_exception(error)
+
+        def finish_request(response_future: object) -> None:
+            try:
+                response = response_future.result()
+                if response is None:
+                    raise RuntimeError(
+                        'The food-request service returned no response.'
+                    )
+                if not response.success:
+                    raise RuntimeError(
+                        response.message or 'Food request was rejected.'
+                    )
+                result.set_result(None)
+            except BaseException as error:
+                result.set_exception(error)
+
+        try:
+            self._runtime.submit(send_request)
         except BaseException as error:
             result.set_exception(error)
         return result
@@ -234,6 +283,10 @@ class MujocoClient:
             ThrowFood,
             self._throw_food_service,
         )
+        self._food_request_client = self._runtime.node.create_client(
+            RequestFood,
+            self._food_request_service,
+        )
         self._tf_buffer = Buffer()
         self._tf_listener = TransformListener(
             self._tf_buffer, self._runtime.node, spin_thread=False
@@ -264,6 +317,9 @@ class MujocoClient:
         if self._throw_food_client is not None:
             self._runtime.node.destroy_client(self._throw_food_client)
             self._throw_food_client = None
+        if self._food_request_client is not None:
+            self._runtime.node.destroy_client(self._food_request_client)
+            self._food_request_client = None
         if self._tf_listener is not None:
             self._tf_listener.unregister()
             self._tf_listener = None

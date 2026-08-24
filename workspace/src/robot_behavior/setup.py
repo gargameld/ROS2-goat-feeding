@@ -20,6 +20,10 @@ setup(
             os.path.join('share', package_name, 'launch'),
             glob('launch/*.launch.py'),
         ),
+        (
+            os.path.join('share', package_name, 'config'),
+            glob('config/*.yaml'),
+        ),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -28,5 +32,9 @@ setup(
     description='Top-level robot behavior and system bringup package.',
     license='Apache-2.0',
     extras_require={'test': ['pytest']},
-    entry_points={'console_scripts': []},
+    entry_points={
+        'console_scripts': [
+            'robot_behavior = robot_behavior.main:main',
+        ],
+    },
 )

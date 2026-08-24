@@ -68,7 +68,7 @@ void ArmBehavior::initializeMoveIt(const Configuration & configuration)
 void ArmBehavior::initializeInterfaces(const Configuration & configuration)
 {
   motion_executor_ = std::make_unique<MotionExecutor>(
-    move_group_, moveit_mutex_, configuration.tcp_link, configuration.home_pose);
+    nodeHandle(), move_group_, moveit_mutex_, configuration.tcp_link, configuration.home_pose);
   payload_manager_ = std::make_unique<PayloadManager>(
     moveit_mutex_, configuration.tcp_link, configuration.payload_id,
     configuration.box_dimensions, configuration.gripper_touch_links);

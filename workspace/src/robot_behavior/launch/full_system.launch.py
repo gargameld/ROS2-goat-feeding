@@ -1,7 +1,10 @@
 """Launch the complete robot control system and simulation GUI."""
 
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, RegisterEventHandler
+from launch.actions import (
+    IncludeLaunchDescription,
+    RegisterEventHandler,
+)
 from launch.event_handler import EventHandler
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import PathJoinSubstitution
@@ -152,6 +155,13 @@ def generate_launch_description():
         )
     )
 
+    behavior_node = Node(
+        package='robot_behavior',
+        executable='robot_behavior',
+        name='behavior_node',
+        output='screen',
+    )
+
     return LaunchDescription([
         robot_state_publisher,
         robot_control,
@@ -165,4 +175,5 @@ def generate_launch_description():
         gpd_server,
         grasp_rvis,
         start_lifecycle_manager_after_controllers,
+        behavior_node,
     ])

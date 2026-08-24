@@ -19,6 +19,9 @@ class EventListener:
         self._window.throw_food_requested.connect(
             self.handle_throw_food
         )
+        self._window.food_request_requested.connect(
+            self.handle_food_request
+        )
         self._window.obstacle_update_requested.connect(
             self.handle_obstacle_update
         )
@@ -52,6 +55,27 @@ class EventListener:
                 self._window.set_status(
                     f'Could not throw food: {error}',
                     is_error=True,
+                )
+
+    def handle_food_request(self, parking_number: int) -> None:
+        """Forward a parking-specific food request to the behavior node."""
+        try:
+            future = self._client.request_food(parking_number)
+            future.add_done_callback(self._finish_food_request)
+        except Exception as error:
+            self._window.set_status(
+                f'Could not request food: {error}', is_error=True
+            )
+
+    def _finish_food_request(self, future: Future[None]) -> None:
+        try:
+            future.result()
+            if self._running:
+                self._window.set_status('Food requested.')
+        except Exception as error:
+            if self._running:
+                self._window.set_status(
+                    f'Could not request food: {error}', is_error=True
                 )
 
     def handle_obstacle_update(self, obstacle: ObstacleState) -> None:

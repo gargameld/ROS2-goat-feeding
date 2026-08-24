@@ -60,6 +60,21 @@ def test_window_requires_food_name_before_throwing():
     window.close()
 
 
+def test_window_emits_food_request_parking_number():
+    """The request-food control emits the selected parking number."""
+    application = _application()
+    window = TopViewWindow()
+    requests = []
+    window.food_request_requested.connect(requests.append)
+    window._request_parking_box.setValue(4)
+
+    window._send_food_request()
+    application.processEvents()
+
+    assert requests == [4]
+    window.close()
+
+
 def test_canvas_renders_complete_scene_offscreen():
     """A built scene can be painted into an image without a display server."""
     application = _application()
