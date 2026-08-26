@@ -1,6 +1,7 @@
 #include "arm_behavior/motion_executor.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <iomanip>
 #include <sstream>
@@ -9,6 +10,7 @@
 
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "moveit/move_group_interface/move_group_interface.hpp"
+#include "moveit/robot_state/conversions.hpp"
 #include "moveit_msgs/msg/move_it_error_codes.hpp"
 #include "moveit_msgs/msg/robot_trajectory.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -21,12 +23,36 @@ namespace
 constexpr double kCartesianLiftStep = 0.01;
 constexpr double kRequiredCartesianPathFraction = 0.999;
 // Narrow passages (e.g. threading the arm between the 0.1m quoridor walls in
-// environment_boxes.yaml) are low-probability regions for a randomized sampler.
-// Give OMPL a larger time budget and, crucially, several independent attempts:
-// each attempt reseeds RRTConnect's trees, so N attempts of T seconds is far
-// more likely to find a path than one attempt of N*T seconds.
-constexpr double kPlanningTimeSeconds = 15.0;
-constexpr int kNumPlanningAttempts = 10;
+// environment_boxes.yaml) are low-probability regions for a randomized sampler,
+// so planning here either succeeds almost immediately or not at all.
+// Restarts are driven from here rather than through MoveIt's
+// num_planning_attempts: those attempts run concurrently against a single
+// shared allowed_planning_time, so they divide that budget instead of each
+// getting one, and a failing request burns the whole budget no matter how many
+// are requested. A sequential loop instead gives every retry a freshly seeded
+// RRTConnect and the full per-retry time. Narrow-passage solutions have been
+// measured arriving in ~1 s when they arrive at all, so a short per-retry
+// budget costs almost nothing and buys many more independent restarts.
+constexpr double kPlanningTimeSeconds = 7.0;
+constexpr int kNumPlanningAttempts = 1;
+constexpr int kPlanningRetries = 20;
+constexpr double kReachabilityPlanningTimeSeconds = 7.0;
+constexpr int kReachabilityPlanningAttempts = 1;
+constexpr int kReachabilityPlanningRetries = 20;
+// A goal pose whose only IK solutions are in collision cannot be planned to,
+// but OMPL charges full price to find that out: RRTConnect blocks in
+// nextGoal() until the planning-time termination condition fires, so an
+// unreachable candidate costs kReachabilityPlanningTimeSeconds *
+// kReachabilityPlanningRetries no matter how hopeless it is. /compute_ik with
+// avoid_collisions runs exactly the check that fails inside OMPL's goal
+// sampler -- collision-aware IK against the monitored planning scene -- once,
+// up front, where the answer is visible. KDL keeps re-seeding randomly until
+// this budget is gone, so it must be long enough for a genuinely reachable
+// pose to converge, not merely for one restart.
+constexpr double kGoalIkTimeoutSeconds = 1.0;
+// Wall-clock allowance for the round trip, which also covers move_group
+// locking the planning scene while a plan is in flight.
+constexpr std::chrono::seconds kComputeIkServiceTimeout{5};
 constexpr double kGoalPositionToleranceMeters = 0.02;
 constexpr double kGoalOrientationToleranceRadians = 0.0872665;
 constexpr double kGoalJointToleranceRadians = 0.01;
@@ -121,9 +147,38 @@ std::string describe_moveit_error(const moveit::core::MoveItErrorCode & error)
       return "ROBOT_STATE_STALE";
     case ErrorCodes::NO_IK_SOLUTION:
       return "NO_IK_SOLUTION";
+    case ErrorCodes::FAILURE:
+      return "FAILURE (the planner gave up without finding a path)";
     default:
       return "unclassified MoveIt error";
   }
+}
+
+// Plan repeatedly until one attempt succeeds, returning that attempt's code.
+// Each call to plan() reseeds the planner, so the retries are independent in a
+// way MoveIt's own concurrent attempts are not (see the retry constants above).
+moveit::core::MoveItErrorCode plan_with_retries(
+  moveit::planning_interface::MoveGroupInterface & move_group,
+  int retries,
+  const std::string & motion_description,
+  moveit::planning_interface::MoveGroupInterface::Plan & plan)
+{
+  const auto logger = rclcpp::get_logger("arm.motion_executor");
+  moveit::core::MoveItErrorCode planning_result(moveit_msgs::msg::MoveItErrorCodes::FAILURE);
+  for (int retry = 1; retry <= retries; ++retry) {
+    planning_result = move_group.plan(plan);
+    if (planning_result == moveit::core::MoveItErrorCode::SUCCESS) {
+      RCLCPP_INFO(
+        logger, "Planning for %s succeeded on retry %d of %d",
+        motion_description.c_str(), retry, retries);
+      return planning_result;
+    }
+    RCLCPP_INFO(
+      logger, "Planning retry %d of %d for %s failed: code=%d (%s)",
+      retry, retries, motion_description.c_str(), planning_result.val,
+      describe_moveit_error(planning_result).c_str());
+  }
+  return planning_result;
 }
 
 }  // namespace
@@ -143,6 +198,7 @@ MotionExecutor::MotionExecutor(
   tcp_link_(std::move(tcp_link)),
   home_pose_name_(std::move(home_pose_name))
 {
+  compute_ik_client_ = node_->create_client<moveit_msgs::srv::GetPositionIK>("compute_ik");
   move_group_->setPlanningTime(kPlanningTimeSeconds);
   move_group_->setNumPlanningAttempts(kNumPlanningAttempts);
   move_group_->setGoalPositionTolerance(kGoalPositionToleranceMeters);
@@ -168,12 +224,28 @@ OperationResult MotionExecutor::checkPoseReachability(
   const std::string & reference_frame)
 {
   std::lock_guard<std::mutex> lock(*moveit_mutex_);
+  // Reachability is only a fast screening pass over many ranked candidates.
+  // Keep full planning budgets for actual arm motions, but do not spend them
+  // repeatedly on grasp poses that have no valid goal state.
+  move_group_->setPlanningTime(kReachabilityPlanningTimeSeconds);
+  move_group_->setNumPlanningAttempts(kReachabilityPlanningAttempts);
   std::string target_frame;
-  const auto target_result = setPoseTarget(target_pose, reference_frame, target_frame);
-  if (!target_result.success) {
-    return target_result;
+  auto result = setPoseTarget(target_pose, reference_frame, target_frame);
+  const std::string motion_description = "target pose in frame '" + target_frame + "'";
+  if (result.success) {
+    // Screen out goal poses with no collision-free IK solution before OMPL
+    // spends the whole retry budget rediscovering it one goal sample at a time.
+    geometry_msgs::msg::PoseStamped stamped_target;
+    stamped_target.header.frame_id = target_frame;
+    stamped_target.pose = target_pose;
+    result = checkGoalStateValidity(stamped_target, motion_description);
   }
-  return planOnly("target pose in frame '" + target_frame + "'");
+  if (result.success) {
+    result = planOnly(motion_description);
+  }
+  move_group_->setPlanningTime(kPlanningTimeSeconds);
+  move_group_->setNumPlanningAttempts(kNumPlanningAttempts);
+  return result;
 }
 
 OperationResult MotionExecutor::moveToHomePose()
@@ -207,8 +279,14 @@ OperationResult MotionExecutor::lift(double distance)
   pause_simulation(node_);
   double fraction;
   try {
+    // Collision checking is disabled for the retreat. The gripper has just
+    // closed on the food cube, so the fingers are in contact with it by
+    // definition and the octomap still holds the voxels they closed around;
+    // a collision-checked lift rejects its very first waypoint. The motion is
+    // a short, straight, vertical retreat out of a shelf whose surroundings
+    // were already checked on the way in.
     fraction = move_group_->computeCartesianPath(
-      {target_pose}, kCartesianLiftStep, trajectory, true);
+      {target_pose}, kCartesianLiftStep, trajectory, false);
   } catch (...) {
     try {
       resume_simulation(node_);
@@ -221,7 +299,7 @@ OperationResult MotionExecutor::lift(double distance)
   resume_simulation(node_);
   move_group_->clearPoseTargets();
   if (fraction < kRequiredCartesianPathFraction) {
-    return {false, "Unable to compute a complete collision-free Cartesian lift"};
+    return {false, "Unable to compute a complete Cartesian lift"};
   }
 
   MoveGroupInterface::Plan plan;
@@ -297,7 +375,8 @@ OperationResult MotionExecutor::planAndExecute(const std::string & motion_descri
   pause_simulation(node_);
   moveit::core::MoveItErrorCode planning_result;
   try {
-    planning_result = move_group_->plan(plan);
+    planning_result = plan_with_retries(
+      *move_group_, kPlanningRetries, motion_description, plan);
   } catch (...) {
     try {
       resume_simulation(node_);
@@ -350,7 +429,8 @@ OperationResult MotionExecutor::planOnly(const std::string & motion_description)
   pause_simulation(node_);
   moveit::core::MoveItErrorCode planning_result;
   try {
-    planning_result = move_group_->plan(plan);
+    planning_result = plan_with_retries(
+      *move_group_, kReachabilityPlanningRetries, motion_description, plan);
   } catch (...) {
     try {
       resume_simulation(node_);
@@ -378,6 +458,61 @@ OperationResult MotionExecutor::planOnly(const std::string & motion_description)
   log_path(plan, motion_description);
   move_group_->clearPoseTargets();
   return {true, "Arm pose is reachable: " + motion_description};
+}
+
+OperationResult MotionExecutor::checkGoalStateValidity(
+  const geometry_msgs::msg::PoseStamped & target_pose,
+  const std::string & motion_description)
+{
+  const auto logger = rclcpp::get_logger("arm.motion_executor");
+  // A missing or slow service must not silently reject reachable grasps: fall
+  // through to planning, which is the authority either way.
+  if (!compute_ik_client_->wait_for_service(kComputeIkServiceTimeout)) {
+    RCLCPP_WARN(
+      logger, "'compute_ik' is unavailable; planning %s without a goal-state pre-check",
+      motion_description.c_str());
+    return {true, "Goal-state pre-check skipped"};
+  }
+
+  auto request = std::make_shared<moveit_msgs::srv::GetPositionIK::Request>();
+  auto & ik_request = request->ik_request;
+  ik_request.group_name = move_group_->getName();
+  ik_request.ik_link_name = tcp_link_;
+  ik_request.pose_stamped = target_pose;
+  ik_request.avoid_collisions = true;
+  ik_request.timeout = rclcpp::Duration::from_seconds(kGoalIkTimeoutSeconds);
+  // Seed from the state the plan would start in, so the pre-check and the
+  // planner agree on which IK branches are within reach.
+  if (const auto current_state = move_group_->getCurrentState()) {
+    moveit::core::robotStateToRobotStateMsg(*current_state, ik_request.robot_state);
+  }
+
+  auto future = compute_ik_client_->async_send_request(request);
+  if (future.wait_for(kComputeIkServiceTimeout) != std::future_status::ready) {
+    compute_ik_client_->remove_pending_request(future);
+    RCLCPP_WARN(
+      logger, "'compute_ik' did not answer within %ld s; planning %s without a goal-state pre-check",
+      static_cast<long>(kComputeIkServiceTimeout.count()), motion_description.c_str());
+    return {true, "Goal-state pre-check skipped"};
+  }
+
+  const moveit::core::MoveItErrorCode ik_result(future.get()->error_code);
+  if (ik_result == moveit::core::MoveItErrorCode::SUCCESS) {
+    RCLCPP_INFO(
+      logger, "Goal state for %s has a collision-free IK solution", motion_description.c_str());
+    return {true, "Goal state is valid"};
+  }
+
+  const auto error_description = describe_moveit_error(ik_result);
+  RCLCPP_INFO(
+    logger,
+    "No collision-free IK solution for %s within %.3f s: code=%d (%s); skipping planning",
+    motion_description.c_str(), kGoalIkTimeoutSeconds, ik_result.val, error_description.c_str());
+  move_group_->clearPoseTargets();
+  return {
+    false,
+    "No collision-free IK solution for " + motion_description + "; compute_ik code=" +
+    std::to_string(ik_result.val) + " (" + error_description + ")"};
 }
 
 OperationResult MotionExecutor::setPoseTarget(

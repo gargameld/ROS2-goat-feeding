@@ -10,6 +10,7 @@ from grasp_pose_interface.action import ProvideGraspPose
 from grasp_pose_interface.msg import GraspPoseArray
 from grasp_pose_provider import camera_transforms
 from grasp_pose_provider import combine_pointclouds
+from grasp_pose_provider import food_cloud_publisher as food_cloud
 from grasp_pose_provider import grasp_config_conversion
 from grasp_pose_provider import grasp_reachability
 from grasp_pose_provider import provide_grasp_pose as grasp_pose_pipeline
@@ -23,6 +24,7 @@ from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 
 ACTION_NAME = 'provide_grasp_pose'
 DEFAULT_GRASP_POSES_TOPIC = '/grasp_pose_candidates'
+DEFAULT_FOOD_CLOUD_TOPIC = food_cloud.DEFAULT_FOOD_CLOUD_TOPIC
 MAX_RVIZ_CANDIDATES = 5
 
 
@@ -44,6 +46,9 @@ class GraspPoseProviderNode(Node):
             list(grasp_pose_pipeline.DEFAULT_CAPTURED_TOPICS),
         )
         self.declare_parameter('grasp_poses_topic', DEFAULT_GRASP_POSES_TOPIC)
+        # The cloud MoveIt builds its octomap from; see
+        # moveit_config/config/sensors_3d.yaml.
+        self.declare_parameter('food_cloud_topic', DEFAULT_FOOD_CLOUD_TOPIC)
         self.declare_parameter(
             'min_food_point_count',
             grasp_pose_pipeline.DEFAULT_MIN_FOOD_POINT_COUNT,
@@ -68,6 +73,18 @@ class GraspPoseProviderNode(Node):
                 depth=1,
                 reliability=ReliabilityPolicy.RELIABLE,
                 durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            ),
+        )
+
+        # Created once and kept: the occupancy map monitor subscribes when
+        # move_group starts, so a per-goal publisher could lose the single
+        # cloud each cycle sends to discovery latency.
+        self._food_cloud_publisher = food_cloud.FoodCloudPublisher(
+            self,
+            topic=(
+                self.get_parameter('food_cloud_topic')
+                .get_parameter_value()
+                .string_value
             ),
         )
 
@@ -152,6 +169,7 @@ class GraspPoseProviderNode(Node):
                 feedback_cb=feedback_cb,
                 pointcloud_snapshotter=self._pointcloud_snapshotter,
                 snapshot_captured_cb=pause_after_snapshot,
+                food_cloud_publisher=self._food_cloud_publisher,
             )
             # Keep RViz focused on the same highest-ranked candidates that
             # MoveIt checks. A rejected batch is still useful diagnostic
@@ -211,6 +229,7 @@ class GraspPoseProviderNode(Node):
     def destroy_node(self):
         """Tear the tf2 listener down before the node itself goes away."""
         self._reachability_checker.destroy()
+        self._food_cloud_publisher.destroy()
         self._pointcloud_snapshotter.destroy()
         self._transform_resolver.destroy()
         return super().destroy_node()

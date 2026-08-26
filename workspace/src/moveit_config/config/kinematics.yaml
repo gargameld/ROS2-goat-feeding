@@ -1,4 +1,11 @@
 arm_planning_group:
   kinematics_solver: kdl_kinematics_plugin/KDLKinematicsPlugin
   kinematics_solver_search_resolution: 0.0050000000000000001
-  kinematics_solver_timeout: 7.0
+  # This is the per-call budget OMPL's IK-based goal sampler spends on random
+  # KDL restarts, and it is spent in full whenever no IK solution passes the
+  # state-validity check. MoveIt calls the sampler up to
+  # max_state_sampling_attempts times (4, hardcoded in moveit_planners_ompl
+  # 2.12), so the goal sampler costs 4x this value per planning attempt: 7.0 s
+  # here meant a failing 3 s plan took ~30 s to report. At ~6 ms per restart,
+  # 0.5 s still gives ~80 random restarts per call.
+  kinematics_solver_timeout: 0.5

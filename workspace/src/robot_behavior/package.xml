@@ -12,6 +12,8 @@
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>control_msgs</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
   <exec_depend>grasp_pose_interface</exec_depend>
   <exec_depend>nav2_msgs</exec_depend>
   <exec_depend>python3-yaml</exec_depend>

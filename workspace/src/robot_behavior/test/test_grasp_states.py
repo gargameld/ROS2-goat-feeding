@@ -95,8 +95,8 @@ def test_find_grasp_pose_finishes_null_when_food_is_not_found(monkeypatch):
     assert transitions == [None]
 
 
-def test_move_arm_uses_shared_grasp_and_finishes_null():
-    """Arm motion consumes the stored pose and currently ends the chain."""
+def test_move_arm_uses_shared_grasp_and_closes_the_gripper():
+    """Arm motion consumes the stored pose and hands over to the gripper."""
     transitions = []
     client = FakeBehaviorClient()
     pose = Pose()
@@ -109,4 +109,4 @@ def test_move_arm_uses_shared_grasp_and_finishes_null():
     assert requested_pose is pose
     assert reference_frame == 'base_link'
     handlers['result_handler'](SimpleNamespace(success=True, message=''))
-    assert transitions == [None]
+    assert transitions == ['closeGripper']

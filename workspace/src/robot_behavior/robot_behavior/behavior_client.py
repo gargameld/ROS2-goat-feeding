@@ -3,14 +3,28 @@
 from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
-from arm_interface.action import MoveArmToHomePose, MoveArmToPose
+from arm_interface.action import LiftGripper, MoveArmToHomePose, MoveArmToPose
+from arm_interface.srv import AttachObjectToGripper
+from control_msgs.action import GripperCommand
 from grasp_pose_interface.action import ProvideGraspPose
 from nav2_msgs.action import NavigateToPose
 from rclpy.action import ActionClient
 from rclpy.task import Future
+from std_srvs.srv import Empty
 
 
 Handler = Callable[[Any], None]
+ATTACH_OBJECT_TO_GRIPPER = 'attach_object_to_gripper'
+ATTACH_OBJECT_TO_GRIPPER_SERVICE = '/attach_object_to_gripper'
+CLEAR_OCTOMAP = 'clear_octomap'
+CLEAR_OCTOMAP_SERVICE = '/clear_octomap'
+CLOSE_GRIPPER = 'close_gripper'
+CLOSE_GRIPPER_ACTION = '/gripper_controller/gripper_cmd'
+CLOSED_GRIPPER_POSITION = 0.725
+GRIPPER_MAX_EFFORT = 5.0
+LIFT_DISTANCE_METERS = 0.1
+LIFT_GRIPPER = 'lift_gripper'
+LIFT_GRIPPER_ACTION = '/lift_gripper'
 MOVE_ARM_TO_HOME = 'move_arm_to_home'
 MOVE_ARM_TO_HOME_ACTION = '/move_arm_to_home_pose'
 MOVE_ARM_TO_POSE = 'move_arm_to_pose'
@@ -67,6 +81,26 @@ class BehaviorClient:
             MOVE_ARM_TO_POSE,
             MoveArmToPose,
             MOVE_ARM_TO_POSE_ACTION,
+        )
+        self.register_action(
+            CLOSE_GRIPPER,
+            GripperCommand,
+            CLOSE_GRIPPER_ACTION,
+        )
+        self.register_action(
+            LIFT_GRIPPER,
+            LiftGripper,
+            LIFT_GRIPPER_ACTION,
+        )
+        self.register_service(
+            ATTACH_OBJECT_TO_GRIPPER,
+            AttachObjectToGripper,
+            ATTACH_OBJECT_TO_GRIPPER_SERVICE,
+        )
+        self.register_service(
+            CLEAR_OCTOMAP,
+            Empty,
+            CLEAR_OCTOMAP_SERVICE,
         )
 
     def move_arm_to_home(
@@ -146,6 +180,68 @@ class BehaviorClient:
         goal.target_pose = target_pose
         goal.reference_frame = reference_frame
         return self.invoke_action(MOVE_ARM_TO_POSE, goal)
+
+    def close_gripper(
+        self,
+        *,
+        goal_response_handler: Optional[Handler] = None,
+        feedback_handler: Optional[Handler] = None,
+        result_handler: Optional[Handler] = None,
+    ):
+        """Close the gripper until it reaches its limit or stalls on an object."""
+        self.set_action_handlers(
+            CLOSE_GRIPPER,
+            goal_response=goal_response_handler,
+            feedback=feedback_handler,
+            result=result_handler,
+        )
+        goal = GripperCommand.Goal()
+        goal.command.position = CLOSED_GRIPPER_POSITION
+        goal.command.max_effort = GRIPPER_MAX_EFFORT
+        return self.invoke_action(CLOSE_GRIPPER, goal)
+
+    def lift_gripper(
+        self,
+        distance: float = LIFT_DISTANCE_METERS,
+        *,
+        goal_response_handler: Optional[Handler] = None,
+        feedback_handler: Optional[Handler] = None,
+        result_handler: Optional[Handler] = None,
+    ):
+        """Lift the gripper vertically by ``distance`` metres."""
+        self.set_action_handlers(
+            LIFT_GRIPPER,
+            goal_response=goal_response_handler,
+            feedback=feedback_handler,
+            result=result_handler,
+        )
+        goal = LiftGripper.Goal()
+        goal.distance = distance
+        return self.invoke_action(LIFT_GRIPPER, goal)
+
+    def attach_object_to_gripper(
+        self,
+        *,
+        response_handler: Optional[Handler] = None,
+    ):
+        """Attach the configured payload box to the gripper in MoveIt."""
+        self.set_service_handler(
+            ATTACH_OBJECT_TO_GRIPPER,
+            response_handler,
+        )
+        return self.invoke_service(
+            ATTACH_OBJECT_TO_GRIPPER,
+            AttachObjectToGripper.Request(),
+        )
+
+    def clear_octomap(
+        self,
+        *,
+        response_handler: Optional[Handler] = None,
+    ):
+        """Drop every occupied voxel from the move_group octomap."""
+        self.set_service_handler(CLEAR_OCTOMAP, response_handler)
+        return self.invoke_service(CLEAR_OCTOMAP, Empty.Request())
 
     def register_action(
         self,

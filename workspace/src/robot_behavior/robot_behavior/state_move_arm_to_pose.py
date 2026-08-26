@@ -46,9 +46,10 @@ class StateMoveArmToPose(BaseState):
     def _handle_result(self, result) -> None:
         if result.success:
             self.logger.info('Arm moved to the grasp pose')
-        else:
-            self.logger.error(
-                f'Failed to move arm to the grasp pose: {result.message}'
-            )
+            self.request_state_transition('closeGripper')
+            return
 
+        self.logger.error(
+            f'Failed to move arm to the grasp pose: {result.message}'
+        )
         self.request_state_transition(None)

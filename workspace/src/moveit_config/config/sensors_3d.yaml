@@ -1,45 +1,35 @@
+# Octomap parameters. These are read by move_group as plain node parameters:
+# moveit_configs_utils flattens this whole file into the move_group parameter
+# dict, so top-level keys here reach the OccupancyMapMonitor directly.
+#
+# octomap_frame must be a fixed frame that TF can resolve; `map` is the planning
+# frame (see the map_to_base_link virtual joint in full_robot.srdf) and the frame
+# the static environment boxes are already declared in.
+octomap_frame: map
+# 5 mm voxels. The food cubes are 55 mm, so this puts ~11 voxels across a cube,
+# enough for the gripper to be planned around a specific face. Only the food
+# points reach the octomap (see below), so the finer resolution costs little.
+octomap_resolution: 0.005
+
+# One "sensor" only: the food points that grasp_pose_provider already segments
+# out of the merged camera clouds and republishes on their own topic (see
+# grasp_pose_provider/food_cloud_publisher.py). Subscribing to the raw camera
+# clouds instead filled the octomap with the whole shelf, which is already
+# described exactly by the collision objects in environment_boxes.yaml and made
+# every goal-state collision check both slower and less predictable.
 sensors:
-  - front_camera
-  - left_camera
-  - left_front_camera
-  - left_back_camera
+  - food_cloud
 
-front_camera:
-  filtered_cloud_topic: /front_camera/filtered_points
+food_cloud:
+  filtered_cloud_topic: /grasp_pose_provider/food_points_filtered
   max_range: 3.0
-  max_update_rate: 1
+  max_update_rate: 1.0
+  # Padding applies to the robot's own links when self-points are masked out of
+  # the incoming cloud, not to the food voxels themselves.
   padding_offset: 0.02
   padding_scale: 1.0
-  point_cloud_topic: /front_camera/points
-  point_subsample: 1
-  sensor_plugin: occupancy_map_monitor/PointCloudOctomapUpdater
-
-left_camera:
-  filtered_cloud_topic: /left_camera/filtered_points
-  max_range: 3.0
-  max_update_rate: 1
-  padding_offset: 0.02
-  padding_scale: 1.0
-  point_cloud_topic: /left_camera/points
-  point_subsample: 1
-  sensor_plugin: occupancy_map_monitor/PointCloudOctomapUpdater
-
-left_front_camera:
-  filtered_cloud_topic: /left_front_camera/filtered_points
-  max_range: 3.0
-  max_update_rate: 1
-  padding_offset: 0.02
-  padding_scale: 1.0
-  point_cloud_topic: /left_front_camera/points
-  point_subsample: 1
-  sensor_plugin: occupancy_map_monitor/PointCloudOctomapUpdater
-
-left_back_camera:
-  filtered_cloud_topic: /left_back_camera/filtered_points
-  max_range: 3.0
-  max_update_rate: 1
-  padding_offset: 0.02
-  padding_scale: 1.0
-  point_cloud_topic: /left_back_camera/points
+  # Must match food_cloud_publisher.DEFAULT_FOOD_CLOUD_TOPIC (overridable with
+  # the grasp_pose_provider node's `food_cloud_topic` parameter).
+  point_cloud_topic: /grasp_pose_provider/food_points
   point_subsample: 1
   sensor_plugin: occupancy_map_monitor/PointCloudOctomapUpdater

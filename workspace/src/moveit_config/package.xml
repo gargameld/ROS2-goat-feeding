@@ -33,6 +33,9 @@
   <exec_depend>controller_manager</exec_depend>
   <exec_depend>moveit_configs_utils</exec_depend>
   <exec_depend>moveit_ros_move_group</exec_depend>
+  <!-- Provides the occupancy_map_monitor/PointCloudOctomapUpdater plugin used by
+       config/sensors_3d.yaml. Without it move_group loads no octomap updater. -->
+  <exec_depend>moveit_ros_perception</exec_depend>
   <exec_depend>moveit_ros_visualization</exec_depend>
   <exec_depend>moveit_ros_warehouse</exec_depend>
   <exec_depend>moveit_setup_assistant</exec_depend>

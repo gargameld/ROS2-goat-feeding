@@ -42,7 +42,7 @@ DEFAULT_CAMERA_TOPICS = (
 # Rendering all four simulated cameras currently takes roughly 25 seconds on
 # the target machine.  Leave enough margin for a complete publish cycle when a
 # caller explicitly asks for messages newer than a particular instant.
-DEFAULT_WAIT_TIMEOUT_SEC = 60.0
+DEFAULT_WAIT_TIMEOUT_SEC = 120.0
 
 
 class PointCloudSnapshotter:

@@ -6,7 +6,9 @@
 #include <string>
 
 #include "geometry_msgs/msg/pose.hpp"
+#include "geometry_msgs/msg/pose_stamped.hpp"
 #include "moveit/move_group_interface/move_group_interface.hpp"
+#include "moveit_msgs/srv/get_position_ik.hpp"
 
 #include "arm_behavior/operation_result.hpp"
 
@@ -41,12 +43,16 @@ private:
   void log_planning_context(const std::string & motion_description) const;
   OperationResult planAndExecute(const std::string & motion_description);
   OperationResult planOnly(const std::string & motion_description);
+  OperationResult checkGoalStateValidity(
+    const geometry_msgs::msg::PoseStamped & target_pose,
+    const std::string & motion_description);
   OperationResult setPoseTarget(
     const geometry_msgs::msg::Pose & target_pose,
     const std::string & reference_frame,
     std::string & target_frame);
 
   std::shared_ptr<MoveGroupInterface> move_group_;
+  rclcpp::Client<moveit_msgs::srv::GetPositionIK>::SharedPtr compute_ik_client_;
   rclcpp::Node::SharedPtr node_;
   std::shared_ptr<std::mutex> moveit_mutex_;
   std::string tcp_link_;

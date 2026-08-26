@@ -15,6 +15,9 @@ The pipeline:
    stored empty-plate dumps -- one per camera -- and merges them into the same
    reference frame.
 3. :func:`grasp_pose_provider.food_detector.detect_food` -> food-point indices.
+3b. :class:`grasp_pose_provider.food_cloud_publisher.FoodCloudPublisher`
+   republishes those points on their own, as the single cloud MoveIt builds
+   the planning-scene octomap from.
 4. :func:`grasp_pose_provider.gpd_request_builder.build_service_request` ->
    a ``DetectConstrainedGrasps`` request.
 5. Call the ``detect_constrained_grasps`` service.
@@ -43,10 +46,12 @@ from gpd_ros2_msgs.srv import DetectConstrainedGrasps
 from grasp_pose_provider import (
     camera_transforms,
     combine_pointclouds,
+    food_cloud_publisher as food_cloud_publisher_module,
     food_detector,
     food_presence,
     gpd_request_builder,
     grasp_config_conversion,
+    grasp_pose_ranking,
     stored_model,
 )
 import rclpy
@@ -90,6 +95,7 @@ def provide_grasp_pose(
     feedback_cb=None,
     pointcloud_snapshotter=None,
     snapshot_captured_cb=None,
+    food_cloud_publisher=None,
 ):
     """Capture the camera clouds and return candidate TCP grasp poses.
 
@@ -107,11 +113,20 @@ def provide_grasp_pose(
     ``feedback_cb``, if given, is called with a short stage string at each
     step of the pipeline. ``snapshot_captured_cb`` is called as soon as one
     fresh message from every camera has been captured.
+    ``food_cloud_publisher`` is a
+    :class:`~grasp_pose_provider.food_cloud_publisher.FoodCloudPublisher` kept
+    alive by the caller; the detected food points are pushed through it so the
+    planning-scene octomap sees them.
     """
     owns_snapshotter = pointcloud_snapshotter is None
     if owns_snapshotter:
         pointcloud_snapshotter = combine_pointclouds.PointCloudSnapshotter(
             node, captured_topics
+        )
+    owns_food_cloud_publisher = food_cloud_publisher is None
+    if owns_food_cloud_publisher:
+        food_cloud_publisher = food_cloud_publisher_module.FoodCloudPublisher(
+            node
         )
     try:
         return _run_pipeline(
@@ -127,10 +142,13 @@ def provide_grasp_pose(
             feedback_cb=feedback_cb,
             pointcloud_snapshotter=pointcloud_snapshotter,
             snapshot_captured_cb=snapshot_captured_cb,
+            food_cloud_publisher=food_cloud_publisher,
         )
     finally:
         if owns_snapshotter:
             pointcloud_snapshotter.destroy()
+        if owns_food_cloud_publisher:
+            food_cloud_publisher.destroy()
 
 
 def _run_pipeline(
@@ -146,6 +164,7 @@ def _run_pipeline(
     feedback_cb,
     pointcloud_snapshotter,
     snapshot_captured_cb,
+    food_cloud_publisher,
 ):
     """Run the pipeline with a persistent point-cloud snapshotter."""
     initial_sequences = pointcloud_snapshotter.mark()
@@ -186,6 +205,13 @@ def _run_pipeline(
         min_food_point_count,
     )
 
+    # Publish before the GPD call, not after: the octomap updater resolves the
+    # cloud's frame at the cloud's own stamp, and the GPD detection takes long
+    # enough (minutes) that the capture stamp would have aged out of
+    # move_group's tf2 buffer by the time it returns.
+    _emit(feedback_cb, 'Publishing the food points for the planning octomap')
+    food_cloud_publisher.publish(combined.msg, food_indices)
+
     _emit(feedback_cb, 'Cropping the GPD cloud around the detected food')
     cropped_msg, cropped_food_indices, cropped_camera_source = (
         gpd_request_builder.crop_cloud_around_indices(
@@ -216,7 +242,17 @@ def _run_pipeline(
     )
     for pose in poses:
         pose.header.stamp = combined.msg.header.stamp
-    return poses
+    _emit(feedback_cb, 'Filtering grasps by shelf approach direction')
+    ranked_poses = grasp_pose_ranking.prefer_shelf_approaches(poses)
+    node.get_logger().info(
+        f'Kept {len(ranked_poses)} of {len(poses)} grasps after excluding '
+        'approaches outside '
+        f'{grasp_pose_ranking.DEFAULT_MINIMUM_POSITIVE_X_ANGLE_DEG:g} degrees '
+        'to '
+        f'{grasp_pose_ranking.DEFAULT_MAXIMUM_POSITIVE_X_ANGLE_DEG:g} degrees '
+        'from map +X toward the shelf'
+    )
+    return ranked_poses
 
 
 def _call_gpd_service(node, request, service_timeout_sec):

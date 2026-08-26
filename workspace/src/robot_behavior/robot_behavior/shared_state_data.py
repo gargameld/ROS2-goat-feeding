@@ -12,3 +12,4 @@ class SharedStateData:
 
     grasp_pose: Optional[Pose] = None
     grasp_reference_frame: str = ''
+    object_gripped: bool = False

@@ -92,6 +92,7 @@ gripper_controller:
   ros__parameters:
     use_sim_time: true
     joint: finger_joint
+    allow_stalling: true
 
 imu_sensor_broadcaster:
   ros__parameters:

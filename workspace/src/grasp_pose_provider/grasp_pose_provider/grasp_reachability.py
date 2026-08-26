@@ -8,7 +8,7 @@ from rclpy.action import ActionClient
 
 
 DEFAULT_ACTION_NAME = '/check_pose_reachability'
-DEFAULT_MAX_CANDIDATES = 5
+DEFAULT_MAX_CANDIDATES = 40
 DEFAULT_SERVER_TIMEOUT_SEC = 10.0
 DEFAULT_RESULT_TIMEOUT_SEC = 180.0
 

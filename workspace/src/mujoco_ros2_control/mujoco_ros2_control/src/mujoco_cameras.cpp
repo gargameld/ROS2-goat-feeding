@@ -375,13 +375,15 @@ void MujocoCameras::update()
   }
 
   // Step 4: Publish point clouds.
+  // All cameras were rendered from the same copied snapshot (Step 1), so they
+  // must share one timestamp rather than each getting its own now() call.
+  const auto time = node_->now();
   for (auto& camera : cameras_)
   {
     if (!camera.pointcloud_ready)
     {
       continue;
     }
-    const auto time = node_->now();
     camera.pointcloud_message.header.stamp = time;
     camera.pointcloud_pub->publish(camera.pointcloud_message);
     if (!camera.has_published)

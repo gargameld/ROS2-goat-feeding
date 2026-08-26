@@ -4,7 +4,12 @@ from robot_behavior.behavior_client import BehaviorClient
 from robot_behavior.map_parameters_loader import MapParametersLoader
 from robot_behavior.request_listener import RequestListener
 from robot_behavior.shared_state_data import SharedStateData
+from robot_behavior.state_attach_object_to_gripper import (
+    StateAttachObjectToGripper,
+)
+from robot_behavior.state_close_gripper import StateCloseGripper
 from robot_behavior.state_find_grasp_pose import StateFindGraspPose
+from robot_behavior.state_lift_gripper import StateLiftGripper
 from robot_behavior.state_move_arm_to_home import StateMoveArmToHome
 from robot_behavior.state_move_arm_to_pose import StateMoveArmToPose
 from robot_behavior.state_navigate_to_parking import StateNavigateToParking
@@ -52,6 +57,19 @@ class StateMachine:
                 behavior_client,
                 self.change_state,
                 self.shared_state_data,
+            ),
+            'closeGripper': StateCloseGripper(
+                behavior_client,
+                self.change_state,
+                self.shared_state_data,
+            ),
+            'attachObjectToGripper': StateAttachObjectToGripper(
+                behavior_client,
+                self.change_state,
+            ),
+            'liftGripper': StateLiftGripper(
+                behavior_client,
+                self.change_state,
             ),
         }
         self.current_state = 'nullState'

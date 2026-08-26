@@ -85,10 +85,10 @@ def test_returns_first_reachable_candidate_and_preserves_frame():
     assert checker._client.goals[2].target_pose.position.x == 2.0
 
 
-def test_checks_at_most_top_five_candidates():
-    checker = _checker([False] * 5)
+def test_checks_at_most_top_forty_candidates():
+    checker = _checker([False] * 40)
 
-    with pytest.raises(RuntimeError, match='top 5'):
-        checker.first_reachable(_candidates(6))
+    with pytest.raises(RuntimeError, match='top 40'):
+        checker.first_reachable(_candidates(41))
 
-    assert len(checker._client.goals) == 5
+    assert len(checker._client.goals) == 40

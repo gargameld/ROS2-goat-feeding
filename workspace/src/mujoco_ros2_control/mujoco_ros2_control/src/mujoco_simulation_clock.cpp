@@ -38,7 +38,7 @@ bool MujocoSimulationClock::sleep(mjtNum duration, const std::atomic_bool& keep_
   const mjtNum wake_time = get_sim_time() + duration;
   while (keep_sleeping && !simulation_.exit_requested() && get_sim_time() < wake_time)
   {
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
   return keep_sleeping && !simulation_.exit_requested();
 }
