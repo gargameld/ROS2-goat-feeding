@@ -3,7 +3,13 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+from geometry_msgs.msg import Pose, PoseStamped
 import yaml
+
+
+PARKING_POSES = 'parking_poses'
+HOLE_POSES = 'hole_poses'
+HOLE_ARM_POSES = 'hole_arm_poses'
 
 
 @dataclass(frozen=True)
@@ -19,12 +25,31 @@ class MapPose:
     qz: float
     qw: float
 
+    def to_pose(self) -> Pose:
+        """Return this pose as an unstamped ROS pose."""
+        pose = Pose()
+        pose.position.x = self.x
+        pose.position.y = self.y
+        pose.position.z = self.z
+        pose.orientation.x = self.qx
+        pose.orientation.y = self.qy
+        pose.orientation.z = self.qz
+        pose.orientation.w = self.qw
+        return pose
+
+    def to_pose_stamped(self) -> PoseStamped:
+        """Return this pose as a ROS pose stamped with its own frame."""
+        pose_stamped = PoseStamped()
+        pose_stamped.header.frame_id = self.frame_id
+        pose_stamped.pose = self.to_pose()
+        return pose_stamped
+
 
 class MapParametersLoader:
     """Provide validated access to map-dependent behavior parameters."""
 
     def __init__(self, configuration_file: str | Path):
-        """Read parking target poses from ``configuration_file``."""
+        """Read parking and hole target poses from ``configuration_file``."""
         self.configuration_file = Path(configuration_file)
         with self.configuration_file.open(encoding='utf-8') as stream:
             configuration = yaml.safe_load(stream)
@@ -32,29 +57,48 @@ class MapParametersLoader:
         if not isinstance(configuration, dict):
             raise ValueError('Map configuration must be a YAML mapping')
 
-        parking_poses = configuration.get('parking_poses')
-        if not isinstance(parking_poses, dict) or not parking_poses:
-            raise ValueError('Map configuration must define parking_poses')
-
-        self._parking_poses = {
-            int(number): self._parse_pose(number, pose)
-            for number, pose in parking_poses.items()
+        self._poses = {
+            section: self._parse_section(configuration, section)
+            for section in (PARKING_POSES, HOLE_POSES, HOLE_ARM_POSES)
         }
 
     def get_parking_pose(self, parking_number: int) -> MapPose:
         """Return the navigation target for ``parking_number``."""
+        return self._get_pose(PARKING_POSES, parking_number)
+
+    def get_hole_pose(self, parking_number: int) -> MapPose:
+        """Return the navigation target at the hole of ``parking_number``."""
+        return self._get_pose(HOLE_POSES, parking_number)
+
+    def get_hole_arm_pose(self, parking_number: int) -> MapPose:
+        """Return the arm target above the hole of ``parking_number``."""
+        return self._get_pose(HOLE_ARM_POSES, parking_number)
+
+    def _get_pose(self, section: str, parking_number: int) -> MapPose:
         try:
-            return self._parking_poses[int(parking_number)]
+            return self._poses[section][int(parking_number)]
         except KeyError as exc:
             raise ValueError(
-                f'No target pose configured for parking {parking_number}'
+                f'No {section} entry configured for parking {parking_number}'
             ) from exc
 
+    @classmethod
+    def _parse_section(cls, configuration, section) -> dict[int, MapPose]:
+        poses = configuration.get(section)
+        if not isinstance(poses, dict) or not poses:
+            raise ValueError(f'Map configuration must define {section}')
+
+        return {
+            int(number): cls._parse_pose(section, number, pose)
+            for number, pose in poses.items()
+        }
+
     @staticmethod
-    def _parse_pose(parking_number, configuration) -> MapPose:
+    def _parse_pose(section, parking_number, configuration) -> MapPose:
         if not isinstance(configuration, dict):
             raise ValueError(
-                f'Pose for parking {parking_number} must be a mapping'
+                f'{section} pose for parking {parking_number} '
+                'must be a mapping'
             )
 
         try:
@@ -72,5 +116,6 @@ class MapParametersLoader:
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise ValueError(
-                f'Invalid pose configured for parking {parking_number}'
+                f'Invalid {section} pose configured for '
+                f'parking {parking_number}'
             ) from exc

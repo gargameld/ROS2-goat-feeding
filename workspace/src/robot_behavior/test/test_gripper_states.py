@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from robot_behavior.shared_state_data import SharedStateData
 from robot_behavior.state_close_gripper import StateCloseGripper
 from robot_behavior.state_lift_gripper import StateLiftGripper
+from robot_behavior.state_open_gripper import StateOpenGripper
 
 
 class FakeLogger:
@@ -36,11 +37,15 @@ class FakeBehaviorClient:
     def __init__(self):
         self.node = FakeNode()
         self.close_handlers = None
+        self.open_handlers = None
         self.lift_handlers = None
         self.clear_octomap_handlers = None
 
     def close_gripper(self, **handlers):
         self.close_handlers = handlers
+
+    def open_gripper(self, **handlers):
+        self.open_handlers = handlers
 
     def lift_gripper(self, **handlers):
         self.lift_handlers = handlers
@@ -100,8 +105,8 @@ def test_close_gripper_finishes_null_when_the_grip_fails():
     assert transitions == [None]
 
 
-def test_lift_gripper_finishes_null_after_a_successful_lift():
-    """Lifting is currently the last step of the grasp chain."""
+def test_lift_gripper_brings_the_arm_home_after_a_successful_lift():
+    """A lifted object is carried home before it is delivered."""
     transitions = []
     client = FakeBehaviorClient()
     state = StateLiftGripper(client, transitions.append)
@@ -111,7 +116,7 @@ def test_lift_gripper_finishes_null_after_a_successful_lift():
         SimpleNamespace(success=True, message='')
     )
 
-    assert transitions == [None]
+    assert transitions == ['moveToHome']
 
 
 def test_lift_gripper_finishes_null_when_the_lift_fails():
@@ -125,4 +130,36 @@ def test_lift_gripper_finishes_null_when_the_lift_fails():
         SimpleNamespace(success=False, message='no plan')
     )
 
+    assert transitions == [None]
+
+
+def test_open_gripper_releases_the_object_and_brings_the_arm_home():
+    """Opening the gripper clears the grip flag before the arm returns home."""
+    transitions = []
+    client = FakeBehaviorClient()
+    shared_data = SharedStateData(object_gripped=True)
+    state = StateOpenGripper(client, transitions.append, shared_data)
+
+    state.on_entry()
+    client.open_handlers['result_handler'](
+        SimpleNamespace(reached_goal=True, stalled=False)
+    )
+
+    assert shared_data.object_gripped is False
+    assert transitions == ['moveToHome']
+
+
+def test_open_gripper_keeps_the_object_gripped_when_the_gripper_stalls():
+    """A gripper that never opens still counts as holding the object."""
+    transitions = []
+    client = FakeBehaviorClient()
+    shared_data = SharedStateData(object_gripped=True)
+    state = StateOpenGripper(client, transitions.append, shared_data)
+
+    state.on_entry()
+    client.open_handlers['result_handler'](
+        SimpleNamespace(reached_goal=False, stalled=True)
+    )
+
+    assert shared_data.object_gripped is True
     assert transitions == [None]

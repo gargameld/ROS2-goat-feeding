@@ -10,9 +10,12 @@ from robot_behavior.state_attach_object_to_gripper import (
 from robot_behavior.state_close_gripper import StateCloseGripper
 from robot_behavior.state_find_grasp_pose import StateFindGraspPose
 from robot_behavior.state_lift_gripper import StateLiftGripper
+from robot_behavior.state_move_arm_to_hole_pose import StateMoveArmToHolePose
 from robot_behavior.state_move_arm_to_home import StateMoveArmToHome
 from robot_behavior.state_move_arm_to_pose import StateMoveArmToPose
+from robot_behavior.state_navigate_to_hole import StateNavigateToHole
 from robot_behavior.state_navigate_to_parking import StateNavigateToParking
+from robot_behavior.state_open_gripper import StateOpenGripper
 from robot_behavior.state_wait_food_request import StateWaitFoodRequest
 
 
@@ -36,6 +39,7 @@ class StateMachine:
                 behavior_client,
                 self.change_state,
                 request_listener,
+                self.shared_state_data,
             ),
             'waitFoodRequest': StateWaitFoodRequest(
                 behavior_client,
@@ -70,6 +74,23 @@ class StateMachine:
             'liftGripper': StateLiftGripper(
                 behavior_client,
                 self.change_state,
+            ),
+            'navigateToHole': StateNavigateToHole(
+                behavior_client,
+                self.change_state,
+                request_listener,
+                map_parameters,
+            ),
+            'moveArmToHolePose': StateMoveArmToHolePose(
+                behavior_client,
+                self.change_state,
+                request_listener,
+                map_parameters,
+            ),
+            'openGripper': StateOpenGripper(
+                behavior_client,
+                self.change_state,
+                self.shared_state_data,
             ),
         }
         self.current_state = 'nullState'

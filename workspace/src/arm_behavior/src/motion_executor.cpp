@@ -33,7 +33,7 @@ constexpr double kRequiredCartesianPathFraction = 0.999;
 // RRTConnect and the full per-retry time. Narrow-passage solutions have been
 // measured arriving in ~1 s when they arrive at all, so a short per-retry
 // budget costs almost nothing and buys many more independent restarts.
-constexpr double kPlanningTimeSeconds = 7.0;
+constexpr double kPlanningTimeSeconds = 20.0;
 constexpr int kNumPlanningAttempts = 1;
 constexpr int kPlanningRetries = 20;
 constexpr double kReachabilityPlanningTimeSeconds = 7.0;

@@ -4,7 +4,7 @@ from robot_behavior.base_state import BaseState
 
 
 class StateLiftGripper(BaseState):
-    """Lift the gripper using the arm subsystem's lift action."""
+    """Lift the gripper, then bring the arm home with the object."""
 
     def on_entry(self) -> None:
         """Start the lift-gripper action."""
@@ -29,7 +29,8 @@ class StateLiftGripper(BaseState):
     def _handle_result(self, result) -> None:
         if result.success:
             self.logger.info('Gripped object lifted')
-        else:
-            self.logger.error(f'Failed to lift the gripper: {result.message}')
+            self.request_state_transition('moveToHome')
+            return
 
+        self.logger.error(f'Failed to lift the gripper: {result.message}')
         self.request_state_transition(None)

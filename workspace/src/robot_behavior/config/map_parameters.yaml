@@ -15,3 +15,41 @@ parking_poses:
     frame_id: map
     position: {x: 1.95, y: -1.0, z: 0.0}
     orientation: {x: 0.0, y: 0.0, z: -0.7071068, w: 0.7071068}
+
+# Navigation targets in front of the hole that serves each parking.
+hole_poses:
+  1:  # blue hole
+    frame_id: map
+    position: {x: 1.55, y: 2.1, z: 0.0}
+    orientation: {x: 0.0, y: 0.0, z: 1.0, w: 1.57}
+  2:  # red hole
+    frame_id: map
+    position: {x: 1.55, y: 6.1, z: 0.0}
+    orientation: {x: 0.0, y: 0.0, z: 1.0, w: 1.57}
+  3:  # black hole
+    frame_id: map
+    position: {x: -1.65, y: 6.1, z: 0.0}
+    orientation: {x: 0.0, y: 0.0, z: 1.0, w: 1.57}
+  4:  # magenta hole
+    frame_id: map
+    position: {x: -1.65, y: 2.1, z: 0.0}
+    orientation: {x: 0.0, y: 0.0, z: 1.0, w: 1.57}
+
+# Arm targets above the hole that serves each parking.
+hole_arm_poses:
+  1:  # blue hole
+    frame_id: map
+    position: {x: 2.6, y: 2.0, z: 0.75}
+    orientation: {x: 0.0, y: 0.7071068, z: 0.0, w: 0.7071068}
+  2:  # red hole
+    frame_id: map
+    position: {x: 2.6, y: 6.0, z: 0.55}
+    orientation: {x: 0.0, y: 0.7071068, z: 0.0, w: 0.7071068}
+  3:  # black hole
+    frame_id: map
+    position: {x: -2.6, y: 6.1, z: 0.25}
+    orientation: {x: 0.0, y: -0.7071068, z: 0.0, w: 0.7071068}
+  4:  # magenta hole
+    frame_id: map
+    position: {x: -2.6, y: 2.0, z: 0.42}
+    orientation: {x: 0.0, y: -0.7071068, z: 0.0, w: 0.7071068}

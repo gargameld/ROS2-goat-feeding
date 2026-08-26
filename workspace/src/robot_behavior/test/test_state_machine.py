@@ -48,10 +48,22 @@ def test_state_machine_shares_request_listener_with_states():
     assert state_machine.states['navigateToParking'].map_parameters is (
         map_parameters
     )
+    assert state_machine.states['navigateToHole'].map_parameters is (
+        map_parameters
+    )
+    assert state_machine.states['moveArmToHolePose'].map_parameters is (
+        map_parameters
+    )
+    assert state_machine.states['moveToHome'].shared_state_data is (
+        state_machine.shared_state_data
+    )
     assert state_machine.states['findGraspPose'].shared_state_data is (
         state_machine.shared_state_data
     )
     assert state_machine.states['moveArmToPose'].shared_state_data is (
+        state_machine.shared_state_data
+    )
+    assert state_machine.states['openGripper'].shared_state_data is (
         state_machine.shared_state_data
     )
     state_machine.change_state(None)

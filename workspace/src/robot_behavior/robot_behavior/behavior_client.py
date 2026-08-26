@@ -31,6 +31,9 @@ MOVE_ARM_TO_POSE = 'move_arm_to_pose'
 MOVE_ARM_TO_POSE_ACTION = '/move_arm_to_pose'
 NAVIGATE_TO_PARKING = 'navigate_to_parking'
 NAVIGATE_TO_POSE_ACTION = '/navigate_to_pose'
+OPEN_GRIPPER = 'open_gripper'
+OPEN_GRIPPER_ACTION = '/gripper_controller/gripper_cmd'
+OPENED_GRIPPER_POSITION = 0.0
 PROVIDE_GRASP_POSE = 'provide_grasp_pose'
 PROVIDE_GRASP_POSE_ACTION = '/provide_grasp_pose'
 READINESS_POLL_PERIOD_SECONDS = 0.1
@@ -86,6 +89,11 @@ class BehaviorClient:
             CLOSE_GRIPPER,
             GripperCommand,
             CLOSE_GRIPPER_ACTION,
+        )
+        self.register_action(
+            OPEN_GRIPPER,
+            GripperCommand,
+            OPEN_GRIPPER_ACTION,
         )
         self.register_action(
             LIFT_GRIPPER,
@@ -199,6 +207,25 @@ class BehaviorClient:
         goal.command.position = CLOSED_GRIPPER_POSITION
         goal.command.max_effort = GRIPPER_MAX_EFFORT
         return self.invoke_action(CLOSE_GRIPPER, goal)
+
+    def open_gripper(
+        self,
+        *,
+        goal_response_handler: Optional[Handler] = None,
+        feedback_handler: Optional[Handler] = None,
+        result_handler: Optional[Handler] = None,
+    ):
+        """Open the gripper fully to release whatever it holds."""
+        self.set_action_handlers(
+            OPEN_GRIPPER,
+            goal_response=goal_response_handler,
+            feedback=feedback_handler,
+            result=result_handler,
+        )
+        goal = GripperCommand.Goal()
+        goal.command.position = OPENED_GRIPPER_POSITION
+        goal.command.max_effort = GRIPPER_MAX_EFFORT
+        return self.invoke_action(OPEN_GRIPPER, goal)
 
     def lift_gripper(
         self,

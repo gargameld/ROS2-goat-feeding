@@ -4,7 +4,21 @@ from robot_behavior.base_state import BaseState
 
 
 class StateMoveArmToHome(BaseState):
-    """Move the arm home, then wait for a food request."""
+    """Move the arm home, then either deliver the object or wait."""
+
+    def __init__(
+        self,
+        behavior_client,
+        request_state_transition,
+        request_listener,
+        shared_state_data,
+    ):
+        super().__init__(
+            behavior_client,
+            request_state_transition,
+            request_listener,
+        )
+        self.shared_state_data = shared_state_data
 
     def on_entry(self) -> None:
         """Start the move-to-home action."""
@@ -21,7 +35,7 @@ class StateMoveArmToHome(BaseState):
             return
 
         self.logger.error('Move-to-home goal rejected')
-        self.request_state_transition('waitFoodRequest')
+        self.request_state_transition(self._next_state())
 
     def _handle_feedback(self, feedback) -> None:
         self.logger.debug(f'Move-to-home action state: {feedback.state}')
@@ -34,4 +48,11 @@ class StateMoveArmToHome(BaseState):
                 f'Failed to move arm to home pose: {result.message}'
             )
 
-        self.request_state_transition('waitFoodRequest')
+        self.request_state_transition(self._next_state())
+
+    def _next_state(self) -> str:
+        """Deliver a gripped object; otherwise wait for the next request."""
+        if self.shared_state_data.object_gripped:
+            return 'navigateToHole'
+
+        return 'waitFoodRequest'
