@@ -16,42 +16,17 @@ Specify it in your URDF and point to a valid MJCF on launch:
        <!-- Path to the MuJoCo scene XML -->
        <param name="mujoco_model">$(find my_description)/description/scene.xml</param>
 
-       <!-- Optional: load PID gains from a ROS parameters YAML file.
-            Enables position/velocity PID control for velocity, motor, and custom actuators. -->
-       <param name="pids_config_file">$(find my_description)/config/pids.yaml</param>
-
        <!-- Optional: override the Simulate App speed scaling.
             Allows running faster than real time (e.g. 5.0 = 500%). Omit or set <0
             to use the rate requested from the App window. -->
        <param name="sim_speed_factor">5.0</param>
 
-       <!-- Optional: apply a named keyframe from the MJCF as the initial state.
-            Has no effect if override_start_position_file is also set. -->
-       <param name="initial_keyframe">optional_frame</param>
-
-       <!-- Optional: load the full MuJoCo model state from a file saved via
-            'Copy state' in the Simulate window. Mutually exclusive with initial_value
-            on state interfaces. Ignored if the string is empty. -->
-       <param name="override_start_position_file">$(find my_description)/config/start_positions.xml</param>
-
-       <!-- Optional: topic from which the MJCF XML is read when mujoco_model is not set.
-            Defaults to /mujoco_robot_description. -->
-       <param name="mujoco_model_topic">/mujoco_robot_description</param>
-
        <!-- Optional: camera RGB-D image publish rate in Hz (all cameras share one rate).
             Defaults to 5 Hz. -->
        <param name="camera_publish_rate">6.0</param>
 
-       <!-- Optional: lidar LaserScan publish rate in Hz (all lidar sensors share one rate). -->
-       <param name="lidar_publish_rate">10.0</param>
-
        <!-- Optional: run the simulator without a GUI window. Defaults to false. -->
        <param name="headless">false</param>
-
-       <!-- Optional: name of a MuJoCo free joint whose odometry is published as a
-            nav_msgs/Odometry message. -->
-       <param name="odom_free_joint_name">floating_base_joint</param>
-       <param name="odom_topic">/simulator/floating_base_state</param>
      </hardware>
    ...
 
@@ -79,11 +54,11 @@ It is the same executable and accepts the same parameters as the upstream node:
 Joints
 ------
 
-Joints in the ``ros2_control`` interface are mapped to actuators defined in the MJCF, either directly or as transmission interfaces.
+Joints in the ``ros2_control`` interface are mapped by name to actuators defined in the MJCF.
 The system supports different joint control modes based on the actuator type and available command interfaces.
 
-MuJoCo's PD-level ``ctrl`` input is used for direct position, velocity, or effort control.
-For velocity, motor, or custom actuators, a position or velocity PID is created if specified using ROS parameters.
+MuJoCo's PD-level ``ctrl`` input is used for direct position, velocity, or effort control, so each command
+interface requires a natively matching MuJoCo actuator type.
 Incompatible actuator-interface combinations trigger an error at startup.
 
 Refer to MuJoCo's `actuation model <https://mujoco.readthedocs.io/en/stable/computation/index.html#geactuation>`_ for more information.
@@ -125,12 +100,12 @@ Maps to the following ``ros2_control`` hardware interface:
      - MuJoCo ``motor``, ``general``, etc.
    * - **position**
      - Native support
-     - Supported using PIDs
-     - Supported using PIDs
+     - Not supported
+     - Not supported
    * - **velocity**
      - Not supported
      - Native support
-     - Supported using PIDs
+     - Not supported
    * - **effort**
      - Not supported
      - Not supported
@@ -140,14 +115,14 @@ Maps to the following ``ros2_control`` hardware interface:
 
    The ``torque`` and ``force`` command/state interfaces are semantically equivalent to ``effort`` and map to the same underlying data in the sim.
 
-Grippers and Mimic Joints
---------------------------
+Grippers
+--------
 
-Many robot grippers include mimic joints, where a single actuator drives the state of multiple joints.
-In the current implementation, drivers require a motor-type actuator for joint control and state information.
-Tendons and other non-standard joint types in an MJCF are not directly controllable through the drivers.
+Many robot grippers drive several joints from a single actuator.
+The hardware interface does not implement ``ros2_control`` mimic joints; couple the joints inside MuJoCo
+instead, and expose only the driving joint to ``ros2_control``.
 
-For parallel jaw mechanisms and similar mimic joints, we recommend combining tendon actuators with an equality constraint.
+For parallel jaw mechanisms, we recommend combining tendon actuators with an equality constraint.
 For example, from the test robot:
 
 .. code-block:: xml
@@ -166,44 +141,13 @@ For example, from the test robot:
    </equality>
 
 The tendon name matches the controllable joint in the ``ros2_control`` configuration.
-The drivers expose control and state for that single joint, while the simulation enforces the mimic constraint internally.
+The drivers expose control and state for that single joint, while the simulation enforces the coupling internally.
 
 Sensors
 -------
 
-The hardware interface supports force-torque sensors (FTS) and inertial measurement units (IMUs).
-MuJoCo does not model complete FTS and IMUs natively, so we combine supported MJCF sensor constructs to map to a single ``ros2_control`` sensor.
-
-Force-Torque Sensors
-~~~~~~~~~~~~~~~~~~~~
-
-Model ``force`` and ``torque`` sensors separately in the MJCF, suffixed with ``_force`` and ``_torque``:
-
-.. code-block:: xml
-
-   <sensor>
-     <force name="fts_sensor_force" site="ft_frame"/>
-     <torque name="fts_sensor_torque" site="ft_frame"/>
-   </sensor>
-
-Map them to a single ``ros2_control`` sensor:
-
-.. code-block:: xml
-
-   <sensor name="fts_sensor">
-     <param name="mujoco_type">fts</param>
-     <!-- mujoco_sensor_name does not need to match the ros2_control sensor name -->
-     <param name="mujoco_sensor_name">fts_sensor</param>
-     <!-- Defaults: _force and _torque -->
-     <param name="force_mjcf_suffix">_force</param>
-     <param name="torque_mjcf_suffix">_torque</param>
-     <state_interface name="force.x"/>
-     <state_interface name="force.y"/>
-     <state_interface name="force.z"/>
-     <state_interface name="torque.x"/>
-     <state_interface name="torque.y"/>
-     <state_interface name="torque.z"/>
-   </sensor>
+The hardware interface supports inertial measurement units (IMUs).
+MuJoCo does not model a complete IMU natively, so we combine supported MJCF sensor constructs to map to a single ``ros2_control`` sensor.
 
 IMU
 ~~~
@@ -281,52 +225,8 @@ Frame and topic names can be overridden via ``ros2_control`` xacro:
 
    MuJoCo's camera coordinate conventions differ from ROS. Refer to the MuJoCo documentation for details.
 
-Lidar
------
-
-MuJoCo does not include native lidar support.
-This package implements a ROS 2-like lidar by wrapping sets of
-`rangefinders <https://mujoco.readthedocs.io/en/stable/XMLreference.html#sensor-rangefinder>`_ together.
-
-MuJoCo rangefinders measure the distance to the nearest surface along the positive ``Z`` axis of the sensor site.
-The first rangefinder's ``Z`` axis (e.g. ``rf-00``) must align with the ROS 2 lidar sensor's positive ``X`` axis,
-consistent with the `LaserScan <https://github.com/ros2/common_interfaces/blob/rolling/sensor_msgs/msg/LaserScan.msg#L10>`_ convention.
-
-Use the ``replicate`` tag to add N sites at regular angular offsets:
-
-.. code-block:: xml
-
-   <replicate count="12" sep="-" offset="0 0 0" euler="0 0.025 0">
-     <site name="rf" size="0.01" pos="0.0 0.0 0.0" quat="0.0 0.0 0.0 1.0"/>
-   </replicate>
-
-Attach rangefinder sensors to each site:
-
-.. code-block:: xml
-
-   <sensor>
-     <rangefinder name="lidar" site="rf"/>
-   </sensor>
-
-Configure the lidar through ``ros2_control`` xacro:
-
-.. code-block:: xml
-
-   <sensor name="lidar">
-     <param name="frame_name">lidar_sensor_frame</param>
-     <param name="angle_increment">0.025</param>
-     <param name="min_angle">-0.3</param>
-     <param name="max_angle">0.3</param>
-     <param name="range_min">0.05</param>
-     <param name="range_max">10</param>
-     <param name="laserscan_topic">/scan</param>
-   </sensor>
-
-Simulation Topics and Services
-================================
-
-Topics
-------
+Simulation Topics
+=================
 
 ``/mujoco_actuators_states`` (``sensor_msgs/msg/JointState``)
    Provides information on all internal MuJoCo joints, regardless of whether their interfaces are exposed via ``ros2_control``.
@@ -334,63 +234,12 @@ Topics
 ``/clock`` (``rosgraph_msgs/msg/Clock``)
    Contains the internal physics clock tracked by each MuJoCo simulation step.
 
-Services
---------
-
-``~/set_pause`` (``mujoco_ros2_control_msgs/srv/SetPause``)
-   Pauses or resumes the simulation.
-
-   - Set ``paused`` to ``true`` to pause, or ``false`` to resume.
-   - Returns immediately with no blocking. Returns ``success = true`` even if already in the requested state.
-   - When resuming, the physics loop automatically re-syncs its wall-clock reference so no catch-up steps are executed.
-
-   .. code-block:: bash
-
-      # Pause the simulation
-      ros2 service call /ros2_control_node/set_pause mujoco_ros2_control_msgs/srv/SetPause "{paused: true}"
-
-      # Resume the simulation
-      ros2 service call /ros2_control_node/set_pause mujoco_ros2_control_msgs/srv/SetPause "{paused: false}"
-
-``~/reset_world`` (``mujoco_ros2_control_msgs/srv/ResetWorld``)
-   Resets the simulation state.
-
-   - If the optional ``keyframe`` string field is empty, the simulation is restored to the state captured at startup (initial joint positions, velocities, and control values).
-   - If a ``keyframe`` name is provided, that named keyframe from the MJCF is applied instead.
-   - Returns ``success`` and a human-readable ``message``.
-
-   .. code-block:: bash
-
-      # Reset to startup state
-      ros2 service call /ros2_control_node/reset_world mujoco_ros2_control_msgs/srv/ResetWorld "{}"
-
-      # Reset to a named MJCF keyframe
-      ros2 service call /ros2_control_node/reset_world mujoco_ros2_control_msgs/srv/ResetWorld "{keyframe: 'home'}"
-
-   .. important::
-
-      If controllers are active during the service call, the robot may reset to the initial state and then immediately
-      snap back to its previous commanded position. Deactivate any active joint controllers before calling this service.
-
-``~/step_simulation`` (``mujoco_ros2_control_msgs/srv/StepSimulation``)
-   Advances the paused simulation by an exact number of physics steps and blocks until all steps have completed.
-
-   - ``steps`` (``uint32``): number of physics steps to execute. Must be ≥ 1.
-   - Blocks until all requested steps finish, the simulation diverges, or a timeout is reached.
-   - Returns ``success`` and a human-readable ``message``.
-   - **The simulation must be paused** before calling this service. Returns ``success = false`` immediately if the simulation is running.
-   - Timeout: whichever is larger — 30 s, or 10 ms × ``steps``.
-
-   .. code-block:: bash
-
-      # Step the simulation forward by 100 physics steps
-      ros2 service call /ros2_control_node/step_simulation mujoco_ros2_control_msgs/srv/StepSimulation "{steps: 100}"
-
 Debugging
 =========
 
-The simulator provides several mechanisms for pausing execution and advancing it in a controlled, step-by-step fashion.
-This is useful for inspecting robot state, verifying controller output, or reproducing intermittent issues.
+The Simulate window provides mechanisms for pausing execution and advancing it in a controlled, step-by-step
+fashion. This is useful for inspecting robot state, verifying controller output, or reproducing intermittent
+issues. It requires a non-headless run (``headless`` set to ``false``).
 
 Pausing the Simulation
 ----------------------
@@ -407,27 +256,3 @@ Holding the key down advances the simulation continuously one step at a time, al
 
 The status overlay in the top-right corner of the simulation window shows the current state (``Running`` / ``Paused``)
 and the total number of physics steps executed.
-
-Single-Stepping via ROS 2 Service
------------------------------------
-
-The ``~/step_simulation`` service allows programmatic step-by-step control from the command line or from test/debug scripts.
-This is particularly useful for automated testing scenarios where a reproducible sequence of physics steps is needed.
-
-.. code-block:: bash
-
-   # Pause the simulation first (from the UI or via the set_pause service), then:
-
-   # Advance by a single physics step
-   ros2 service call /ros2_control_node/step_simulation mujoco_ros2_control_msgs/srv/StepSimulation "{steps: 1}"
-
-   # Advance by 500 steps (blocks until complete)
-   ros2 service call /ros2_control_node/step_simulation mujoco_ros2_control_msgs/srv/StepSimulation "{steps: 500}"
-
-The service call blocks until all requested steps have been executed, the simulation diverges, or a timeout is reached.
-This makes it safe to pipeline service calls sequentially without additional synchronisation (send a command → step N times → read state → repeat).
-
-.. note::
-
-   ``~/step_simulation`` requires the simulation to be **paused**. Calling it while the simulation is running
-   returns ``success: false`` immediately without executing any steps.

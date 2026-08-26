@@ -50,11 +50,6 @@ MujocoSystemInterface::~MujocoSystemInterface()
   {
     cameras_->close();
   }
-  if (lidar_sensors_)
-  {
-    lidar_sensors_->close();
-  }
-
   // Stop plugins
   for (auto& plugin : plugin_instances_)
   {
@@ -64,7 +59,6 @@ MujocoSystemInterface::~MujocoSystemInterface()
     }
   }
   plugin_instances_.clear();
-  transmission_instances_.clear();
 
   // Stop the executor
   if (executor_)
@@ -105,23 +99,19 @@ MujocoSystemInterface::on_init(const hardware_interface::HardwareComponentInterf
     return hardware_interface::CallbackReturn::ERROR;
   }
 
-  const auto node_options = detail::make_mujoco_node_options(simulation_configuration.value(), get_logger());
-  if (!node_options.has_value())
-  {
-    return hardware_interface::CallbackReturn::ERROR;
-  }
+  const auto node_options = detail::make_mujoco_node_options();
 
   // Construct and start the ROS node spinning
   RCLCPP_INFO(get_logger(), "Constructing node and executor...");
   executor_ = std::make_unique<rclcpp::executors::MultiThreadedExecutor>();
-  mujoco_node_ = std::make_shared<rclcpp::Node>("mujoco_ros2_control_node", node_options.value());
+  mujoco_node_ = std::make_shared<rclcpp::Node>("mujoco_ros2_control_node", node_options);
   executor_->add_node(mujoco_node_);
   executor_thread_ = std::thread([this]() { executor_->spin(); });
   RCLCPP_INFO(get_logger(), "Executor thread started.");
 
   // Construct the simulation wrapper with the loaded parameters.
   simulation_ = std::make_unique<MujocoSimulation>();
-  if (!simulation_->initialize(get_node(), simulation_configuration->model_path, simulation_configuration->model_topic,
+  if (!simulation_->initialize(get_node(), simulation_configuration->model_path,
                                simulation_configuration->speed_factor, simulation_configuration->headless))
   {
     return hardware_interface::CallbackReturn::ERROR;
@@ -147,72 +137,24 @@ MujocoSystemInterface::on_init(const hardware_interface::HardwareComponentInterf
     return hardware_interface::CallbackReturn::FAILURE;
   }
 
-  // Check for free joint
-  const std::string odom_free_joint_name =
-      detail::get_hardware_parameter_or(get_hardware_info(), "odom_free_joint_name", "floating_base_joint");
-  const auto free_joint = detail::find_free_joint(simulation_->model(), odom_free_joint_name, get_logger());
-  if (!free_joint.valid)
-  {
-    return hardware_interface::CallbackReturn::FAILURE;
-  }
-  free_joint_id_ = free_joint.joint_id;
-  free_joint_qpos_adr_ = free_joint.qpos_address;
-  free_joint_qvel_adr_ = free_joint.qvel_address;
-
-  if (free_joint_id_ != -1)
-  {
-    // Odometry publisher
-    std::string odom_topic_name =
-        detail::get_hardware_parameter_or(get_hardware_info(), "odom_topic", "/simulator/floating_base_state");
-    floating_base_publisher_ = get_node()->create_publisher<nav_msgs::msg::Odometry>(odom_topic_name, 100);
-    floating_base_realtime_publisher_ =
-        std::make_shared<realtime_tools::RealtimePublisher<nav_msgs::msg::Odometry>>(floating_base_publisher_);
-
-    floating_base_msg_.header.frame_id = "odom";  // TODO: Make configurable
-    // Set child frame as the root link of the robot as the body attached to the free joint
-    floating_base_msg_.child_frame_id = std::string(
-        mj_id2name(simulation_->model(), mjtObj::mjOBJ_BODY, simulation_->model()->jnt_bodyid[free_joint_id_]));
-
-    RCLCPP_INFO(
-        get_logger(),
-        "Publishing floating base odometry using the free joint : '%s' attached to the body '%s' on topic: '%s'",
-        mj_id2name(simulation_->model(), mjtObj::mjOBJ_JOINT, free_joint_id_),
-        floating_base_msg_.child_frame_id.c_str(), odom_topic_name.c_str());
-  }
-
   // Pull joint and sensor information
   RCLCPP_INFO(get_logger(), "Registering joints and sensors.");
   register_urdf_joints(get_hardware_info());
   register_sensors(get_hardware_info());
-  if (!register_transmissions(get_hardware_info()))
-  {
-    RCLCPP_FATAL(get_logger(), "Failed to register transmissions, exiting...");
-    return hardware_interface::CallbackReturn::FAILURE;
-  }
   initialize_initial_positions(get_hardware_info());
   set_initial_pose();
 
-  // Store initial state for reset_world service
+  // Store the initial state so a viewer reset can restore it
   simulation_->capture_initial_state();
 
   // This CB will be triggered by the MujocoSimulation after resettting the sim and qpos/qvel/ctrl have been restored.
-  simulation_->set_reset_callback([this](bool fill_initial_state) { this->reset_simulation_state(fill_initial_state); });
+  simulation_->set_reset_callback([this]() { this->reset_simulation_state(); });
 
   // Ready cameras
   RCLCPP_INFO(get_logger(), "Initializing cameras...");
   cameras_ = std::make_unique<MujocoCameras>(get_node(), *simulation_, &simulation_->mutex(), simulation_->data(),
                                              simulation_->model(), simulation_configuration->camera_publish_rate);
   cameras_->register_cameras(get_hardware_info());
-
-  // Configure Lidar sensors
-  RCLCPP_INFO(get_logger(), "Initializing lidar...");
-  lidar_sensors_ = std::make_unique<MujocoLidar>(get_node(), &simulation_->mutex(), simulation_->data(),
-                                                 simulation_->model(), simulation_configuration->lidar_publish_rate);
-  if (!lidar_sensors_->register_lidar(get_hardware_info()))
-  {
-    RCLCPP_INFO(get_logger(), "Failed to initialize lidar, exiting...");
-    return hardware_interface::CallbackReturn::FAILURE;
-  }
 
 #if !ROS_DISTRO_HUMBLE
   // Verify the update rate
@@ -251,7 +193,6 @@ std::vector<hardware_interface::StateInterface> MujocoSystemInterface::export_st
 {
   std::vector<hardware_interface::StateInterface> new_state_interfaces;
   detail::append_joint_state_interfaces(new_state_interfaces, urdf_joint_data_, joint_hw_info_);
-  detail::append_force_torque_state_interfaces(new_state_interfaces, ft_sensor_data_, sensors_hw_info_);
   detail::append_imu_state_interfaces(new_state_interfaces, imu_sensor_data_, sensors_hw_info_);
 
   return new_state_interfaces;
@@ -271,7 +212,6 @@ hardware_interface::CallbackReturn MujocoSystemInterface::on_activate(const rclc
 
   // Start camera and sensor rendering loops
   cameras_->init();
-  lidar_sensors_->init();
 
   return hardware_interface::CallbackReturn::SUCCESS;
 }
@@ -293,15 +233,13 @@ MujocoSystemInterface::perform_command_mode_switch(const std::vector<std::string
   // Disable stopped interfaces
   for (const auto& interface : stop_interfaces)
   {
-    detail::update_joint_control_mode(interface, false, get_hardware_info(), simulation_->model(), urdf_joint_data_,
-                                      mujoco_actuator_data_, get_logger());
+    detail::update_joint_control_mode(interface, false, urdf_joint_data_, mujoco_actuator_data_, get_logger());
   }
 
   // Enable started interfaces
   for (const auto& interface : start_interfaces)
   {
-    detail::update_joint_control_mode(interface, true, get_hardware_info(), simulation_->model(), urdf_joint_data_,
-                                      mujoco_actuator_data_, get_logger());
+    detail::update_joint_control_mode(interface, true, urdf_joint_data_, mujoco_actuator_data_, get_logger());
   }
 
   return hardware_interface::return_type::OK;
@@ -325,21 +263,6 @@ hardware_interface::return_type MujocoSystemInterface::read(const rclcpp::Time& 
   actuator_state_to_joint_state();
 
   detail::read_imu_states(simulation_->control_data(), imu_sensor_data_);
-  detail::read_force_torque_states(simulation_->control_data(), ft_sensor_data_);
-
-  // Publish Odometry
-  if (free_joint_id_ != -1 && floating_base_realtime_publisher_)
-  {
-    floating_base_msg_.header.stamp = time;
-    detail::populate_floating_base_odometry(simulation_->control_data(), free_joint_qpos_adr_, free_joint_qvel_adr_,
-                                            floating_base_msg_);
-
-#if ROS_DISTRO_HUMBLE
-    floating_base_realtime_publisher_->tryPublish(floating_base_msg_);
-#else
-    floating_base_realtime_publisher_->try_publish(floating_base_msg_);
-#endif
-  }
 
   // Update plugins.
   // Zero xfrc_applied first so plugins write fresh forces each control cycle (no undo needed).
@@ -357,21 +280,9 @@ hardware_interface::return_type MujocoSystemInterface::read(const rclcpp::Time& 
   return hardware_interface::return_type::OK;
 }
 
-hardware_interface::return_type MujocoSystemInterface::write(const rclcpp::Time&,
-                                                             const rclcpp::Duration& period)
+hardware_interface::return_type MujocoSystemInterface::write(const rclcpp::Time&, const rclcpp::Duration&)
 {
-  detail::update_mimic_joint_commands(urdf_joint_data_);
-
   joint_command_to_actuator_command();
-
-  // portable lambda function to compute pid command using either function name for the correct distro
-  auto pid_compute_command = [](auto& pid, const auto& error, const auto& period_t) -> double {
-#if ROS_DISTRO_HUMBLE
-    return pid->computeCommand(error, period_t);
-#else
-    return pid->compute_command(error, period_t);
-#endif
-  };
 
   // Joint commands
   // TODO: Support command limits. For now those ranges can be limited in the MuJoCo actuators themselves.
@@ -385,19 +296,9 @@ hardware_interface::return_type MujocoSystemInterface::write(const rclcpp::Time&
     {
       simulation_->control_data()->ctrl[actuator.mj_actuator_id] = actuator.position_interface.command_;
     }
-    else if (actuator.is_position_pid_control_enabled)
-    {
-      const double error = actuator.position_interface.command_ - simulation_->data()->qpos[actuator.mj_pos_adr];
-      simulation_->control_data()->ctrl[actuator.mj_actuator_id] = pid_compute_command(actuator.pos_pid, error, period);
-    }
     else if (actuator.is_velocity_control_enabled)
     {
       simulation_->control_data()->ctrl[actuator.mj_actuator_id] = actuator.velocity_interface.command_;
-    }
-    else if (actuator.is_velocity_pid_control_enabled)
-    {
-      const double error = actuator.velocity_interface.command_ - simulation_->data()->qvel[actuator.mj_vel_adr];
-      simulation_->control_data()->ctrl[actuator.mj_actuator_id] = pid_compute_command(actuator.vel_pid, error, period);
     }
     else if (actuator.is_effort_control_enabled)
     {
@@ -418,20 +319,6 @@ hardware_interface::return_type MujocoSystemInterface::write(const rclcpp::Time&
 
 void MujocoSystemInterface::actuator_state_to_joint_state()
 {
-  // actuator: MuJoCo -> transmission
-  std::for_each(mujoco_actuator_data_.begin(), mujoco_actuator_data_.end(),
-                [](auto& actuator_interface) { actuator_interface.copy_state_to_transmission(); });
-
-  // transmission: actuator -> joint
-  std::for_each(transmission_instances_.begin(), transmission_instances_.end(),
-                [](auto& transmission) { transmission->actuator_to_joint(); });
-
-  // joint: transmission -> state
-  std::for_each(urdf_joint_data_.begin(), urdf_joint_data_.end(),
-                [](auto& joint_interface) { joint_interface.copy_state_from_transmission(); });
-
-  // If the actuator name and joint name is same (which is the case for non transmission joints), we need to copy
-  // the state from actuator to joint here as there is no transmission instance to do that.
   for (auto& joint : urdf_joint_data_)
   {
     std::for_each(mujoco_actuator_data_.begin(), mujoco_actuator_data_.end(), [&](auto& actuator_interface) {
@@ -447,20 +334,6 @@ void MujocoSystemInterface::actuator_state_to_joint_state()
 
 void MujocoSystemInterface::joint_command_to_actuator_command()
 {
-  // Transmissions
-  std::for_each(urdf_joint_data_.begin(), urdf_joint_data_.end(),
-                [](auto& joint_interface) { joint_interface.copy_command_to_transmission(); });
-
-  // transmission -> actuator
-  std::for_each(transmission_instances_.begin(), transmission_instances_.end(),
-                [](auto& transmission) { transmission->joint_to_actuator(); });
-
-  // set the commands to the MuJoCo actuators
-  std::for_each(mujoco_actuator_data_.begin(), mujoco_actuator_data_.end(),
-                [](auto& actuator_interface) { actuator_interface.copy_command_from_transmission(); });
-
-  // If the actuator name and joint name is same (which is the case for non transmission joints), we need to copy
-  // the command from joint to actuator here as there is no transmission instance to do that.
   for (auto& joint : urdf_joint_data_)
   {
     std::for_each(mujoco_actuator_data_.begin(), mujoco_actuator_data_.end(), [&](auto& actuator_interface) {
@@ -478,38 +351,8 @@ bool MujocoSystemInterface::register_mujoco_actuators()
 {
   mujoco_actuator_data_.clear();
   mujoco_actuator_data_.resize(simulation_->model()->nu);
-
-  // Pull the name of the file to load for starting config, if present. We only override start position if that
-  // parameter exists and it is not an empty string
   override_mujoco_actuator_positions_ = false;
-  auto it = get_hardware_info().hardware_parameters.find("override_start_position_file");
-  if (it != get_hardware_info().hardware_parameters.end())
-  {
-    override_mujoco_actuator_positions_ = !it->second.empty();
-  }
-
-  // If we have that file present, load the initial positions from that file to the appropriate simulation_->data() structures
-  if (override_mujoco_actuator_positions_)
-  {
-    std::string override_start_position_file = it->second;
-    bool success = set_override_start_positions(override_start_position_file);
-    if (!success)
-    {
-      RCLCPP_ERROR(get_logger(),
-                   "Failed to load override start positions from %s. Falling back to urdf initial positions.",
-                   override_start_position_file.c_str());
-      override_mujoco_actuator_positions_ = false;
-    }
-    else
-    {
-      RCLCPP_INFO(get_logger(), "Loaded initial positions from file %s.", override_start_position_file.c_str());
-    }
-  }
-  else
-  {
-    RCLCPP_INFO(get_logger(),
-                "override_start_position_file not passed. Loading initial positions from ros2_control xacro.");
-  }
+  RCLCPP_INFO(get_logger(), "Loading initial positions from the ros2_control xacro.");
 
   for (int i = 0; i < simulation_->model()->nu; i++)
   {
@@ -520,7 +363,7 @@ bool MujocoSystemInterface::register_mujoco_actuators()
     {
       return false;
     }
-    detail::initialize_actuator_control(actuator_data, get_node());
+    detail::initialize_actuator_control(actuator_data);
 
     const char* act_name = mj_id2name(simulation_->model(), mjOBJ_ACTUATOR, i);
     if (!act_name)
@@ -531,27 +374,9 @@ bool MujocoSystemInterface::register_mujoco_actuators()
   }
 
   // now look out for the MuJoCo joints that do not have any actuator associated with them
-  detail::append_passive_actuators(simulation_->model(), get_hardware_info(), mujoco_actuator_data_, get_logger());
+  detail::append_passive_actuators(simulation_->model(), mujoco_actuator_data_, get_logger());
 
-  // Override initial positions with a keyframe if specified
-  if (!override_mujoco_actuator_positions_)
-  {
-    const std::string keyframe_name =
-        detail::get_hardware_parameter_or(get_hardware_info(), "initial_keyframe", "");
-    if (!keyframe_name.empty())
-    {
-      initial_keyframe_ = keyframe_name;
-      RCLCPP_INFO(get_logger(), "Applying initial keyframe: '%s'", initial_keyframe_.c_str());
-      override_mujoco_actuator_positions_ = simulation_->apply_keyframe(initial_keyframe_);
-      if (!override_mujoco_actuator_positions_)
-      {
-        RCLCPP_ERROR(get_logger(), "Failed to apply initial keyframe: '%s'", initial_keyframe_.c_str());
-        return false;
-      }
-    }
-  }
-
-  // Set initial values if they are set in the info, or from override start position file
+  // Set initial values if they are set in the info
   if (override_mujoco_actuator_positions_)
   {
     RCLCPP_DEBUG(get_logger(),
@@ -571,24 +396,19 @@ void MujocoSystemInterface::register_urdf_joints(const hardware_interface::Hardw
   for (size_t joint_index = 0; joint_index < hardware_info.joints.size(); joint_index++)
   {
     auto joint = hardware_info.joints.at(joint_index);
-    const std::string actuator_name =
-        detail::get_joint_actuator_name(joint.name, hardware_info, simulation_->model());
 
     // Get the information for the URDF Joint data
     URDFJointData& joint_data = urdf_joint_data_.at(joint_index);
     joint_data.name = joint.name;
 
-    detail::configure_mimic_joint(joint, hardware_info, joint_data, get_logger());
-
-    auto* actuator =
-        detail::find_controllable_actuator(mujoco_actuator_data_, simulation_->model(), actuator_name);
+    auto* actuator = detail::find_controllable_actuator(mujoco_actuator_data_, simulation_->model(), joint.name);
     const bool actuator_exists = actuator != nullptr;
     // This isn't a failure the joint just won't be controllable
-    RCLCPP_INFO_EXPRESSION(get_logger(), !actuator_exists && !joint_data.is_mimic,
+    RCLCPP_INFO_EXPRESSION(get_logger(), !actuator_exists,
                            "Failed to find actuator for joint : %s. This joint will be treated as a passive joint.",
                            joint.name.c_str());
-    RCLCPP_INFO_EXPRESSION(get_logger(), joint.command_interfaces.empty() && !joint_data.is_mimic,
-                           "Joint : %s is a passive joint", joint.name.c_str());
+    RCLCPP_INFO_EXPRESSION(get_logger(), joint.command_interfaces.empty(), "Joint : %s is a passive joint",
+                           joint.name.c_str());
     if (!joint.command_interfaces.empty() && !actuator_exists)
     {
       RCLCPP_ERROR(get_logger(),
@@ -613,92 +433,10 @@ void MujocoSystemInterface::register_urdf_joints(const hardware_interface::Hardw
 
     if (actuator)
     {
-      detail::configure_joint_command_interfaces(joint, actuator_name, command_interface_names, *actuator,
+      detail::configure_joint_command_interfaces(joint, joint.name, command_interface_names, *actuator,
                                                  get_logger());
     }
   }
-}
-
-bool MujocoSystemInterface::register_transmissions(const hardware_interface::HardwareInfo& hardware_info)
-{
-  transmission_instances_.clear();
-  auto hardware_transmissions = hardware_info.transmissions;
-  transmission_loader_ = std::make_unique<pluginlib::ClassLoader<transmission_interface::TransmissionLoader>>(
-      "transmission_interface", "transmission_interface::TransmissionLoader");
-
-  for (const auto& t_info : hardware_transmissions)
-  {
-    if (t_info.joints.empty() || t_info.actuators.empty())
-    {
-      RCLCPP_FATAL(get_logger(), "Transmission '%s' has no joints or actuators defined", t_info.name.c_str());
-      return false;
-    }
-
-    if (!detail::transmission_actuators_exist(t_info, simulation_->model(), get_logger()))
-    {
-      RCLCPP_ERROR(get_logger(),
-                   "Not all transmission actuators and joints for transmission '%s' found as MuJoCo actuators. This "
-                   "shouldn't happen.",
-                   t_info.name.c_str());
-      return false;
-    }
-
-    if (!transmission_loader_->isClassAvailable(t_info.type))
-    {
-      RCLCPP_FATAL(get_logger(), "Transmission '%s' of type '%s' not available", t_info.name.c_str(),
-                   t_info.type.c_str());
-      return false;
-    }
-
-    if (!detail::transmission_joint_interfaces_match(t_info, get_logger()))
-    {
-      return false;
-    }
-
-    std::shared_ptr<transmission_interface::Transmission> transmission = nullptr;
-    try
-    {
-      auto loader = transmission_loader_->createSharedInstance(t_info.type);
-      transmission = loader->load(t_info);
-    }
-    catch (const std::exception& e)
-    {
-      RCLCPP_FATAL(get_logger(), "Caught exception when trying to create transmission loader of type %s : %s",
-                   t_info.type.c_str(), e.what());
-      return false;
-    }
-
-    // Create the joint_handles vector for each joint in the transmission
-    std::vector<transmission_interface::JointHandle> joint_handles;
-    RCLCPP_INFO(get_logger(), "Creating joint and actuator handles for transmission: %s", t_info.name.c_str());
-    if (!detail::make_transmission_joint_handles(t_info, urdf_joint_data_, joint_handles, get_logger()))
-    {
-      return false;
-    }
-
-    // Create the actuator_handles vector for each actuator in the transmission
-    std::vector<transmission_interface::ActuatorHandle> actuator_handles;
-    if (!detail::make_transmission_actuator_handles(t_info, mujoco_actuator_data_, actuator_handles, get_logger()))
-    {
-      return false;
-    }
-
-    try
-    {
-      transmission->configure(joint_handles, actuator_handles);
-    }
-    catch (const transmission_interface::TransmissionInterfaceException& exc)
-    {
-      RCLCPP_FATAL(get_logger(), "Error while configuring %s: %s", t_info.name.c_str(), exc.what());
-      return false;
-    }
-
-    transmission_instances_.push_back(transmission);
-  }
-  RCLCPP_INFO_EXPRESSION(get_logger(), !transmission_instances_.empty(), "Registered %zu transmissions",
-                         transmission_instances_.size());
-
-  return true;
 }
 
 bool MujocoSystemInterface::initialize_initial_positions(const hardware_interface::HardwareInfo& /*hardware_info*/)
@@ -759,17 +497,7 @@ void MujocoSystemInterface::register_sensors(const hardware_interface::HardwareI
     // Add to the sensor hw information map
     sensors_hw_info_.insert(std::make_pair(sensor_name, sensor));
 
-    if (mujoco_type == "fts")
-    {
-      const auto sensor_data = detail::make_force_torque_sensor(sensor, mujoco_sensor_name, get_hardware_info(),
-                                                               simulation_->model(), get_logger());
-      if (sensor_data.has_value())
-      {
-        ft_sensor_data_.push_back(sensor_data.value());
-      }
-    }
-
-    else if (mujoco_type == "imu")
+    if (mujoco_type == "imu")
     {
       const auto sensor_data = detail::make_imu_sensor(sensor, mujoco_sensor_name, get_hardware_info(),
                                                       simulation_->model(), get_logger());
@@ -786,19 +514,6 @@ void MujocoSystemInterface::register_sensors(const hardware_interface::HardwareI
   }
 }
 
-bool MujocoSystemInterface::set_override_start_positions(const std::string& override_start_position_file)
-{
-  const auto initial_state = detail::load_initial_state_values(override_start_position_file, get_logger());
-  if (!initial_state.has_value() ||
-      !detail::initial_state_sizes_match(initial_state.value(), simulation_->model(), get_logger()))
-  {
-    return false;
-  }
-
-  detail::copy_initial_state_to_data(initial_state.value(), simulation_->data());
-  return true;
-}
-
 void MujocoSystemInterface::set_initial_pose()
 {
   detail::apply_initial_pose(mujoco_actuator_data_, simulation_->data(), get_logger());
@@ -806,7 +521,7 @@ void MujocoSystemInterface::set_initial_pose()
   mj_copyData(simulation_->control_data(), simulation_->model(), simulation_->data());
 }
 
-void MujocoSystemInterface::reset_simulation_state(bool /*fill_initial_state*/)
+void MujocoSystemInterface::reset_simulation_state()
 {
   /// @note This method assumes sim_mutex_ is already held by the caller
 

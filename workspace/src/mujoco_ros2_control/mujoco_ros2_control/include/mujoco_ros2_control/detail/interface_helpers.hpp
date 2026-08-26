@@ -24,10 +24,6 @@ using ComponentInfoMap = std::unordered_map<std::string, hardware_interface::Com
 void append_joint_state_interfaces(std::vector<hardware_interface::StateInterface>& interfaces,
                                    std::vector<URDFJointData>& joints, const ComponentInfoMap& joint_hardware_info);
 
-void append_force_torque_state_interfaces(std::vector<hardware_interface::StateInterface>& interfaces,
-                                          std::vector<FTSensorData>& sensors,
-                                          const ComponentInfoMap& sensor_hardware_info);
-
 void append_imu_state_interfaces(std::vector<hardware_interface::StateInterface>& interfaces,
                                  std::vector<IMUSensorData>& sensors, const ComponentInfoMap& sensor_hardware_info);
 

@@ -39,45 +39,6 @@ void append_joint_state_interfaces(std::vector<hardware_interface::StateInterfac
   }
 }
 
-void append_force_torque_state_interfaces(std::vector<hardware_interface::StateInterface>& interfaces,
-                                          std::vector<FTSensorData>& sensors,
-                                          const ComponentInfoMap& sensor_hardware_info)
-{
-  for (auto& sensor : sensors)
-  {
-    if (auto it = sensor_hardware_info.find(sensor.name); it != sensor_hardware_info.end())
-    {
-      for (const auto& state_if : it->second.state_interfaces)
-      {
-        if (state_if.name == "force.x")
-        {
-          interfaces.emplace_back(sensor.name, state_if.name, &sensor.force.data.x());
-        }
-        else if (state_if.name == "force.y")
-        {
-          interfaces.emplace_back(sensor.name, state_if.name, &sensor.force.data.y());
-        }
-        else if (state_if.name == "force.z")
-        {
-          interfaces.emplace_back(sensor.name, state_if.name, &sensor.force.data.z());
-        }
-        else if (state_if.name == "torque.x")
-        {
-          interfaces.emplace_back(sensor.name, state_if.name, &sensor.torque.data.x());
-        }
-        else if (state_if.name == "torque.y")
-        {
-          interfaces.emplace_back(sensor.name, state_if.name, &sensor.torque.data.y());
-        }
-        else if (state_if.name == "torque.z")
-        {
-          interfaces.emplace_back(sensor.name, state_if.name, &sensor.torque.data.z());
-        }
-      }
-    }
-  }
-}
-
 void append_imu_state_interfaces(std::vector<hardware_interface::StateInterface>& interfaces,
                                  std::vector<IMUSensorData>& sensors, const ComponentInfoMap& sensor_hardware_info)
 {

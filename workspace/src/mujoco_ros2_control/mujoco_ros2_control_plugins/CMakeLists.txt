@@ -14,7 +14,6 @@ find_package(realtime_tools REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(std_msgs REQUIRED)
-find_package(visualization_msgs REQUIRED)
 find_package(mujoco_ros2_control_msgs REQUIRED)
 
 # Attempt to link MuJoCo via the vendor package, if available
@@ -31,7 +30,6 @@ endif()
 # Build the plugin library (all plugins compiled into one shared library)
 add_library(mujoco_ros2_control_plugins SHARED
   src/heartbeat_publisher_plugin.cpp
-  src/external_wrench_plugin.cpp
   src/mujoco_3d_lidar_plugin.cpp
   src/obstacle_management.cpp
   src/food_management.cpp
@@ -54,7 +52,6 @@ target_link_libraries(mujoco_ros2_control_plugins PUBLIC
   ${geometry_msgs_TARGETS}
   ${sensor_msgs_TARGETS}
   ${std_msgs_TARGETS}
-  ${visualization_msgs_TARGETS}
   ${mujoco_ros2_control_msgs_TARGETS}
 )
 target_compile_definitions(mujoco_ros2_control_plugins PRIVATE
@@ -91,7 +88,6 @@ ament_export_dependencies(
   geometry_msgs
   sensor_msgs
   std_msgs
-  visualization_msgs
   mujoco_ros2_control_msgs
   ros2_control_cmake
 )

@@ -13,7 +13,8 @@ Full documentation is maintained in RST format:
 | Plugin | Description |
 |---|---|
 | `HeartbeatPublisherPlugin` | Publishes a heartbeat string to `/mujoco_heartbeat` at 1 Hz |
-| `ExternalWrenchPlugin` | Applies external wrenches to MuJoCo bodies via a ROS 2 service |
+| `Mujoco3dLidarPlugin` | Publishes `mujoco.plugin.lidar` sensors as `LaserScan` (single row) or `PointCloud2` (multi row) |
+| `StateCapturePlugin` | Buffers simulation time and `qpos` and flushes them to a CSV file |
 | `SimulationManagementPlugin` | Returns robot/box state, recompiles managed box size and position, and throws food items into parking areas |
 
 ## Quick Start

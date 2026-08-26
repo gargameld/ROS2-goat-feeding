@@ -18,7 +18,6 @@ namespace mujoco_ros2_control::detail
 {
 
 void update_joint_control_mode(const std::string& interface_name, bool enabled,
-                               const hardware_interface::HardwareInfo& hardware_info, const mjModel* model,
                                std::vector<URDFJointData>& joints, std::vector<MuJoCoActuatorData>& actuators,
                                const rclcpp::Logger& logger)
 {
@@ -40,19 +39,18 @@ void update_joint_control_mode(const std::string& interface_name, bool enabled,
     return;
   }
 
-  const auto actuator_name = get_joint_actuator_name(joint_name, hardware_info, model);
   auto actuator_it =
-      std::find_if(actuators.begin(), actuators.end(), [&actuator_name](const MuJoCoActuatorData& actuator) {
-        return actuator.joint_name == actuator_name;
+      std::find_if(actuators.begin(), actuators.end(), [&joint_name](const MuJoCoActuatorData& actuator) {
+        return actuator.joint_name == joint_name;
       });
   if (actuator_it == actuators.end())
   {
-    RCLCPP_WARN(logger, "Actuator %s not found in mujoco_actuator_data_", actuator_name.c_str());
+    RCLCPP_WARN(logger, "Actuator %s not found in mujoco_actuator_data_", joint_name.c_str());
     return;
   }
   if (actuator_it->actuator_type == ActuatorType::PASSIVE)
   {
-    RCLCPP_WARN(logger, "Actuator %s is passive and cannot be controlled.", actuator_name.c_str());
+    RCLCPP_WARN(logger, "Actuator %s is passive and cannot be controlled.", joint_name.c_str());
     return;
   }
 
@@ -65,20 +63,16 @@ void update_joint_control_mode(const std::string& interface_name, bool enabled,
     actuator_it->is_position_control_enabled = false;
     actuator_it->is_velocity_control_enabled = false;
     actuator_it->is_effort_control_enabled = false;
-    actuator_it->is_position_pid_control_enabled = false;
-    actuator_it->is_velocity_pid_control_enabled = false;
 
     if (interface_type == hardware_interface::HW_IF_POSITION)
     {
-      actuator_it->is_position_control_enabled = (actuator_it->pos_pid == nullptr);
-      actuator_it->is_position_pid_control_enabled = (actuator_it->pos_pid != nullptr);
+      actuator_it->is_position_control_enabled = true;
       joint_it->is_position_control_enabled = true;
       RCLCPP_INFO(logger, "Joint %s: position control enabled (velocity, effort disabled)", joint_name.c_str());
     }
     else if (interface_type == hardware_interface::HW_IF_VELOCITY)
     {
-      actuator_it->is_velocity_control_enabled = (actuator_it->vel_pid == nullptr);
-      actuator_it->is_velocity_pid_control_enabled = (actuator_it->vel_pid != nullptr);
+      actuator_it->is_velocity_control_enabled = true;
       joint_it->is_velocity_control_enabled = true;
       RCLCPP_INFO(logger, "Joint %s: velocity control enabled (position, effort disabled)", joint_name.c_str());
     }
@@ -100,8 +94,6 @@ void update_joint_control_mode(const std::string& interface_name, bool enabled,
     actuator_it->is_position_control_enabled = false;
     actuator_it->is_velocity_control_enabled = false;
     actuator_it->is_effort_control_enabled = false;
-    actuator_it->is_position_pid_control_enabled = false;
-    actuator_it->is_velocity_pid_control_enabled = false;
 
     RCLCPP_INFO(logger, "Joint %s: %s control disabled", joint_name.c_str(), interface_type.c_str());
   }

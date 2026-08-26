@@ -20,7 +20,6 @@ namespace mujoco_ros2_control::detail
 {
 
 void update_joint_control_mode(const std::string& interface_name, bool enabled,
-                               const hardware_interface::HardwareInfo& hardware_info, const mjModel* model,
                                std::vector<URDFJointData>& joints, std::vector<MuJoCoActuatorData>& actuators,
                                const rclcpp::Logger& logger);
 

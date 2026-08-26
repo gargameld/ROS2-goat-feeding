@@ -37,7 +37,6 @@
 #include <string>
 #include <thread>
 
-#include <std_msgs/msg/string.hpp>
 
 #include <hardware_interface/version.h>
 #include <rclcpp/version.h>
@@ -456,85 +455,6 @@ static LoadedModel loadModelFromFile(const char* file, mj::Simulate& sim)
   return loaded;
 }
 
-static LoadedModel loadModelFromTopic(rclcpp::Node::SharedPtr node, const std::string& topic_name)
-{
-  LoadedModel loaded;
-  std::string robot_description;
-
-  rclcpp::QoS qos_profile(rclcpp::QoSInitialization::from_rmw(rmw_qos_profile_default));
-  qos_profile.reliable().transient_local().keep_last(1);
-  RCLCPP_INFO(node->get_logger(), "Trying to get the MuJoCo model from topic '%s'", topic_name.c_str());
-
-  // Try to get mujoco_model via topic
-  auto mujoco_model_sub = node->create_subscription<std_msgs::msg::String>(
-      topic_name, qos_profile, [&](const std_msgs::msg::String::SharedPtr msg) {
-        if (!msg->data.empty() && robot_description.empty())
-          robot_description = msg->data;
-      });
-
-  auto start = std::chrono::steady_clock::now();
-  auto timeout = std::chrono::seconds(120);
-
-  while (robot_description.empty() && rclcpp::ok())
-  {
-    auto now = std::chrono::steady_clock::now();
-
-    RCLCPP_INFO_THROTTLE(node->get_logger(), *node->get_clock(), 1000, "Waiting for /mujoco_robot_description...");
-
-    if (now - start > timeout)
-    {
-      RCLCPP_WARN(node->get_logger(), "Timeout waiting for '%s' topic.", topic_name.c_str());
-      return loaded;
-    }
-
-    rclcpp::sleep_for(std::chrono::milliseconds(200));
-  }
-
-  if (!robot_description.empty())
-  {
-    // Load MuJoCo model
-    char error[1000] = "Could not load XML model";
-
-    loaded.spec = mj_parseXMLString(robot_description.c_str(), nullptr, error, 1000);
-    loaded.model = loaded.spec ? mj_compile(loaded.spec, nullptr) : nullptr;
-
-    if (!loaded.model)
-    {
-      const char* myerr = loaded.spec ? mjs_getError(loaded.spec) : error;
-      RCLCPP_INFO(node->get_logger(), "Error %s", myerr);
-      RCLCPP_FATAL(node->get_logger(), "Failed to compile MuJoCo model: %s", error);
-      if (loaded.spec)
-      {
-        mj_deleteSpec(loaded.spec);
-        loaded.spec = nullptr;
-      }
-      return loaded;
-    }
-    RCLCPP_INFO(node->get_logger(), "Model body count: %ld", static_cast<long>(loaded.model->nbody));
-    RCLCPP_INFO(node->get_logger(), "Model geom count: %ld", static_cast<long>(loaded.model->ngeom));
-  }
-  return loaded;
-}
-
-static LoadedModel LoadModel(const char* file, const std::string& topic, mj::Simulate& sim,
-                             rclcpp::Node::SharedPtr node)
-{
-  // Try to get the MuJoCo model from URDF.
-  // If it is not available, create a subscription and listen for the model on a topic.
-
-  // this copy is needed so that the mju::strlen call below compiles
-  char filename[mj::Simulate::kMaxFilenameLength];
-  mju::strcpy_arr(filename, file);
-
-  // load model from path if the filename is not empty
-  if (filename[0])
-  {
-    return loadModelFromFile(file, sim);
-  }
-  // Try to get the MuJoCo model from topic
-  return loadModelFromTopic(node, topic);
-}
-
 MujocoSimulation::~MujocoSimulation()
 {
   shutdown();
@@ -559,11 +479,10 @@ MujocoSimulation::~MujocoSimulation()
 }
 
 bool MujocoSimulation::initialize(rclcpp::Node::SharedPtr node, const std::string& model_path,
-                                  const std::string& mujoco_model_topic, double sim_speed_factor, bool headless)
+                                  double sim_speed_factor, bool headless)
 {
   node_ = node;
   model_path_ = model_path;
-  mujoco_model_topic_ = mujoco_model_topic;
   sim_speed_factor_ = sim_speed_factor;
   headless_ = headless;
 
@@ -667,47 +586,9 @@ bool MujocoSimulation::initialize(rclcpp::Node::SharedPtr node, const std::strin
   clock_realtime_publisher_ =
       std::make_shared<realtime_tools::RealtimePublisher<rosgraph_msgs::msg::Clock>>(clock_publisher_);
 
-  // Initialize services
-  // For humble compatibility.
-#if RCLCPP_VERSION_MAJOR >= 17
-  rclcpp::QoS qos_services =
-      rclcpp::QoS(rclcpp::QoSInitialization(RMW_QOS_POLICY_HISTORY_KEEP_ALL, 1)).reliable().durability_volatile();
-#else
-  const rmw_qos_profile_t qos_services = { RMW_QOS_POLICY_HISTORY_KEEP_ALL,
-                                           1,  // message queue depth
-                                           RMW_QOS_POLICY_RELIABILITY_RELIABLE,
-                                           RMW_QOS_POLICY_DURABILITY_VOLATILE,
-                                           RMW_QOS_DEADLINE_DEFAULT,
-                                           RMW_QOS_LIFESPAN_DEFAULT,
-                                           RMW_QOS_POLICY_LIVELINESS_SYSTEM_DEFAULT,
-                                           RMW_QOS_LIVELINESS_LEASE_DURATION_DEFAULT,
-                                           false };
-#endif
-  reset_world_cb_group_ = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-  set_pause_cb_group_ = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-  step_simulation_cb_group_ = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-
-  reset_world_service_ = node_->create_service<mujoco_ros2_control_msgs::srv::ResetWorld>(
-      "~/reset_world",
-      std::bind(&MujocoSimulation::reset_world_callback, this, std::placeholders::_1, std::placeholders::_2),
-      qos_services, reset_world_cb_group_);
-  RCLCPP_INFO(get_logger(), "Created reset_world service at: %s/reset_world", node_->get_fully_qualified_name());
-
-  set_pause_service_ = node_->create_service<mujoco_ros2_control_msgs::srv::SetPause>(
-      "~/set_pause",
-      std::bind(&MujocoSimulation::set_pause_callback, this, std::placeholders::_1, std::placeholders::_2),
-      qos_services, set_pause_cb_group_);
-  RCLCPP_INFO(get_logger(), "Created set_pause service at: %s/set_pause", node_->get_fully_qualified_name());
-
-  step_simulation_service_ = node_->create_service<mujoco_ros2_control_msgs::srv::StepSimulation>(
-      "~/step_simulation",
-      std::bind(&MujocoSimulation::step_simulation_callback, this, std::placeholders::_1, std::placeholders::_2),
-      qos_services, step_simulation_cb_group_);
-  RCLCPP_INFO(get_logger(), "Created step_simulation service at: %s/step_simulation", node_->get_fully_qualified_name());
-
   // Finish initialization by loading the model and initializing the model and control data containers.
   RCLCPP_INFO(get_logger(), "Loading model...");
-  const LoadedModel loaded = LoadModel(model_path_.c_str(), mujoco_model_topic_, *sim_, node_);
+  const LoadedModel loaded = loadModelFromFile(model_path_.c_str(), *sim_);
   mj_model_ = loaded.model;
   mj_spec_ = loaded.spec;
   if (!mj_model_)
@@ -726,24 +607,6 @@ bool MujocoSimulation::initialize(rclcpp::Node::SharedPtr node, const std::strin
     RCLCPP_FATAL(get_logger(), "Could not allocate mjData for '%s'", model_path_.c_str());
     return false;
   }
-
-  return true;
-}
-
-bool MujocoSimulation::apply_keyframe(const std::string& keyframe_name)
-{
-  int keyframe_id = mj_name2id(mj_model_, mjOBJ_KEY, keyframe_name.c_str());
-  if (keyframe_id == -1)
-  {
-    RCLCPP_ERROR(get_logger(), "Failed to find keyframe : '%s' in the MuJoCo model!", keyframe_name.c_str());
-    return false;
-  }
-
-  const std::unique_lock<std::recursive_mutex> lock(*sim_mutex_);
-
-  const auto prev_sim_time = mj_data_->time;
-  mj_resetDataKeyframe(mj_model_, mj_data_, keyframe_id);
-  mj_data_->time = prev_sim_time;
 
   return true;
 }
@@ -834,20 +697,17 @@ void MujocoSimulation::shutdown()
 
 }
 
-void MujocoSimulation::reset_world_state(bool fill_initial_state)
+void MujocoSimulation::reset_world_state()
 {
   /// @note This method assumes sim_mutex_ is already held by the caller
 
   // Save the simulation time to preserve ROS clock continuity
   const mjtNum saved_time = mj_data_->time;
 
-  if (fill_initial_state)
-  {
-    // Reset all positions, velocities and controls to initial state
-    std::copy(initial_qpos_.begin(), initial_qpos_.end(), mj_data_->qpos);
-    std::copy(initial_qvel_.begin(), initial_qvel_.end(), mj_data_->qvel);
-    std::copy(initial_ctrl_.begin(), initial_ctrl_.end(), mj_data_->ctrl);
-  }
+  // Reset all positions, velocities and controls to initial state
+  std::copy(initial_qpos_.begin(), initial_qpos_.end(), mj_data_->qpos);
+  std::copy(initial_qvel_.begin(), initial_qvel_.end(), mj_data_->qvel);
+  std::copy(initial_ctrl_.begin(), initial_ctrl_.end(), mj_data_->ctrl);
 
   // Reset actuator activations (for muscles and similar)
   std::fill(mj_data_->act, mj_data_->act + mj_model_->na, 0.0);
@@ -874,142 +734,13 @@ void MujocoSimulation::reset_world_state(bool fill_initial_state)
   // Copy to control data for reads - this ensures the physics loop uses the reset state
   mj_copyData(mj_data_control_, mj_model_, mj_data_);
 
-  // Delegate HW-side bookkeeping (PID resets, command/state interface sync, etc.)
+  // Delegate HW-side bookkeeping (command/state interface sync, etc.)
   if (reset_callback_)
   {
-    reset_callback_(fill_initial_state);
+    reset_callback_();
   }
 }
 
-void MujocoSimulation::reset_world_callback(
-    const std::shared_ptr<mujoco_ros2_control_msgs::srv::ResetWorld::Request> request,
-    std::shared_ptr<mujoco_ros2_control_msgs::srv::ResetWorld::Response> response)
-{
-  RCLCPP_INFO_EXPRESSION(get_logger(), !request->keyframe.empty(), "Reset world service called with keyframe: '%s'",
-                         request->keyframe.c_str());
-  RCLCPP_INFO_EXPRESSION(get_logger(), request->keyframe.empty(),
-                         "Reset world service called. Resetting to initial keyframe...");
-  const std::unique_lock<std::recursive_mutex> lock(*sim_mutex_);
-
-  bool fill_initial_state = request->keyframe.empty();
-  if (!fill_initial_state)
-  {
-    if (!apply_keyframe(request->keyframe))
-    {
-      response->message = "Failed to apply keyframe: '" + request->keyframe + "'. Not resetting world.";
-      RCLCPP_ERROR(get_logger(), "%s", response->message.c_str());
-      response->success = false;
-      return;
-    }
-  }
-
-  reset_world_state(fill_initial_state);
-  response->success = true;
-  const std::string keyframe_str = fill_initial_state ? "initial" : ("'" + request->keyframe + "'");
-  response->message = "Successfully reset the MuJoCo world to the " + keyframe_str + " state.";
-
-  RCLCPP_INFO(get_logger(), "%s", response->message.c_str());
-}
-
-void MujocoSimulation::set_pause_callback(const std::shared_ptr<mujoco_ros2_control_msgs::srv::SetPause::Request> request,
-                                          std::shared_ptr<mujoco_ros2_control_msgs::srv::SetPause::Response> response)
-{
-  const bool currently_paused = !sim_->run;
-  if (currently_paused == request->paused)
-  {
-    response->success = true;
-    response->message = std::string("Simulation is already ") + (request->paused ? "paused." : "running.");
-    RCLCPP_DEBUG(get_logger(), "%s", response->message.c_str());
-    return;
-  }
-
-  sim_->run = !request->paused;
-
-  if (!request->paused)
-  {
-    // Force timing re-sync so the physics loop doesn't try to catch up on
-    // accumulated wall-clock time that elapsed while paused.
-    sim_->speed_changed = true;
-
-    // If step_simulation is currently blocking with pending steps, abort those steps
-    // immediately rather than waiting for the physics loop to detect the transition.
-    // This ensures step_simulation_callback unblocks and frees its executor thread
-    // without any additional latency.
-    const uint32_t pending = pending_steps_.load();
-    if (pending > 0)
-    {
-      RCLCPP_WARN(get_logger(), "Resuming simulation while %u step(s) were pending; aborting.", pending);
-      pending_steps_.store(0);
-      steps_interrupted_.store(true);
-      steps_cv_.notify_all();
-    }
-  }
-
-  response->success = true;
-  response->message = std::string("Simulation ") + (request->paused ? "paused." : "resumed.");
-  RCLCPP_INFO(get_logger(), "%s", response->message.c_str());
-}
-
-void MujocoSimulation::step_simulation_callback(
-    const std::shared_ptr<mujoco_ros2_control_msgs::srv::StepSimulation::Request> request,
-    std::shared_ptr<mujoco_ros2_control_msgs::srv::StepSimulation::Response> response)
-{
-  if (sim_->run)
-  {
-    response->success = false;
-    response->message = "Cannot step simulation: simulation is not paused.";
-    RCLCPP_WARN(get_logger(), "%s", response->message.c_str());
-    return;
-  }
-
-  if (request->steps == 0)
-  {
-    response->success = false;
-    response->message = "Number of steps must be positive, got: 0";
-    RCLCPP_WARN(get_logger(), "%s", response->message.c_str());
-    return;
-  }
-
-  // Reset the divergence/interrupt flags and queue steps.
-  step_diverged_.store(false);
-  steps_interrupted_.store(false);
-  pending_steps_.fetch_add(request->steps);
-
-  // Block until all steps are executed or the timeout expires.
-  // Timeout: at least 30 s, or 10 ms per step (whichever is larger).
-  const auto timeout =
-      std::chrono::milliseconds(std::max(static_cast<uint64_t>(30000), static_cast<uint64_t>(request->steps) * 10));
-
-  std::unique_lock<std::mutex> lock(steps_cv_mutex_);
-  const bool completed = steps_cv_.wait_for(lock, timeout, [this] { return pending_steps_.load() == 0; });
-
-  if (!completed)
-  {
-    response->success = false;
-    response->message = "Timeout waiting for " + std::to_string(request->steps) + " simulation step(s).";
-    RCLCPP_WARN(get_logger(), "%s", response->message.c_str());
-  }
-  else if (steps_interrupted_.load())
-  {
-    response->success = false;
-    response->message = "Steps aborted: simulation was resumed while steps were pending.";
-    RCLCPP_WARN(get_logger(), "%s", response->message.c_str());
-  }
-  else if (step_diverged_.load())
-  {
-    response->success = false;
-    response->message = "Steps aborted: simulation diverged.";
-    RCLCPP_WARN(get_logger(), "%s", response->message.c_str());
-  }
-  else
-  {
-    response->success = true;
-    response->message = "Completed " + std::to_string(request->steps) + " simulation step(s).";
-    RCLCPP_DEBUG(get_logger(), "%s", response->message.c_str());
-  }
-}
-
-// Simulate in a background thread while rendering in the main thread.
 void MujocoSimulation::physics_loop(const PhysicsLoopSynchronizer& synchronizer)
 {
   mjtNum previous_sim_time = 0;
@@ -1050,8 +781,6 @@ void MujocoSimulation::physics_loop(const PhysicsLoopSynchronizer& synchronizer)
         RCLCPP_WARN(get_logger(), "Simulation resumed while %u step(s) were still pending; aborting.",
                     pending_steps_.load());
         pending_steps_.store(0);
-        steps_interrupted_.store(true);
-        steps_cv_.notify_all();
       }
 
       validation_time = mj_data_->time;

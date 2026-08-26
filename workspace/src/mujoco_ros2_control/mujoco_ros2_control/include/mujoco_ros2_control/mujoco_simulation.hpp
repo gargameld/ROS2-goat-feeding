@@ -20,7 +20,6 @@
 #pragma once
 
 #include <atomic>
-#include <condition_variable>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -30,9 +29,6 @@
 
 #include <mujoco/mujoco.h>
 
-#include <mujoco_ros2_control_msgs/srv/reset_world.hpp>
-#include <mujoco_ros2_control_msgs/srv/set_pause.hpp>
-#include <mujoco_ros2_control_msgs/srv/step_simulation.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <realtime_tools/realtime_publisher.hpp>
 #include <rosgraph_msgs/msg/clock.hpp>
@@ -53,9 +49,7 @@ class PhysicsLoopSynchronizer;
  * "normal" ROS 2 constructs.
  *
  * This class is responsible for mujoco model and data, along with threads for the main physics
- * and rendering loops. It also provides several ROS interfaces for interacting with the
- * underlying simulation - including publishing simulated time to /clock, as well as services
- * for pausing, stepping, and resetting the simulation.
+ * and rendering loops. It also publishes the simulated time to /clock.
  *
  * Thread safety is still somewhat messy, as callers are provided with a simulation mutex that
  * locks the model and data while the actual mujoco engine moves the sim forward. Callers
@@ -69,16 +63,12 @@ public:
   /**
    * @brief Callback invoked when the simulation's state must be reset.
    *
-   * Triggered by the ~/reset_world service or by a any other reset detected in the physics
-   * loop. The callback will be run with the sim mutex but after all data has been restored.
+   * Triggered by a reset detected in the physics loop. The callback will be run with the sim
+   * mutex but after all data has been restored.
    *
    * // TODO: Retire this when mujoco data is split.
-   *
-   * @param fill_initial_state When true, the caller has not already populated
-   *        mj_data_->qpos/qvel/ctrl from a keyframe and the callback should restore the captured
-   *        initial state. When false, a keyframe has already been applied.
    */
-  using ResetCallback = std::function<void(bool fill_initial_state)>;
+  using ResetCallback = std::function<void()>;
 
   /**
    * @brief Construct a new Mujoco Simulation object. This is a no-op until initialization.
@@ -93,16 +83,8 @@ public:
    * This initializes the Simulate app and starts the UI thread in the background (if not
    * running headless). It also sets up required publishers and services using the provided node.
    */
-  bool initialize(rclcpp::Node::SharedPtr node, const std::string& model_path, const std::string& mujoco_model_topic,
-                  double sim_speed_factor, bool headless);
-
-  /**
-   * @brief Apply a keyframe to the simulation by name.
-   *
-   * This locks the simulation mutex and attempts to apply a keyframe by name by calling
-   * `mj_resetDataKeyframe`.
-   */
-  bool apply_keyframe(const std::string& keyframe_name);
+  bool initialize(rclcpp::Node::SharedPtr node, const std::string& model_path, double sim_speed_factor,
+                  bool headless);
 
   /**
    * @brief Can be called by consumers of this class to store the current state as the "initial" state.
@@ -182,7 +164,7 @@ public:
    * @brief Reset simulation state (qpos/qvel/ctrl/sensors/forces) to the captured initial state.
    * @note Caller must hold the sim mutex.
    */
-  void reset_world_state(bool fill_initial_state);
+  void reset_world_state();
 
   /**
    * @brief Return a thread-safe snapshot of the current simulation time.
@@ -227,14 +209,6 @@ private:
    */
   void update_sim_display();
 
-  // Service callbacks
-  void reset_world_callback(const std::shared_ptr<mujoco_ros2_control_msgs::srv::ResetWorld::Request> request,
-                            std::shared_ptr<mujoco_ros2_control_msgs::srv::ResetWorld::Response> response);
-  void set_pause_callback(const std::shared_ptr<mujoco_ros2_control_msgs::srv::SetPause::Request> request,
-                          std::shared_ptr<mujoco_ros2_control_msgs::srv::SetPause::Response> response);
-  void step_simulation_callback(const std::shared_ptr<mujoco_ros2_control_msgs::srv::StepSimulation::Request> request,
-                                std::shared_ptr<mujoco_ros2_control_msgs::srv::StepSimulation::Response> response);
-
   rclcpp::Logger get_logger() const
   {
     return logger_;
@@ -248,7 +222,6 @@ private:
 
   // System information
   std::string model_path_;
-  std::string mujoco_model_topic_;
 
   // MuJoCo data pointers
   mjSpec* mj_spec_{ nullptr };
@@ -308,28 +281,13 @@ private:
   //       require more work to pull it out of simulate.h.
   std::recursive_mutex* sim_mutex_{ nullptr };
 
-  // Reset world service
-  rclcpp::CallbackGroup::SharedPtr reset_world_cb_group_;
-  rclcpp::Service<mujoco_ros2_control_msgs::srv::ResetWorld>::SharedPtr reset_world_service_;
-
-  // Set pause service
-  rclcpp::CallbackGroup::SharedPtr set_pause_cb_group_;
-  rclcpp::Service<mujoco_ros2_control_msgs::srv::SetPause>::SharedPtr set_pause_service_;
-
-  // Step simulation service
-  rclcpp::CallbackGroup::SharedPtr step_simulation_cb_group_;
-  rclcpp::Service<mujoco_ros2_control_msgs::srv::StepSimulation>::SharedPtr step_simulation_service_;
-
-  // Pending steps to execute while paused, and synchronization for blocking callers
+  // Steps requested from the viewer's keyboard while the simulation is paused.
   std::atomic<uint32_t> pending_steps_{ 0 };
   std::atomic<bool> step_diverged_{ false };
-  std::atomic<bool> steps_interrupted_{ false };
   std::atomic<bool> keyboard_step_requested_{ false };
   std::atomic<uint64_t> step_count_{ 0 };
-  std::mutex steps_cv_mutex_;
-  std::condition_variable steps_cv_;
 
-  // Storage for initial state (used for reset_world)
+  // Storage for initial state (restored after a viewer reset)
   std::vector<mjtNum> initial_qpos_;
   std::vector<mjtNum> initial_qvel_;
   std::vector<mjtNum> initial_ctrl_;

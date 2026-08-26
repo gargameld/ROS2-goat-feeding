@@ -12,7 +12,6 @@ Parts of this library are also based on the MoveIt [mujoco_ros2_control](https:/
 
 MuJoCo does not support the full feature set of xacro/URDFs in the ROS 2 ecosystem.
 Users are required to convert any existing robot description files to an MJCF format.
-We provide a *highly experimental* tool to automate URDF conversion — refer to the [URDF to MJCF conversion documentation](docs/tools.rst) for details.
 
 ## Hardware Interface Setup
 
@@ -41,18 +40,17 @@ control_node = Node(
 )
 ```
 
-For the full plugin parameter reference, joint control modes, gripper/mimic joint setup, sensors (FTS, IMU), cameras, and lidar configuration, see the [hardware interface documentation](docs/hardware_interface.rst).
+For the full plugin parameter reference, joint control modes, gripper setup, IMU sensors, and camera configuration, see the [hardware interface documentation](docs/hardware_interface.rst).
 
-## Simulation Topics and Services
+## Simulation Topics
 
-The simulator exposes ROS 2 topics and services for interacting with the simulation at runtime (pause, reset, step-by-step control, etc.).
-See the [simulation topics and services documentation](docs/hardware_interface.rst#simulation-topics-and-services) for details.
+The simulator publishes `/clock` and `/mujoco_actuators_states` for interacting with the simulation at runtime.
+See the [simulation topics documentation](docs/hardware_interface.rst#simulation-topics) for details.
 
 ## Further Documentation
 
 | Document | Description |
 |---|---|
-| [Hardware Interface](docs/hardware_interface.rst) | Plugin params, joints, sensors, cameras, lidar, topics, services, debugging |
-| [URDF to MJCF Conversion](docs/tools.rst) | Conversion tool usage and MJCF schema reference |
+| [Hardware Interface](docs/hardware_interface.rst) | Plugin params, joints, sensors, cameras, topics, debugging |
 | [Modeling Tips](docs/modeling_tips.rst) | Tips for modeling complex geometries in MuJoCo |
 | [Developers Guide](../doc/development.rst) | Development workflows (Docker, pixi) |

@@ -79,7 +79,7 @@ bool MujocoSimulation::handle_ui_reset(
   // reset_world_state() expects the previous simulation time.
   mj_data_->time = previous_sim_time;
 
-  reset_world_state(true);
+  reset_world_state();
 
   // Preserve the viewer's timing/reset state.
   sim_->speed_changed = true;
@@ -189,8 +189,6 @@ void MujocoSimulation::run_paused_simulation(
       mju::strcpy_arr(
           sim_->load_error,
           divergence_message);
-
-      steps_cv_.notify_all();
     }
     else
     {
@@ -201,7 +199,6 @@ void MujocoSimulation::run_paused_simulation(
       pending_steps_.fetch_sub(1);
       step_count_.fetch_add(1);
 
-      steps_cv_.notify_all();
       update_sim_display();
     }
 

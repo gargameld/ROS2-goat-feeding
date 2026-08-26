@@ -12,18 +12,14 @@ find_package(controller_manager_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(fmt REQUIRED)
 find_package(glfw3 REQUIRED)
-find_package(control_toolbox REQUIRED)
 find_package(hardware_interface REQUIRED)
-find_package(nav_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
-find_package(mujoco_ros2_control_msgs REQUIRED)
 find_package(mujoco_ros2_control_plugins REQUIRED)
 find_package(Threads REQUIRED)
-find_package(transmission_interface REQUIRED)
 find_package(backward_ros REQUIRED)
 find_package(tinyxml2_vendor QUIET)
 find_package(TinyXML2 REQUIRED)
@@ -163,7 +159,6 @@ add_library(mujoco_ros2_control SHARED
     src/mujoco_system_interface.cpp
     src/mujoco_cameras.cpp
     src/depth_to_pointcloud.cpp
-    src/mujoco_lidar.cpp
 )
 # Ensure MuJoCo library can be found at runtime regardless of how it was installed above.
 # mujoco_vendor installs libmujoco.so under opt/mujoco_vendor/lib/ relative to the
@@ -188,14 +183,11 @@ PUBLIC
   rclcpp::rclcpp
   rclcpp_lifecycle::rclcpp_lifecycle
   ${controller_manager_msgs_TARGETS}
-  ${nav_msgs_TARGETS}
   ${sensor_msgs_TARGETS}
   ${std_srvs_TARGETS}
-  ${mujoco_ros2_control_msgs_TARGETS}
   pluginlib::pluginlib
   fmt::fmt
   ${MUJOCO_LIB}
-  control_toolbox::control_toolbox
   Eigen3::Eigen
 PRIVATE
   mujoco_simulate
@@ -203,17 +195,11 @@ PRIVATE
   lodepng
   glfw
 )
-# Note: the transmissions_interface must NOT be statically linked against the library, only headers
-# should be used. Otherwise it will be loaded by the linker at process startup and its
-# PLUGINLIB_EXPORT_CLASS static constructors will have run before the ClassLoaders exist. This
-# can cause problems when pluginlib calls dlopen, as a previously-loaded handle will be
-# returned that will prevent registration of a factory for the transmission type.
 target_include_directories(mujoco_ros2_control PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
   $<INSTALL_INTERFACE:${MUJOCO_INSTALL_INCLUDE_DIR}>
   $<INSTALL_INTERFACE:${MUJOCO_INSTALL_SIMULATE_DIR}>
-  $<TARGET_PROPERTY:transmission_interface::transmission_interface,INTERFACE_INCLUDE_DIRECTORIES>
   $<TARGET_PROPERTY:mujoco_ros2_control_plugins::mujoco_ros2_control_plugins,INTERFACE_INCLUDE_DIRECTORIES>
 )
 # Mark MuJoCo source as system to avoid compiler warnings
@@ -248,42 +234,27 @@ install(
 # Install python tools
 install(PROGRAMS
   scripts/find_missing_inertias.py
-  scripts/make_mjcf_from_robot_description.py
-  scripts/robot_description_to_mjcf.sh
   DESTINATION lib/${PROJECT_NAME}
 )
 
 install(
-  DIRECTORY resources scripts
+  DIRECTORY scripts
   DESTINATION share/${PROJECT_NAME}
   USE_SOURCE_PERMISSIONS
 )
 
-install(
-  FILES scripts/requirements.txt
-  DESTINATION share/${PROJECT_NAME}
-)
-
 pluginlib_export_plugin_description_file(hardware_interface mujoco_system_interface_plugin.xml)
-
-ament_python_install_package(mujoco_ros2_control
-  SCRIPTS_DESTINATION lib/mujoco_ros2_control
-)
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_export_dependencies(
   ament_index_cpp
   hardware_interface
-  transmission_interface
   rclcpp
   rclcpp_lifecycle
-  nav_msgs
   sensor_msgs
   std_srvs
-  mujoco_ros2_control_msgs
   mujoco_ros2_control_plugins
   pluginlib
-  control_toolbox
   Eigen3
   mujoco_vendor
 )

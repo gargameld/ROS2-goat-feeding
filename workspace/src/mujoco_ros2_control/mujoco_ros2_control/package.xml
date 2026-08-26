@@ -15,18 +15,15 @@
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
-  <buildtool_depend>ament_cmake_python</buildtool_depend>
   <buildtool_depend>git</buildtool_depend>
   <build_depend>ros2_control_cmake</build_depend>
 
   <depend>backward_ros</depend>
   <depend>ament_index_cpp</depend>
-  <depend>control_toolbox</depend>
   <depend>controller_manager</depend>
   <depend>controller_manager_msgs</depend>
   <depend>hardware_interface</depend>
   <depend>fmt</depend>
-  <depend>nav_msgs</depend>
   <depend>libglfw3-dev</depend>
   <depend>mujoco_vendor</depend>
   <depend>pluginlib</depend>
@@ -34,17 +31,7 @@
   <depend>rclcpp</depend>
   <depend>sensor_msgs</depend>
   <depend>std_srvs</depend>
-  <depend>mujoco_ros2_control_msgs</depend>
   <depend>mujoco_ros2_control_plugins</depend>
-  <depend>transmission_interface</depend>
-
-  <exec_depend>ament_index_python</exec_depend>
-  <exec_depend>python3-importlib-resources</exec_depend>
-  <exec_depend>python3-pykdl</exec_depend>
-  <exec_depend>python3-numpy</exec_depend>
-  <exec_depend>urdfdom_py</exec_depend>
-  <exec_depend>python3-venv</exec_depend>
-  <exec_depend>python3-pip</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

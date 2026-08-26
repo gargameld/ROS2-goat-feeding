@@ -21,20 +21,9 @@ namespace mujoco_ros2_control::detail
 struct SimulationConfiguration
 {
   std::string model_path;
-  std::string model_topic;
   double speed_factor;
   double camera_publish_rate;
-  double lidar_publish_rate;
   bool headless;
-  std::optional<std::string> pids_config_file;
-};
-
-struct FreeJointConfiguration
-{
-  bool valid{ true };
-  int joint_id{ -1 };
-  int qpos_address{ -1 };
-  int qvel_address{ -1 };
 };
 
 std::optional<std::string> get_hardware_parameter(const hardware_interface::HardwareInfo& hardware_info,
@@ -46,12 +35,8 @@ std::string get_hardware_parameter_or(const hardware_interface::HardwareInfo& ha
 std::optional<SimulationConfiguration> load_simulation_configuration(
     const hardware_interface::HardwareInfo& hardware_info, const rclcpp::Logger& logger);
 
-std::optional<rclcpp::NodeOptions> make_mujoco_node_options(const SimulationConfiguration& configuration,
-                                                           const rclcpp::Logger& logger);
+rclcpp::NodeOptions make_mujoco_node_options();
 
 bool validate_mujoco_joint_names(const mjModel* model, const rclcpp::Logger& logger);
-
-FreeJointConfiguration find_free_joint(const mjModel* model, const std::string& joint_name,
-                                       const rclcpp::Logger& logger);
 
 }  // namespace mujoco_ros2_control::detail

@@ -7,7 +7,6 @@
 
 #pragma once
 
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -18,21 +17,6 @@
 
 namespace mujoco_ros2_control::detail
 {
-
-struct InitialStateValues
-{
-  std::vector<double> qpos;
-  std::vector<double> qvel;
-  std::vector<double> ctrl;
-};
-
-std::optional<InitialStateValues> load_initial_state_values(const std::string& file_path,
-                                                            const rclcpp::Logger& logger);
-
-bool initial_state_sizes_match(const InitialStateValues& values, const mjModel* model,
-                               const rclcpp::Logger& logger);
-
-void copy_initial_state_to_data(const InitialStateValues& values, mjData* data);
 
 void copy_passive_joint_states(std::vector<URDFJointData>& joints, std::vector<MuJoCoActuatorData>& actuators);
 
