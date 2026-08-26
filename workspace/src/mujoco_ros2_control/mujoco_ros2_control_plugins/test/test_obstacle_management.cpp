@@ -8,7 +8,7 @@
 #include <gtest/gtest.h>
 #include <mujoco/mujoco.h>
 
-#include "mujoco_ros2_control_plugins/obstacle_management.hpp"
+#include "mujoco_ros2_control_plugins/simulation_management/obstacle_management.hpp"
 
 namespace mujoco_ros2_control_plugins
 {

@@ -144,21 +144,30 @@ endif()
 
 # MuJoCo ROS 2 control system interface (this package)
 add_library(mujoco_ros2_control SHARED
-    src/detail/configuration_helpers.cpp
-    src/detail/control_mode_helpers.cpp
-    src/detail/interface_helpers.cpp
-    src/detail/initial_state_helpers.cpp
-    src/detail/model_mapping_helpers.cpp
-    src/detail/plugin_helpers.cpp
-    src/detail/registration_helpers.cpp
-    src/detail/state_helpers.cpp
-    src/physics_loop_synchronizer.cpp
-    src/mujoco_simulation.cpp
-    src/mujoco_simulation_clock.cpp
-    src/simulation_actions.cpp
+    # ros2_control system interface: bridges the URDF/ros2_control model to MuJoCo
     src/mujoco_system_interface.cpp
-    src/mujoco_cameras.cpp
-    src/depth_to_pointcloud.cpp
+    src/system_interface/simulation_configuration.cpp
+    src/system_interface/mujoco_model_validation.cpp
+    src/system_interface/mujoco_actuator_discovery.cpp
+    src/system_interface/joint_command_setup.cpp
+    src/system_interface/imu_sensor_setup.cpp
+    src/system_interface/sensor_registration.cpp
+    src/system_interface/interface_export.cpp
+    src/system_interface/initial_state.cpp
+    src/system_interface/joint_actuator_mapping.cpp
+    src/system_interface/command_mode_switching.cpp
+    src/system_interface/state_reading.cpp
+    src/system_interface/control_plugin_loader.cpp
+    # simulation host: owns the MuJoCo model/data, physics thread and /clock
+    src/simulation/mujoco_simulation.cpp
+    src/simulation/physics_loop.cpp
+    src/simulation/mujoco_model_loader.cpp
+    src/simulation/mujoco_extension_loader.cpp
+    src/simulation/mujoco_simulation_clock.cpp
+    src/simulation/physics_loop_synchronizer.cpp
+    # sensors: offscreen camera rendering into point clouds
+    src/sensors/mujoco_cameras.cpp
+    src/sensors/depth_to_pointcloud.cpp
 )
 # Ensure MuJoCo library can be found at runtime regardless of how it was installed above.
 # mujoco_vendor installs libmujoco.so under opt/mujoco_vendor/lib/ relative to the
@@ -192,7 +201,6 @@ PUBLIC
 PRIVATE
   mujoco_simulate
   Threads::Threads
-  lodepng
   glfw
 )
 target_include_directories(mujoco_ros2_control PUBLIC

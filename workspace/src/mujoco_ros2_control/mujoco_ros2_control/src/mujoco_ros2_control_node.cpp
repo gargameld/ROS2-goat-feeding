@@ -25,7 +25,6 @@
 #include <vector>
 
 #include <controller_manager/controller_manager.hpp>
-#include <hardware_interface/version.h>
 #include <rclcpp/executors.hpp>
 #include <realtime_tools/realtime_helpers.hpp>
 
@@ -63,11 +62,7 @@ rclcpp::NodeOptions get_controller_manager_options(int argc, char ** argv)
 
 rclcpp::Time get_controller_manager_time(const ControllerManagerPtr & controller_manager)
 {
-#if HARDWARE_INTERFACE_VERSION_MAJOR < 3
-  return controller_manager->now();
-#else
   return controller_manager->get_trigger_clock()->now();
-#endif
 }
 
 void lock_memory_if_requested(const ControllerManagerPtr & controller_manager)

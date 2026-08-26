@@ -13,7 +13,6 @@ find_package(rclcpp REQUIRED)
 find_package(realtime_tools REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(pluginlib REQUIRED)
-find_package(std_msgs REQUIRED)
 find_package(mujoco_ros2_control_msgs REQUIRED)
 
 # Attempt to link MuJoCo via the vendor package, if available
@@ -29,12 +28,12 @@ endif()
 
 # Build the plugin library (all plugins compiled into one shared library)
 add_library(mujoco_ros2_control_plugins SHARED
-  src/heartbeat_publisher_plugin.cpp
   src/mujoco_3d_lidar_plugin.cpp
-  src/obstacle_management.cpp
-  src/food_management.cpp
-  src/simulation_management_plugin.cpp
   src/state_capture_plugin.cpp
+  # simulation management plugin and the model-editing classes it drives
+  src/simulation_management/simulation_management_plugin.cpp
+  src/simulation_management/obstacle_management.cpp
+  src/simulation_management/food_management.cpp
 )
 target_include_directories(mujoco_ros2_control_plugins PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -51,13 +50,8 @@ target_link_libraries(mujoco_ros2_control_plugins PUBLIC
   pluginlib::pluginlib
   ${geometry_msgs_TARGETS}
   ${sensor_msgs_TARGETS}
-  ${std_msgs_TARGETS}
   ${mujoco_ros2_control_msgs_TARGETS}
 )
-target_compile_definitions(mujoco_ros2_control_plugins PRIVATE
-  REALTIME_TOOLS_VERSION_MAJOR=${realtime_tools_VERSION_MAJOR}
-)
-
 # Install the plugin library
 install(TARGETS mujoco_ros2_control_plugins
   EXPORT export_${PROJECT_NAME}
@@ -87,7 +81,6 @@ ament_export_dependencies(
   pluginlib
   geometry_msgs
   sensor_msgs
-  std_msgs
   mujoco_ros2_control_msgs
   ros2_control_cmake
 )

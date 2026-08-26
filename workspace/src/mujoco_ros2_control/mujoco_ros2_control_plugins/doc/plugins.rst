@@ -14,34 +14,6 @@ This separation allows for modular, optional features without adding complexity 
 Available Plugins
 -----------------
 
-HeartbeatPublisherPlugin
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-A simple demonstration plugin that publishes a heartbeat message every second to the
-``/mujoco_heartbeat`` topic.
-
-.. list-table::
-   :widths: 25 75
-   :header-rows: 0
-
-   * - **Topic**
-     - ``mujoco_heartbeat`` (``std_msgs/String``)
-   * - **Rate**
-     - 1 Hz
-   * - **Message format**
-     - ``"MuJoCo ROS2 Control Heartbeat #N | Simulation time: Xs"``
-
-**Example: monitoring the heartbeat**
-
-.. code-block:: bash
-
-   # Terminal 1: launch your mujoco_ros2_control simulation
-   ros2 launch mujoco_ros2_control_demos 01_basic_robot.launch.py
-
-   # Terminal 2: echo the heartbeat messages
-   ros2 topic echo /mujoco_heartbeat
-
-
 SimulationManagementPlugin
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -111,7 +83,7 @@ Usage
 Plugins are loaded from ROS 2 parameters under ``mujoco_plugins``.
 Each plugin entry requires:
 
-- A unique key (e.g. ``heart_beat_plugin``)
+- A unique key (e.g. ``state_capture``)
 - A ``type`` field with the pluginlib class name
 
 .. code-block:: yaml
@@ -119,9 +91,9 @@ Each plugin entry requires:
    /**:
      ros__parameters:
        mujoco_plugins:
-         heart_beat_plugin:
-           type: "mujoco_ros2_control_plugins/HeartbeatPublisherPlugin"
-           update_rate: 1.0
+         state_capture:
+           type: "mujoco_ros2_control_plugins/StateCapturePlugin"
+           capture_rate: 30.0
 
 Pass this file to the ``mujoco_ros2_control`` node via ``ParameterFile(...)`` in your launch file.
 

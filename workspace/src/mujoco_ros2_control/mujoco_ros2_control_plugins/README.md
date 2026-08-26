@@ -12,7 +12,6 @@ Full documentation is maintained in RST format:
 
 | Plugin | Description |
 |---|---|
-| `HeartbeatPublisherPlugin` | Publishes a heartbeat string to `/mujoco_heartbeat` at 1 Hz |
 | `Mujoco3dLidarPlugin` | Publishes `mujoco.plugin.lidar` sensors as `LaserScan` (single row) or `PointCloud2` (multi row) |
 | `StateCapturePlugin` | Buffers simulation time and `qpos` and flushes them to a CSV file |
 | `SimulationManagementPlugin` | Returns robot/box state, recompiles managed box size and position, and throws food items into parking areas |
@@ -25,8 +24,8 @@ Load plugins by passing a parameters file to the `mujoco_ros2_control` node:
 /**:
   ros__parameters:
     mujoco_plugins:
-      heart_beat_plugin:
-        type: "mujoco_ros2_control_plugins/HeartbeatPublisherPlugin"
+      state_capture:
+        type: "mujoco_ros2_control_plugins/StateCapturePlugin"
 ```
 
 For full usage details, service/topic interfaces, parameters, and a guide to writing your own

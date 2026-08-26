@@ -327,11 +327,7 @@ void Mujoco3dLidarPlugin::update(const mjModel* /*model*/, mjData* data)
       }
 
       lidar.point_cloud_msg.header.stamp = stamp;
-#if REALTIME_TOOLS_VERSION_MAJOR > 2
       lidar.pointcloud_pub->try_publish(lidar.point_cloud_msg);
-#else
-      lidar.pointcloud_pub->tryPublish(lidar.point_cloud_msg);
-#endif
     }
     else if (!lidar.is_3d)
     {
@@ -341,11 +337,7 @@ void Mujoco3dLidarPlugin::update(const mjModel* /*model*/, mjData* data)
       }
 
       lidar.laser_scan_msg.header.stamp = stamp;
-#if REALTIME_TOOLS_VERSION_MAJOR > 2
       lidar.scan_pub->try_publish(lidar.laser_scan_msg);
-#else
-      lidar.scan_pub->tryPublish(lidar.laser_scan_msg);
-#endif
     }
   }
 }

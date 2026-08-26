@@ -13,20 +13,10 @@ Specify it in your URDF and point to a valid MJCF on launch:
      <hardware>
        <plugin>mujoco_ros2_control/MujocoSystemInterface</plugin>
 
-       <!-- Path to the MuJoCo scene XML -->
-       <param name="mujoco_model">$(find my_description)/description/scene.xml</param>
-
-       <!-- Optional: override the Simulate App speed scaling.
-            Allows running faster than real time (e.g. 5.0 = 500%). Omit or set <0
-            to use the rate requested from the App window. -->
-       <param name="sim_speed_factor">5.0</param>
 
        <!-- Optional: camera RGB-D image publish rate in Hz (all cameras share one rate).
             Defaults to 5 Hz. -->
        <param name="camera_publish_rate">6.0</param>
-
-       <!-- Optional: run the simulator without a GUI window. Defaults to false. -->
-       <param name="headless">false</param>
      </hardware>
    ...
 
@@ -168,12 +158,10 @@ Map to the corresponding ``ros2_control`` sensor:
 
    <sensor name="imu_sensor">
      <param name="mujoco_type">imu</param>
-     <!-- mujoco_sensor_name does not need to match the ros2_control sensor name -->
+     <!-- mujoco_sensor_name does not need to match the ros2_control sensor name.
+          The MJCF sensors are looked up as <mujoco_sensor_name> plus the fixed
+          suffixes _quat, _gyro and _accel. -->
      <param name="mujoco_sensor_name">imu_sensor</param>
-     <!-- Defaults: _quat, _gyro, _accel -->
-     <param name="orientation_mjcf_suffix">_quat</param>
-     <param name="angular_velocity_mjcf_suffix">_gyro</param>
-     <param name="linear_acceleration_mjcf_suffix">_accel</param>
      <state_interface name="orientation.x"/>
      <state_interface name="orientation.y"/>
      <state_interface name="orientation.z"/>
@@ -228,31 +216,5 @@ Frame and topic names can be overridden via ``ros2_control`` xacro:
 Simulation Topics
 =================
 
-``/mujoco_actuators_states`` (``sensor_msgs/msg/JointState``)
-   Provides information on all internal MuJoCo joints, regardless of whether their interfaces are exposed via ``ros2_control``.
-
 ``/clock`` (``rosgraph_msgs/msg/Clock``)
    Contains the internal physics clock tracked by each MuJoCo simulation step.
-
-Debugging
-=========
-
-The Simulate window provides mechanisms for pausing execution and advancing it in a controlled, step-by-step
-fashion. This is useful for inspecting robot state, verifying controller output, or reproducing intermittent
-issues. It requires a non-headless run (``headless`` set to ``false``).
-
-Pausing the Simulation
-----------------------
-
-Click the **Pause** button in the MuJoCo Simulate window (or press **Space**) to pause the physics loop.
-When paused, the simulation clock stops advancing and no physics steps are executed until explicitly requested.
-
-Single-Stepping via the Keyboard
----------------------------------
-
-While the simulation window is focused and the simulation is **paused**, press the **right arrow key** (``→``) to
-advance the simulation by exactly one physics step.
-Holding the key down advances the simulation continuously one step at a time, allowing slow frame-by-frame inspection.
-
-The status overlay in the top-right corner of the simulation window shows the current state (``Running`` / ``Paused``)
-and the total number of physics steps executed.

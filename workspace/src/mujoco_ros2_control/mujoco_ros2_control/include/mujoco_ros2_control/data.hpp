@@ -20,10 +20,9 @@
 
 #include <Eigen/Core>
 #include <Eigen/Geometry>
-#include <hardware_interface/types/hardware_interface_type_values.hpp>
 
+#include <limits>
 #include <string>
-#include <vector>
 
 namespace mujoco_ros2_control
 {
@@ -54,11 +53,6 @@ enum class ActuatorType
  */
 struct InterfaceData
 {
-  explicit InterfaceData(const std::string& command_interface) : command_interface_(command_interface)
-  {
-  }
-
-  std::string command_interface_;
   double command_ = std::numeric_limits<double>::quiet_NaN();
   double state_ = std::numeric_limits<double>::quiet_NaN();
 };
@@ -70,7 +64,6 @@ struct InterfaceData
  * @param velocity_interface Data for velocity command/state interface.
  * @param effort_interface Data for effort command/state interface.
  * @param actuator_type Type of the MuJoCo actuator.
- * @param mj_joint_type MuJoCo joint type as per mjModel->jnt_type.
  * @param mj_pos_adr MuJoCo position address in mjData->qpos.
  * @param mj_vel_adr MuJoCo velocity address in mjData->qvel.
  * @param mj_actuator_id MuJoCo actuator id as per mjModel->actuator_id.
@@ -81,11 +74,10 @@ struct InterfaceData
 struct MuJoCoActuatorData
 {
   std::string joint_name = "";
-  InterfaceData position_interface{ hardware_interface::HW_IF_POSITION };
-  InterfaceData velocity_interface{ hardware_interface::HW_IF_VELOCITY };
-  InterfaceData effort_interface{ hardware_interface::HW_IF_EFFORT };
+  InterfaceData position_interface;
+  InterfaceData velocity_interface;
+  InterfaceData effort_interface;
   ActuatorType actuator_type{ ActuatorType::UNKNOWN };
-  int mj_joint_type = -1;
   int mj_pos_adr = -1;
   int mj_vel_adr = -1;
   int mj_actuator_id = -1;
@@ -110,7 +102,6 @@ struct MuJoCoActuatorData
  * @param position_interface Data for position command/state interface.
  * @param velocity_interface Data for velocity command/state interface.
  * @param effort_interface Data for effort command/state interface.
- * @param command_interfaces Vector of command interface names supported by the joint.
  * @param is_position_control_enabled Boolean flag indicating if position control is enabled.
  * @param is_velocity_control_enabled Boolean flag indicating if velocity control is enabled.
  * @param is_effort_control_enabled Boolean flag indicating if effort control is enabled.
@@ -118,22 +109,13 @@ struct MuJoCoActuatorData
 struct URDFJointData
 {
   std::string name = "";
-  InterfaceData position_interface{ hardware_interface::HW_IF_POSITION };
-  InterfaceData velocity_interface{ hardware_interface::HW_IF_VELOCITY };
-  InterfaceData effort_interface{ hardware_interface::HW_IF_EFFORT };
-
-  std::vector<std::string> command_interfaces = {};
+  InterfaceData position_interface;
+  InterfaceData velocity_interface;
+  InterfaceData effort_interface;
 
   bool is_position_control_enabled{ false };
   bool is_velocity_control_enabled{ false };
   bool is_effort_control_enabled{ false };
-
-  void copy_state_to_command()
-  {
-    position_interface.command_ = position_interface.state_;
-    velocity_interface.command_ = velocity_interface.state_;
-    effort_interface.command_ = effort_interface.state_;
-  }
 };
 
 template <typename T>
@@ -150,11 +132,6 @@ struct IMUSensorData
   SensorData<Eigen::Quaternion<double>> orientation;
   SensorData<Eigen::Vector3d> angular_velocity;
   SensorData<Eigen::Vector3d> linear_acceleration;
-
-  // These are currently unused but added to support controllers that require them.
-  std::vector<double> orientation_covariance;
-  std::vector<double> angular_velocity_covariance;
-  std::vector<double> linear_acceleration_covariance;
 };
 
 }  // namespace mujoco_ros2_control

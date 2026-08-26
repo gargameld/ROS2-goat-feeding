@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import yaml
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import (
@@ -17,42 +16,6 @@ from launch_ros.parameter_descriptions import ParameterFile, ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 
-def get_controller_manager_parameter(controller_configuration, parameter_name):
-    return controller_configuration["controller_manager"]["ros__parameters"][
-        parameter_name
-    ]
-
-
-def load_write_frequency(controllers_file):
-    with controllers_file.open("r", encoding="utf-8") as file:
-        controller_configuration = yaml.safe_load(file)
-    return int(
-        get_controller_manager_parameter(
-            controller_configuration, "write_frequency"
-        )
-    )
-
-
-def load_safety_interval(controllers_file):
-    with controllers_file.open("r", encoding="utf-8") as file:
-        controller_configuration = yaml.safe_load(file)
-    return float(
-        get_controller_manager_parameter(
-            controller_configuration, "physics_sync_safety_interval"
-        )
-    )
-
-
-def load_extra_wait_time(controllers_file):
-    with controllers_file.open("r", encoding="utf-8") as file:
-        controller_configuration = yaml.safe_load(file)
-    return int(
-        get_controller_manager_parameter(
-            controller_configuration, "extra_wait_time"
-        )
-    )
-
-
 def generate_launch_description():
     mujoco_start_delay = LaunchConfiguration("mujoco_start_delay")
     mujoco_model_path = "mujoco_model/scene.xml"
@@ -67,9 +30,6 @@ def generate_launch_description():
         / "config"
         / "controllers.yaml"
     )
-    write_frequency = load_write_frequency(controllers_file)
-    safety_interval = load_safety_interval(controllers_file)
-    extra_wait_time = load_extra_wait_time(controllers_file)
 
     robot_description_content = ParameterValue(
         Command([
@@ -79,12 +39,6 @@ def generate_launch_description():
                 "urdf",
                 "full_robot.xacro",
             ]),
-            " write_frequency:=",
-            str(write_frequency),
-            " physics_sync_safety_interval:=",
-            str(safety_interval),
-            " extra_wait_time:=",
-            str(extra_wait_time),
         ]),
         value_type=str,
     )
@@ -137,8 +91,6 @@ def generate_launch_description():
         period=mujoco_start_delay,
         actions=[mujoco_ros2_control_node],
     )
-
-    print(f"Launching MuJoCo with extra_wait_time={extra_wait_time} ms")
 
     return LaunchDescription([
         declare_mujoco_start_delay,

@@ -1,8 +1,5 @@
 controller_manager:
   ros__parameters:
-    write_frequency: 100
-    physics_sync_safety_interval: 3
-    extra_wait_time: 10  # milliseconds of wall-clock time
     use_sim_time: true
     required_active_controllers:
       - joint_state_broadcaster
