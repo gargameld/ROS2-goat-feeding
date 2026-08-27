@@ -26,3 +26,7 @@
         throw_food_height: 0.5
         # Number of parking areas addressable by the throw_food service (1..N).
         parking_count: 4
+      lock_robot_base:
+        type: "mujoco_ros2_control_plugins/LockRobotBasePlugin"
+        # Name of the MJCF body carrying the base free joint that lock_base pins.
+        body_name: "chassis"

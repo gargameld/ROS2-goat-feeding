@@ -10,7 +10,7 @@ from grasp_pose_interface.action import ProvideGraspPose
 from nav2_msgs.action import NavigateToPose
 from rclpy.action import ActionClient
 from rclpy.task import Future
-from std_srvs.srv import Empty
+from std_srvs.srv import Empty, Trigger
 
 
 Handler = Callable[[Any], None]
@@ -25,6 +25,8 @@ GRIPPER_MAX_EFFORT = 5.0
 LIFT_DISTANCE_METERS = 0.1
 LIFT_GRIPPER = 'lift_gripper'
 LIFT_GRIPPER_ACTION = '/lift_gripper'
+LOCK_BASE = 'lock_base'
+LOCK_BASE_SERVICE = '/lock_robot_base/lock_base'
 MOVE_ARM_TO_HOME = 'move_arm_to_home'
 MOVE_ARM_TO_HOME_ACTION = '/move_arm_to_home_pose'
 MOVE_ARM_TO_POSE = 'move_arm_to_pose'
@@ -37,6 +39,8 @@ OPENED_GRIPPER_POSITION = 0.0
 PROVIDE_GRASP_POSE = 'provide_grasp_pose'
 PROVIDE_GRASP_POSE_ACTION = '/provide_grasp_pose'
 READINESS_POLL_PERIOD_SECONDS = 0.1
+UNLOCK_BASE = 'unlock_base'
+UNLOCK_BASE_SERVICE = '/lock_robot_base/unlock_base'
 
 
 @dataclass
@@ -109,6 +113,16 @@ class BehaviorClient:
             CLEAR_OCTOMAP,
             Empty,
             CLEAR_OCTOMAP_SERVICE,
+        )
+        self.register_service(
+            LOCK_BASE,
+            Trigger,
+            LOCK_BASE_SERVICE,
+        )
+        self.register_service(
+            UNLOCK_BASE,
+            Trigger,
+            UNLOCK_BASE_SERVICE,
         )
 
     def move_arm_to_home(
@@ -269,6 +283,24 @@ class BehaviorClient:
         """Drop every occupied voxel from the move_group octomap."""
         self.set_service_handler(CLEAR_OCTOMAP, response_handler)
         return self.invoke_service(CLEAR_OCTOMAP, Empty.Request())
+
+    def lock_base(
+        self,
+        *,
+        response_handler: Optional[Handler] = None,
+    ):
+        """Pin the simulated chassis to its current pose."""
+        self.set_service_handler(LOCK_BASE, response_handler)
+        return self.invoke_service(LOCK_BASE, Trigger.Request())
+
+    def unlock_base(
+        self,
+        *,
+        response_handler: Optional[Handler] = None,
+    ):
+        """Release the simulated chassis back to physics control."""
+        self.set_service_handler(UNLOCK_BASE, response_handler)
+        return self.invoke_service(UNLOCK_BASE, Trigger.Request())
 
     def register_action(
         self,

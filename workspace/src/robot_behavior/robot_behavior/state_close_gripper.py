@@ -58,4 +58,18 @@ class StateCloseGripper(BaseState):
 
     def _handle_octomap_cleared(self, _response) -> None:
         self.logger.info('Octomap cleared')
+        # The base has been pinned since findGraspPose so the grasp pose stayed
+        # valid. The food is held now, so the chassis can drive again.
+        self.logger.info('Unlocking the robot base')
+        self.behavior_client.unlock_base(
+            response_handler=self._handle_base_unlocked,
+        )
+
+    def _handle_base_unlocked(self, response) -> None:
+        if not response.success:
+            self.logger.warning(
+                f'Failed to unlock the robot base: {response.message}'
+            )
+        else:
+            self.logger.info('Robot base unlocked')
         self.request_state_transition('attachObjectToGripper')

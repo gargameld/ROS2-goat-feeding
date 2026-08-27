@@ -18,6 +18,7 @@
  */
 
 #include "mujoco_ros2_control/sensors/mujoco_cameras.hpp"
+#include "mujoco_ros2_control/hardware_parameters.hpp"
 #include "mujoco_ros2_control/sensors/sensor_info.hpp"
 
 #include <sensor_msgs/point_cloud2_iterator.hpp>
@@ -31,11 +32,11 @@ using namespace std::chrono_literals;
 namespace mujoco_ros2_control
 {
 
-MujocoCameras::MujocoCameras(rclcpp::Node::SharedPtr node, const MujocoSimulation& simulation,
+MujocoCameras::MujocoCameras(rclcpp::Node::SharedPtr node, const MujocoSimulationClock& simulation_clock,
                              std::recursive_mutex* sim_mutex, mjData* mujoco_data, mjModel* mujoco_model,
                              double camera_publish_rate)
   : node_(node)
-  , simulation_clock_(simulation)
+  , simulation_clock_(simulation_clock)
   , sim_mutex_(sim_mutex)
   , mj_data_(mujoco_data)
   , mj_model_(mujoco_model)
@@ -86,11 +87,13 @@ void MujocoCameras::read_camera_hardware_parameters(CameraData& camera,
   }
 
   const auto& camera_info = camera_info_maybe.value();
-  camera.frame_name = camera_info.parameters.at("frame_name");
-  const auto pointcloud_topic = camera_info.parameters.find("pointcloud_topic");
-  if (pointcloud_topic != camera_info.parameters.end())
+  const HardwareParameters camera_parameters(camera_info);
+  camera.frame_name = camera_parameters.get_string("frame_name");
+
+  const auto pointcloud_topic = camera_parameters.find("pointcloud_topic");
+  if (pointcloud_topic.has_value())
   {
-    camera.pointcloud_topic = pointcloud_topic->second;
+    camera.pointcloud_topic = pointcloud_topic.value();
     return;
   }
 
@@ -309,7 +312,7 @@ void MujocoCameras::update_loop()
   while (rclcpp::ok() && publish_images_)
   {
     update();
-    simulation_clock_.sleep(publish_period, publish_images_);
+    simulation_clock_.sleep_until(last_update_sim_time_ + publish_period, publish_images_);
   }
 
   mjv_freeScene(&mjv_scn_);
@@ -327,9 +330,11 @@ void MujocoCameras::update()
   mjr_setBuffer(mjFB_OFFSCREEN, &mjr_con_);
 
   // Step 1: Lock the sim and copy data for use in all camera rendering.
+  mjtNum snapshot_time = 0.0;
   {
     std::unique_lock<std::recursive_mutex> lock(*sim_mutex_);
     mjv_copyData(mj_camera_data_, mj_model_, mj_data_);
+    snapshot_time = mj_data_->time;
   }
 
   // Step 2: Render the scene and copy depth data to camera containers.
@@ -387,6 +392,12 @@ void MujocoCameras::update()
                          camera.pointcloud_message.width * camera.pointcloud_message.height,
                          camera.pointcloud_pub->get_subscription_count());
   }
+
+  // Step 5: Report how far the cameras have gotten, so the physics loop can avoid running
+  // arbitrarily far ahead of the point clouds. The snapshot time from Step 1 is the simulation
+  // time these clouds actually describe.
+  last_update_sim_time_ = snapshot_time;
+  simulation_clock_.set_last_camera_update_time(snapshot_time);
 }
 
 }  // namespace mujoco_ros2_control

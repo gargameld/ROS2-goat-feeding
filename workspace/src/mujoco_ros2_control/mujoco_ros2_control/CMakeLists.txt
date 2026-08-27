@@ -144,6 +144,8 @@ endif()
 
 # MuJoCo ROS 2 control system interface (this package)
 add_library(mujoco_ros2_control SHARED
+    # shared: typed access to the ros2_control <param> key-value pairs
+    src/hardware_parameters.cpp
     # ros2_control system interface: bridges the URDF/ros2_control model to MuJoCo
     src/mujoco_system_interface.cpp
     src/system_interface/simulation_configuration.cpp

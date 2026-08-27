@@ -14,6 +14,7 @@ find_package(realtime_tools REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(mujoco_ros2_control_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 
 # Attempt to link MuJoCo via the vendor package, if available
 find_package(mujoco_vendor QUIET)
@@ -30,6 +31,7 @@ endif()
 add_library(mujoco_ros2_control_plugins SHARED
   src/mujoco_3d_lidar_plugin.cpp
   src/state_capture_plugin.cpp
+  src/lock_robot_base_plugin.cpp
   # simulation management plugin and the model-editing classes it drives
   src/simulation_management/simulation_management_plugin.cpp
   src/simulation_management/obstacle_management.cpp
@@ -51,6 +53,7 @@ target_link_libraries(mujoco_ros2_control_plugins PUBLIC
   ${geometry_msgs_TARGETS}
   ${sensor_msgs_TARGETS}
   ${mujoco_ros2_control_msgs_TARGETS}
+  ${std_srvs_TARGETS}
 )
 # Install the plugin library
 install(TARGETS mujoco_ros2_control_plugins
@@ -82,6 +85,7 @@ ament_export_dependencies(
   geometry_msgs
   sensor_msgs
   mujoco_ros2_control_msgs
+  std_srvs
   ros2_control_cmake
 )
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)

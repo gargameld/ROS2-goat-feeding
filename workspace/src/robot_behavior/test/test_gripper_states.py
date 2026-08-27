@@ -20,6 +20,9 @@ class FakeLogger:
     def debug(self, _message):
         pass
 
+    def warning(self, _message):
+        pass
+
     def error(self, _message):
         pass
 
@@ -40,6 +43,7 @@ class FakeBehaviorClient:
         self.open_handlers = None
         self.lift_handlers = None
         self.clear_octomap_handlers = None
+        self.unlock_base_handlers = None
 
     def close_gripper(self, **handlers):
         self.close_handlers = handlers
@@ -52,6 +56,9 @@ class FakeBehaviorClient:
 
     def clear_octomap(self, **handlers):
         self.clear_octomap_handlers = handlers
+
+    def unlock_base(self, **handlers):
+        self.unlock_base_handlers = handlers
 
 
 def test_close_gripper_marks_the_object_gripped_and_clears_the_octomap():
@@ -69,6 +76,10 @@ def test_close_gripper_marks_the_object_gripped_and_clears_the_octomap():
     assert shared_data.object_gripped is True
     assert transitions == []
     client.clear_octomap_handlers['response_handler'](SimpleNamespace())
+    assert transitions == []
+    client.unlock_base_handlers['response_handler'](
+        SimpleNamespace(success=True, message='')
+    )
     assert transitions == ['attachObjectToGripper']
 
 
@@ -86,6 +97,10 @@ def test_close_gripper_accepts_a_stall_as_a_successful_grip():
 
     assert shared_data.object_gripped is True
     client.clear_octomap_handlers['response_handler'](SimpleNamespace())
+    assert transitions == []
+    client.unlock_base_handlers['response_handler'](
+        SimpleNamespace(success=True, message='')
+    )
     assert transitions == ['attachObjectToGripper']
 
 

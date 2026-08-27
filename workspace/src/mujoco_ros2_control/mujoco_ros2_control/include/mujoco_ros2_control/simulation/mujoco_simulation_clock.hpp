@@ -10,6 +10,8 @@
 #pragma once
 
 #include <atomic>
+#include <mutex>
+#include <optional>
 
 #include <mujoco/mujoco.h>
 #include <rclcpp/node.hpp>
@@ -40,8 +42,27 @@ public:
    */
   bool sleep(mjtNum duration, const std::atomic_bool& keep_sleeping) const;
 
+  /**
+   * @brief Waits until the simulation reaches @p wake_time while @p keep_sleeping remains true.
+   * @return True if the simulation reached @p wake_time; false if interrupted.
+   */
+  bool sleep_until(mjtNum wake_time, const std::atomic_bool& keep_sleeping) const;
+
+  /** @brief Records the simulation time the cameras just finished rendering. */
+  void set_last_camera_update_time(mjtNum simulation_time) const;
+
+  /**
+   * @brief Returns the simulation time of the last completed camera update.
+   * @return The simulation time, or nullopt if no camera update has completed yet.
+   */
+  std::optional<mjtNum> get_last_camera_update_time() const;
+
 private:
   const MujocoSimulation& simulation_;
+
+  // Consumers of the clock hold it by const reference, hence the mutable state.
+  mutable std::mutex camera_update_time_mutex_;
+  mutable std::optional<mjtNum> last_camera_update_time_;
 };
 
 /**

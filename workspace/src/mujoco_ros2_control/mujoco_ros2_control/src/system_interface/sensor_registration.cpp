@@ -11,6 +11,7 @@
 
 #include <rclcpp/rclcpp.hpp>
 
+#include "mujoco_ros2_control/hardware_parameters.hpp"
 #include "mujoco_ros2_control/system_interface/imu_sensor_setup.hpp"
 
 namespace mujoco_ros2_control
@@ -25,24 +26,19 @@ void register_sensors(const hardware_interface::HardwareInfo& hardware_info, con
     auto sensor = hardware_info.sensors.at(sensor_index);
     const std::string sensor_name = sensor.name;
 
-    if (sensor.parameters.count("mujoco_type") == 0)
+    const HardwareParameters sensor_parameters(sensor);
+
+    const auto mujoco_type_maybe = sensor_parameters.find("mujoco_type");
+    if (!mujoco_type_maybe.has_value())
     {
       RCLCPP_INFO(logger, "Not adding hardware interface for sensor in ros2_control xacro: '%s'", sensor_name.c_str());
       continue;
     }
-    const auto mujoco_type = sensor.parameters.at("mujoco_type");
+    const auto mujoco_type = mujoco_type_maybe.value();
 
     // If there is a specific sensor name provided we use that, otherwise we assume the MuJoCo model's
     // sensor is named identically to the ros2_control hardware interface's.
-    std::string mujoco_sensor_name;
-    if (sensor.parameters.count("mujoco_sensor_name") == 0)
-    {
-      mujoco_sensor_name = sensor_name;
-    }
-    else
-    {
-      mujoco_sensor_name = sensor.parameters.at("mujoco_sensor_name");
-    }
+    const std::string mujoco_sensor_name = sensor_parameters.get_string("mujoco_sensor_name", sensor_name);
 
     RCLCPP_INFO(logger, "Adding sensor named: '%s', of type: '%s', mapping to the MJCF sensor: '%s'",
                 sensor_name.c_str(), mujoco_type.c_str(), mujoco_sensor_name.c_str());

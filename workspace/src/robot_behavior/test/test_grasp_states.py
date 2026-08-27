@@ -40,6 +40,10 @@ class FakeBehaviorClient:
         self.node = FakeNode()
         self.grasp_handlers = None
         self.move_request = None
+        self.lock_base_handlers = None
+
+    def lock_base(self, **handlers):
+        self.lock_base_handlers = handlers
 
     def provide_grasp_pose(self, **handlers):
         self.grasp_handlers = handlers
@@ -61,6 +65,10 @@ def test_find_grasp_pose_stores_result_and_transitions_to_arm_motion(
 
     state.on_entry()
     assert sleep_calls == [20]
+    assert client.grasp_handlers is None
+    client.lock_base_handlers['response_handler'](
+        SimpleNamespace(success=True, message='')
+    )
     pose = Pose()
     pose.position.x = 1.2
     client.grasp_handlers['result_handler'](
@@ -88,10 +96,35 @@ def test_find_grasp_pose_finishes_null_when_food_is_not_found(monkeypatch):
     )
 
     state.on_entry()
+    client.lock_base_handlers['response_handler'](
+        SimpleNamespace(success=True, message='')
+    )
     client.grasp_handlers['result_handler'](
         SimpleNamespace(food_found=False)
     )
 
+    assert transitions == [None]
+
+
+def test_find_grasp_pose_finishes_null_when_the_base_cannot_be_locked(
+    monkeypatch,
+):
+    """An unpinned base would invalidate the grasp, so the chain ends."""
+    monkeypatch.setattr(find_grasp_pose_module.time, 'sleep', lambda _seconds: None)
+    transitions = []
+    client = FakeBehaviorClient()
+    state = StateFindGraspPose(
+        client,
+        transitions.append,
+        SharedStateData(),
+    )
+
+    state.on_entry()
+    client.lock_base_handlers['response_handler'](
+        SimpleNamespace(success=False, message='no free joint')
+    )
+
+    assert client.grasp_handlers is None
     assert transitions == [None]
 
 

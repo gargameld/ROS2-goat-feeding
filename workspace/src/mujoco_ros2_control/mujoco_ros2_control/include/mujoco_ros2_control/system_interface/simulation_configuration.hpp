@@ -25,12 +25,6 @@ struct SimulationConfiguration
 };
 
 /**
- * @brief Look up one `<param>` from the ros2_control `<hardware>` block.
- */
-std::optional<std::string> get_hardware_parameter(const hardware_interface::HardwareInfo& hardware_info,
-                                                  const std::string& key);
-
-/**
  * @brief Read the simulation settings out of the hardware parameters.
  * @return std::nullopt when `mujoco_model` names a file that does not exist.
  */

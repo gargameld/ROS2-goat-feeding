@@ -98,7 +98,7 @@
 	  lower="0"
       upper="0.725"
       velocity="2.0"
-      effort="1000" />
+      effort="10000" />
   </joint>
   <link
     name="left_outer_finger">
@@ -209,7 +209,7 @@
       lower="0"
       upper="0.8757"
       velocity="2.0"
-      effort="1000" />
+      effort="10000" />
     <mimic 
       joint="finger_joint"
       multiplier="1"
@@ -271,7 +271,7 @@
       lower="0"
       upper="0.8757"
       velocity="2.0"
-      effort="1000" />
+      effort="10000" />
     <mimic 
       joint="finger_joint"
       multiplier="-1"
@@ -333,7 +333,7 @@
       lower="0"
       upper="0.8757"
       velocity="2.0"
-      effort="1000" />
+      effort="10000" />
     <mimic 
       joint="finger_joint"
       multiplier="-1"
@@ -395,7 +395,7 @@
       lower="0"
       upper="0.8757"
       velocity="2.0"
-      effort="1000" />
+      effort="10000" />
     <mimic 
       joint="finger_joint"
       multiplier="1"
@@ -457,7 +457,7 @@
       lower="0"
       upper="0.8757"
       velocity="2.0"
-      effort="1000" />
+      effort="10000" />
     <mimic 
       joint="finger_joint"
       multiplier="-1"

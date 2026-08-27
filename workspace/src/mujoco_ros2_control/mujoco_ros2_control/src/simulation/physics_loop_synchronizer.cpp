@@ -18,14 +18,12 @@
  */
 
 #include "mujoco_ros2_control/simulation/physics_loop_synchronizer.hpp"
+#include "mujoco_ros2_control/hardware_parameters.hpp"
 #include "mujoco_ros2_control/simulation/mujoco_simulation.hpp"
 
 #include <cerrno>
 #include <chrono>
-#include <cmath>
 #include <cstring>
-#include <limits>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <sys/resource.h>
@@ -37,86 +35,9 @@ namespace mujoco_ros2_control
 namespace
 {
 
-unsigned int extract_write_rate(const hardware_interface::HardwareInfo& hardware_info,
-                                const std::string& parameter_name)
-{
-  const auto parameter = hardware_info.hardware_parameters.find(parameter_name);
-  if (parameter == hardware_info.hardware_parameters.end())
-  {
-    throw std::invalid_argument("Missing hardware parameter: " + parameter_name);
-  }
-
-  std::size_t parsed_characters = 0;
-  const unsigned long parsed_rate = std::stoul(parameter->second, &parsed_characters);
-  if (parsed_characters != parameter->second.size() || parsed_rate == 0 ||
-      parsed_rate > std::numeric_limits<unsigned int>::max())
-  {
-    throw std::invalid_argument("Hardware parameter '" + parameter_name + "' must be a positive integer");
-  }
-
-  return static_cast<unsigned int>(parsed_rate);
-}
-
-double extract_safety_interval(const hardware_interface::HardwareInfo& hardware_info)
-{
-  constexpr double default_safety_interval_seconds = 0.002;
-  const auto parameter = hardware_info.hardware_parameters.find("physics_sync_safety_interval");
-  if (parameter == hardware_info.hardware_parameters.end())
-  {
-    return default_safety_interval_seconds;
-  }
-
-  std::size_t parsed_characters = 0;
-  const double interval = std::stod(parameter->second, &parsed_characters);
-  if (parsed_characters != parameter->second.size() || !std::isfinite(interval) || interval < 0.0)
-  {
-    throw std::invalid_argument("Hardware parameter 'physics_sync_safety_interval' must be non-negative");
-  }
-  return interval;
-}
-
-std::vector<std::string> extract_required_controller_names(
-  const hardware_interface::HardwareInfo& hardware_info)
-{
-  const auto parameter = hardware_info.hardware_parameters.find("required_active_controllers");
-  if (parameter == hardware_info.hardware_parameters.end() || parameter->second.empty())
-  {
-    throw std::invalid_argument("Missing hardware parameter: required_active_controllers");
-  }
-
-  std::vector<std::string> controller_names;
-  std::istringstream names(parameter->second);
-  std::string controller_name;
-  while (std::getline(names, controller_name, ','))
-  {
-    if (controller_name.empty())
-    {
-      throw std::invalid_argument("Hardware parameter 'required_active_controllers' contains an empty name");
-    }
-    controller_names.push_back(controller_name);
-  }
-  return controller_names;
-}
-
-std::chrono::duration<double, std::milli> extract_extra_wait_time(
-  const hardware_interface::HardwareInfo& hardware_info)
-{
-  constexpr auto default_extra_wait_time = std::chrono::duration<double, std::milli>{ 0.0 };
-  const auto parameter = hardware_info.hardware_parameters.find("extra_wait_time");
-  if (parameter == hardware_info.hardware_parameters.end())
-  {
-    return default_extra_wait_time;
-  }
-
-  std::size_t parsed_characters = 0;
-  const double milliseconds = std::stod(parameter->second, &parsed_characters);
-  if (parsed_characters != parameter->second.size() || !std::isfinite(milliseconds) || milliseconds < 0.0)
-  {
-    throw std::invalid_argument("Hardware parameter 'extra_wait_time' must be a non-negative number of milliseconds");
-  }
-
-  return std::chrono::duration<double, std::milli>{ milliseconds };
-}
+constexpr double default_safety_interval_seconds = 0.002;
+constexpr double default_max_camera_lag_seconds = 1.0;
+constexpr double default_extra_wait_time_milliseconds = 0.0;
 
 void set_current_thread_to_low_priority()
 {
@@ -133,13 +54,25 @@ PhysicsLoopSynchronizer::PhysicsLoopSynchronizer(MujocoSimulation* simulation,
                                                  const rclcpp::Time* last_ros_write_time,
                                                  std::mutex* last_ros_write_time_mutex,
                                                  const hardware_interface::HardwareInfo& hardware_info)
+  : PhysicsLoopSynchronizer(simulation, last_ros_write_time, last_ros_write_time_mutex,
+                            HardwareParameters(hardware_info))
+{
+}
+
+PhysicsLoopSynchronizer::PhysicsLoopSynchronizer(MujocoSimulation* simulation,
+                                                 const rclcpp::Time* last_ros_write_time,
+                                                 std::mutex* last_ros_write_time_mutex,
+                                                 const HardwareParameters& parameters)
   : simulation_(simulation),
     last_ros_write_time_(last_ros_write_time),
     last_ros_write_time_mutex_(last_ros_write_time_mutex),
-    write_period_seconds_(1.0 / static_cast<double>(extract_write_rate(hardware_info, "write_frequency"))),
-    safety_time_interval_seconds_(extract_safety_interval(hardware_info)),
-    extra_wait_time_(extract_extra_wait_time(hardware_info)),
-    required_controller_names_(extract_required_controller_names(hardware_info))
+    write_period_seconds_(1.0 / static_cast<double>(parameters.get_positive_unsigned("write_frequency"))),
+    safety_time_interval_seconds_(
+        parameters.get_non_negative_double("physics_sync_safety_interval", default_safety_interval_seconds)),
+    max_camera_lag_seconds_(parameters.get_non_negative_double("max_camera_lag", default_max_camera_lag_seconds)),
+    extra_wait_time_(
+        parameters.get_non_negative_double("extra_wait_time", default_extra_wait_time_milliseconds)),
+    required_controller_names_(parameters.get_string_list("required_active_controllers"))
 {
   if (!simulation_ || !last_ros_write_time_ || !last_ros_write_time_mutex_)
   {
@@ -157,13 +90,7 @@ PhysicsLoopSynchronizer::PhysicsLoopSynchronizer(MujocoSimulation* simulation,
   expected_write_time_thread_ =
       std::thread(&PhysicsLoopSynchronizer::update_expected_write_time_loop, this);
 
-  for (const auto& [key, value] : hardware_info.hardware_parameters)
-  {
-    RCLCPP_INFO(
-      rclcpp::get_logger("PhysicsLoopSynchronizer"),
-      "hardware parameter: '%s' = '%s'",
-      key.c_str(), value.c_str());
-  }
+  parameters.log_all(rclcpp::get_logger("PhysicsLoopSynchronizer"));
 }
 
 PhysicsLoopSynchronizer::~PhysicsLoopSynchronizer()
@@ -219,6 +146,13 @@ void PhysicsLoopSynchronizer::sync_physics_loop() const
 
   std::this_thread::sleep_for(extra_wait_time_);
 
+  wait_for_cameras_to_catch_up();
+
+  if (simulation_->exit_requested())
+  {
+    return;
+  }
+
   const double current_simulation_time = simulation_->simulation_time();
 
   while (!simulation_->exit_requested())
@@ -241,6 +175,26 @@ void PhysicsLoopSynchronizer::sync_physics_loop() const
     }
 
     std::this_thread::yield();
+  }
+}
+
+void PhysicsLoopSynchronizer::wait_for_cameras_to_catch_up() const
+{
+  // Rendering is far slower than physics, so the cameras fall behind unless the simulation
+  // waits for them. Nothing happens until the first point cloud has been produced: if camera
+  // rendering never starts, the physics loop must not stall on it.
+  while (!simulation_->exit_requested())
+  {
+    const auto last_camera_update_time = simulation_->clock().get_last_camera_update_time();
+    if (!last_camera_update_time.has_value() ||
+        simulation_->simulation_time() - *last_camera_update_time <= max_camera_lag_seconds_)
+    {
+      return;
+    }
+
+    // Polling instead of yielding: simulation_time() takes the simulation mutex, and the
+    // camera thread needs that same mutex to grab its next snapshot.
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
 }
 

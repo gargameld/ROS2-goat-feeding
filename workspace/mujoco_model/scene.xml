@@ -234,8 +234,8 @@
 
   <!-- Native tendon-position servo for gripper_controllers. -->
   <actuator>
-    <position class="2f85" name="finger_joint" tendon="finger_joint" kp="100" dampratio="1"
-      ctrllimited="true" ctrlrange="0 0.725" forcelimited="true" forcerange="-5 5"/>
+    <position class="2f85" name="finger_joint" tendon="finger_joint" kp="500" dampratio="1"
+      ctrllimited="true" ctrlrange="0 0.725" forcelimited="true" forcerange="-100 100"/>
   </actuator>
 
 

@@ -23,4 +23,12 @@
       state service and an mjSpec-based service for resizing and moving a managed floor box.
     </description>
   </class>
+  <class name="mujoco_ros2_control_plugins/LockRobotBasePlugin"
+         type="mujoco_ros2_control_plugins::LockRobotBasePlugin"
+         base_class_type="mujoco_ros2_control_plugins::MuJoCoROS2ControlPluginBase">
+    <description>
+      Offers lock_base and unlock_base services that pin the free-floating robot base to the
+      pose it held when the lock service was called.
+    </description>
+  </class>
 </library>

@@ -27,6 +27,8 @@
 #include <thread>
 #include <vector>
 
+#include "mujoco_ros2_control/hardware_parameters.hpp"
+
 #include <controller_manager_msgs/srv/list_controllers.hpp>
 #include <hardware_interface/hardware_info.hpp>
 #include <rclcpp/executors/single_threaded_executor.hpp>
@@ -63,6 +65,18 @@ public:
   void sync_physics_loop() const;
 
 private:
+  /**
+   * @brief Delegated-to constructor that reads the settings out of @p parameters.
+   */
+  PhysicsLoopSynchronizer(MujocoSimulation* simulation, const rclcpp::Time* last_ros_write_time,
+                          std::mutex* last_ros_write_time_mutex, const HardwareParameters& parameters);
+
+  /**
+   * @brief Yield until the cameras are no longer more than `max_camera_lag` seconds of
+   * simulation time behind the simulation.
+   */
+  void wait_for_cameras_to_catch_up() const;
+
   bool all_controllers_are_active() const;
   void initialize_physics_sync_node();
   void request_controller_states();
@@ -74,6 +88,7 @@ private:
 
   const double write_period_seconds_;
   const double safety_time_interval_seconds_;
+  const double max_camera_lag_seconds_;
   const std::chrono::duration<double, std::milli> extra_wait_time_;
   const std::vector<std::string> required_controller_names_;
 

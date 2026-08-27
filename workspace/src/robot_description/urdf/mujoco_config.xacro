@@ -12,6 +12,9 @@
         <param name="required_active_controllers">joint_state_broadcaster,imu_sensor_broadcaster,mecanum_drive_controller,arm_trajectory_controller,gripper_controller</param>
         <!-- All MuJoCo camera streams are rendered and published at this rate. -->
         <param name="camera_publish_rate">1.0</param>
+        <!-- Physics waits once it is this far (in simulation seconds) ahead of the last
+             published point cloud. Must be at least 1 / camera_publish_rate. -->
+        <param name="max_camera_lag">1.0</param>
       </hardware>
 
       <!-- Four Wheel Joints -->

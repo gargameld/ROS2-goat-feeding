@@ -148,6 +148,14 @@ public:
   mjtNum simulation_time() const;
 
   /**
+   * @brief Accessor for the clock shared by every consumer of simulation time.
+   */
+  const MujocoSimulationClock& clock() const
+  {
+    return simulation_clock_;
+  }
+
+  /**
    * @brief Return whether shutdown has been requested for the simulation.
    */
   bool exit_requested() const;
@@ -227,6 +235,10 @@ private:
   //       in a common location rather than passing around the raw pointer to the mutex, but it would
   //       require more work to pull it out of simulate.h.
   std::recursive_mutex* sim_mutex_{ nullptr };
+
+  // Simulation-time reads, waits, and the camera update time shared between the rendering
+  // thread and the physics loop.
+  MujocoSimulationClock simulation_clock_{ *this };
 
 };
 

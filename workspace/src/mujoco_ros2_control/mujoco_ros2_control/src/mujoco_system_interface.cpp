@@ -120,38 +120,11 @@ MujocoSystemInterface::on_init(const hardware_interface::HardwareComponentInterf
                        joint_hw_info_, get_logger());
   register_sensors(get_hardware_info(), simulation_->model(), sensors_hw_info_, imu_sensor_data_, get_logger());
 
-  // Seed the simulation with the URDF's initial joint values, then publish that state to the
-  // controller-facing data so the first read() observes it.
-  apply_initial_joint_commands(urdf_joint_data_, mujoco_actuator_data_);
-  apply_initial_pose(mujoco_actuator_data_, simulation_->data(), get_logger());
-  simulation_->sync_control_data();
-
   // Ready cameras
   RCLCPP_INFO(get_logger(), "Initializing cameras...");
-  cameras_ = std::make_unique<MujocoCameras>(get_node(), *simulation_, &simulation_->mutex(), simulation_->data(),
+  cameras_ = std::make_unique<MujocoCameras>(get_node(), simulation_->clock(), &simulation_->mutex(), simulation_->data(),
                                              simulation_->model(), simulation_configuration->camera_publish_rate);
   cameras_->register_cameras(get_hardware_info());
-
-  // Verify the update rate
-  const mjtNum desired_timestep = 1.0 / static_cast<double>(get_hardware_info().rw_rate);
-  const bool under_sampled = simulation_->model()->opt.timestep > desired_timestep;
-  RCLCPP_WARN_EXPRESSION(
-      get_logger(), under_sampled,
-      "MuJoCo simulator frequency %lu Hz (timestep %.6f sec) is smaller than the controller manager's update rate %lu "
-      "Hz. The simulation may be under-sampled and this means that there will be some discrepancies in the rate at "
-      "which controllers update cycles run. Either increase the MuJoCo timestep or decrease the controller manager's "
-      "update rate.",
-      static_cast<unsigned long>(1.0 / simulation_->model()->opt.timestep), simulation_->model()->opt.timestep,
-      static_cast<unsigned long>(get_hardware_info().rw_rate));
-
-  plugin_loader_.load(get_node(), simulation_->model(), simulation_->data(), simulation_->spec(),
-                      &simulation_->mutex(), get_logger());
-
-  // Start physics only after plugins are initialized so capture plugins can
-  // observe the simulation from its initial state.
-  physics_loop_synchronizer_ = std::make_unique<PhysicsLoopSynchronizer>(
-      simulation_.get(), &last_ros_write_time_, &last_ros_write_time_mutex_, get_hardware_info());
-  simulation_->start_physics_thread(physics_loop_synchronizer_.get());
 
   RCLCPP_INFO(get_logger(), "on_init complete.");
   return hardware_interface::CallbackReturn::SUCCESS;
@@ -178,9 +151,25 @@ hardware_interface::CallbackReturn MujocoSystemInterface::on_activate(const rclc
 {
   RCLCPP_INFO(get_logger(), "Activating MuJoCo hardware interface and starting Simulate threads...");
 
+  // Seed the simulation with the URDF's initial joint values, then publish that state to the
+  // controller-facing data so the first read() observes it.
+  apply_initial_joint_commands(urdf_joint_data_, mujoco_actuator_data_);
+  apply_initial_pose(mujoco_actuator_data_, simulation_->data(), get_logger());
+  simulation_->sync_control_data();
+
+  plugin_loader_.load(get_node(), simulation_->model(), simulation_->data(), simulation_->spec(),
+                      &simulation_->mutex(), get_logger());
+
+  // Start physics only after the joints are seeded and the plugins are initialized so capture
+  // plugins can observe the simulation from its initial state.
+  physics_loop_synchronizer_ = std::make_unique<PhysicsLoopSynchronizer>(
+      simulation_.get(), &last_ros_write_time_, &last_ros_write_time_mutex_, get_hardware_info());
+  simulation_->start_physics_thread(physics_loop_synchronizer_.get());
+
   // Start camera and sensor rendering loops
   cameras_->init();
 
+  RCLCPP_INFO(get_logger(), "on_activate complete.");
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 

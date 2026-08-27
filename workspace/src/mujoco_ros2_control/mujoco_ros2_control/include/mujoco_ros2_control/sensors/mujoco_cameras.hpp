@@ -75,13 +75,14 @@ public:
    * @brief Constructs a new MujocoCameras wrapper object.
    *
    * @param node Will be used to construct image publishers
-   * @param simulation Provides simulation-time scheduling for camera updates.
+   * @param simulation_clock Provides simulation-time scheduling for camera updates, and
+   *        records when the cameras last rendered.
    * @param sim_mutex Provides synchronized access to the mujoco_data object for rendering
    * @param mujoco_data MuJoCo data for the simulation
    * @param mujoco_model MuJoCo model for the simulation
    * @param camera_publish_rate The rate to publish all camera images, for now all images are published at the same rate.
    */
-  explicit MujocoCameras(rclcpp::Node::SharedPtr node, const MujocoSimulation& simulation,
+  explicit MujocoCameras(rclcpp::Node::SharedPtr node, const MujocoSimulationClock& simulation_clock,
                          std::recursive_mutex* sim_mutex, mjData* mujoco_data, mjModel* mujoco_model,
                          double camera_publish_rate);
 
@@ -154,7 +155,7 @@ private:
   void update();
 
   rclcpp::Node::SharedPtr node_;
-  MujocoSimulationClock simulation_clock_;
+  const MujocoSimulationClock& simulation_clock_;
 
   // Ensures locked access to simulation data for rendering.
   std::recursive_mutex* sim_mutex_{ nullptr };
@@ -162,6 +163,11 @@ private:
   mjData* mj_data_;
   mjModel* mj_model_;
   mjData* mj_camera_data_;
+
+  // Simulation time of the snapshot rendered by the last update, also reported to the
+  // simulation clock. The loop paces itself from this rather than from "now", so the next
+  // update is due at a time the physics loop is allowed to reach.
+  mjtNum last_update_sim_time_{ 0.0 };
 
   // Image publishing rate
   double camera_publish_rate_;

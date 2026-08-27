@@ -35,7 +35,7 @@ class StateMoveArmToHome(BaseState):
             return
 
         self.logger.error('Move-to-home goal rejected')
-        self.request_state_transition(self._next_state())
+        self.request_state_transition(None)
 
     def _handle_feedback(self, feedback) -> None:
         self.logger.debug(f'Move-to-home action state: {feedback.state}')
@@ -43,12 +43,13 @@ class StateMoveArmToHome(BaseState):
     def _handle_result(self, result) -> None:
         if result.success:
             self.logger.info('Arm moved to home pose')
-        else:
-            self.logger.error(
-                f'Failed to move arm to home pose: {result.message}'
-            )
+            self.request_state_transition(self._next_state())
+            return
 
-        self.request_state_transition(self._next_state())
+        self.logger.error(
+            f'Failed to move arm to home pose: {result.message}'
+        )
+        self.request_state_transition(None)
 
     def _next_state(self) -> str:
         """Deliver a gripped object; otherwise wait for the next request."""

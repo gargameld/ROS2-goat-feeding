@@ -11,36 +11,24 @@
 
 #include <rclcpp/rclcpp.hpp>
 
+#include "mujoco_ros2_control/hardware_parameters.hpp"
+
 namespace mujoco_ros2_control
 {
 namespace
 {
 
-std::string trim_whitespace(std::string value)
-{
-  value.erase(0, value.find_first_not_of(" \t\n\r\f\v"));
-  value.erase(value.find_last_not_of(" \t\n\r\f\v") + 1);
-  return value;
-}
+constexpr double default_camera_publish_rate_hz = 5.0;
 
 }  // namespace
-
-std::optional<std::string> get_hardware_parameter(const hardware_interface::HardwareInfo& hardware_info,
-                                                  const std::string& key)
-{
-  if (auto it = hardware_info.hardware_parameters.find(key); it != hardware_info.hardware_parameters.end())
-  {
-    return it->second;
-  }
-  return std::nullopt;
-}
 
 std::optional<SimulationConfiguration> load_simulation_configuration(
     const hardware_interface::HardwareInfo& hardware_info, const rclcpp::Logger& logger)
 {
+  const HardwareParameters parameters(hardware_info);
   SimulationConfiguration configuration;
 
-  const auto model_path_maybe = get_hardware_parameter(hardware_info, "mujoco_model");
+  const auto model_path_maybe = parameters.find("mujoco_model");
   if (!model_path_maybe.has_value())
   {
     RCLCPP_INFO(logger, "Parameter 'mujoco_model' not found in URDF.");
@@ -48,7 +36,7 @@ std::optional<SimulationConfiguration> load_simulation_configuration(
   }
   else
   {
-    configuration.model_path = trim_whitespace(model_path_maybe.value());
+    configuration.model_path = model_path_maybe.value();
     const std::filesystem::path path_to_file(configuration.model_path);
     if (!std::filesystem::exists(path_to_file))
     {
@@ -59,7 +47,7 @@ std::optional<SimulationConfiguration> load_simulation_configuration(
   }
 
   configuration.camera_publish_rate =
-      std::stod(get_hardware_parameter(hardware_info, "camera_publish_rate").value_or("5.0"));
+      parameters.get_positive_double("camera_publish_rate", default_camera_publish_rate_hz);
 
   return configuration;
 }
