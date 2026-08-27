@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mujocoinclude>
+  
+  <position name="shoulder_pan" joint="arm_shoulder_pan_joint" kp="400" dampratio="1" ctrllimited="true" ctrlrange="-6.283185307179586 6.283185307179586" forcelimited="true" forcerange="-300 300" />
+  <position name="shoulder_lift" joint="arm_shoulder_lift_joint" kp="8000" dampratio="1" ctrllimited="true" ctrlrange="-6.283185307179586 6.283185307179586" forcelimited="true" forcerange="-1200 1200" />
+  <position name="elbow" joint="arm_elbow_joint" kp="4000" dampratio="1" ctrllimited="true" ctrlrange="-3.141592653589793 3.141592653589793" forcelimited="true" forcerange="-800 800" />
+  <position name="wrist_1" joint="arm_wrist_1_joint" kp="600" dampratio="1" ctrllimited="true" ctrlrange="-6.283185307179586 6.283185307179586" forcelimited="true" forcerange="-120 120" />
+  <position name="wrist_2" joint="arm_wrist_2_joint" kp="300" dampratio="1" ctrllimited="true" ctrlrange="-6.283185307179586 6.283185307179586" forcelimited="true" forcerange="-80 80" />
+  <position name="wrist_3" joint="arm_wrist_3_joint" kp="300" dampratio="1" ctrllimited="true" ctrlrange="-6.283185307179586 6.283185307179586" forcelimited="true" forcerange="-80 80" />
+</mujocoinclude>

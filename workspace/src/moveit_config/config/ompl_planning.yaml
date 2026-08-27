@@ -20,7 +20,7 @@ planner_configs:
     # jump, so the connection almost always lands in collision. A smaller range
     # takes shorter, more deliberate steps that can thread the passage -- slower
     # per iteration, which the larger planning-time budget below pays for.
-    range: 2
+    range: 1
   RRT:
     type: geometric::RRT
     range: 1.2

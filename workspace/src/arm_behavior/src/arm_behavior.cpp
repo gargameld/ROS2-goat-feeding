@@ -88,15 +88,9 @@ std::vector<std::string> ArmBehavior::defaultGripperTouchLinks()
 {
   return {
     "arm_tcp",
-    "robotiq_85_base_link",
-    "left_inner_finger",
-    "left_inner_knuckle",
-    "left_outer_finger",
-    "left_outer_knuckle",
-    "right_inner_finger",
-    "right_inner_knuckle",
-    "right_outer_finger",
-    "right_outer_knuckle"
+    "gripper_base_link",
+    "left_jaw_link",
+    "right_jaw_link"
   };
 }
 

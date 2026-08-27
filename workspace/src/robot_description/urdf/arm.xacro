@@ -24,7 +24,9 @@
   </xacro:ur_robot>
 
   <!-- TCP frame attached to the gripper base. Adjust this fixed transform
-       to locate the desired task point without moving the gripper itself. -->
+       to locate the desired task point without moving the gripper itself.
+       z = 0.045 puts it at the centre of the jaw plates, which span
+       z in [0.02, 0.07] of gripper_base_link. -->
   <link name="arm_tcp">
     <visual>
       <geometry>
@@ -35,10 +37,15 @@
       </material>
     </visual>
   </link>
-  <joint name="robotiq_85_base_to_tcp" type="fixed">
-    <parent link="robotiq_85_base_link"/>
+  <!-- arm_tcp sits on the closing centre line at the mid-height of the jaw
+       plates: they span z = 0.02 .. 0.10 above gripper_base_link, so the TCP
+       is 0.04 m above the palm face they stand on and 0.04 m short of their
+       tips. GPD poses are converted onto this frame with
+       tcp_from_finger_base = 0.04 (grasp_config_conversion.py). -->
+  <joint name="gripper_base_to_tcp" type="fixed">
+    <parent link="gripper_base_link"/>
     <child link="arm_tcp"/>
-    <origin xyz="0 0 0.1355" rpy="0 0 0"/>
+    <origin xyz="0 0 0.06" rpy="0 0 0"/>
   </joint>
 
 </robot>

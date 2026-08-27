@@ -14,19 +14,6 @@
     <global realtime="0.1"/>
   </visual>
   <asset>
-    <material name="metal" rgba="0.58 0.58 0.58 1"/>
-    <material name="silicone" rgba="0.1882 0.1882 0.1882 1"/>
-    <material name="gray" rgba="0.4627 0.4627 0.4627 1"/>
-    <material name="black" rgba="0.149 0.149 0.149 1"/>
-
-    <mesh class="2f85" file="robotiq_2f85/assets/base_mount.stl"/>
-    <mesh class="2f85" file="robotiq_2f85/assets/base.stl"/>
-    <mesh class="2f85" file="robotiq_2f85/assets/driver.stl"/>
-    <mesh class="2f85" file="robotiq_2f85/assets/coupler.stl"/>
-    <mesh class="2f85" file="robotiq_2f85/assets/follower.stl"/>
-    <mesh class="2f85" file="robotiq_2f85/assets/pad.stl"/>
-    <mesh class="2f85" file="robotiq_2f85/assets/silicone_pad.stl"/>
-    <mesh class="2f85" file="robotiq_2f85/assets/spring_link.stl"/>
     <texture name="skybox" type="skybox" builtin="gradient" rgb1="0.62 0.78 0.95" rgb2="0.93 0.97 1" width="512" height="512"/>
     <texture name="tex_floor_grid" type="2d" builtin="checker" rgb1="0.72 0.76 0.78" rgb2="0.42 0.46 0.48" width="512" height="512"/>
 
@@ -74,40 +61,6 @@
          returns while continuing to raycast environment geoms in group 0. -->
     <default class="robot">
       <geom group="1"/>
-    </default>
-
-    <default class="2f85">
-      <mesh scale="0.001 0.001 0.001"/>
-      <general biastype="affine"/>
-
-      <joint axis="1 0 0"/>
-      <default class="driver">
-        <joint range="0 45.836624" armature="0.005" damping="0.1" solimplimit="0.95 0.99 0.001" solreflimit="0.005 1"/>
-      </default>
-      <default class="follower">
-        <joint range="-49.999979 49.999979" pos="0 -0.018 0.0065" solimplimit="0.95 0.99 0.001" solreflimit="0.005 1"/>
-      </default>
-      <default class="spring_link">
-        <joint range="-17 45.836624" stiffness="0.05" springref="150.114942" damping="0.00125"/>
-      </default>
-      <default class="coupler">
-        <joint range="-89.954374 0" solimplimit="0.95 0.99 0.001" solreflimit="0.005 1"/>
-      </default>
-
-      <default class="visual">
-        <geom type="mesh" contype="0" conaffinity="0" group="2"/>
-      </default>
-      <default class="collision">
-        <geom type="mesh" group="3"/>
-        <default class="pad_box1">
-          <geom mass="0" type="box" pos="0 -0.0026 0.028125" size="0.011 0.004 0.009375" condim="6" friction="0.9 0.9 0.9"
-            solimp="0.95 0.99 0.001" solref="0.004 1" priority="1" rgba="0.55 0.55 0.55 1"/>
-        </default>
-        <default class="pad_box2">
-          <geom mass="0" type="box" pos="0 -0.0026 0.009375" size="0.011 0.004 0.009375" condim="6" friction="0.9 0.9 0.9"
-            solimp="0.95 0.99 0.001" solref="0.004 1" priority="1" rgba="0.45 0.45 0.45 1"/>
-        </default>
-      </default>
     </default>
   </default>
 
@@ -199,46 +152,27 @@
     <exclude body1="arm_base" body2="shoulder_link"/>
   </contact>
 
-
-
-
-
-    <contact>
-    <exclude body1="robotiq_base" body2="left_driver"/>
-    <exclude body1="robotiq_base" body2="right_driver"/>
-    <exclude body1="robotiq_base" body2="left_spring_link"/>
-    <exclude body1="robotiq_base" body2="right_spring_link"/>
-    <exclude body1="right_coupler" body2="right_follower"/>
-    <exclude body1="left_coupler" body2="left_follower"/>
-  </contact>
-
-  <!--
-    This adds stability to the model by having a tendon that distributes the forces between both
-    joints, such that the equality constraint doesn't have to do that much work in order to equalize
-    both joints. Since both joints share the same sign, we split the force between both equally by
-    setting coef=0.5
-  -->
-  <tendon>
-    <fixed name="finger_joint">
-      <joint joint="finger_joint" coef="0.5"/>
-      <joint joint="left_driver_joint" coef="0.5"/>
-    </fixed>
-  </tendon>
-
+  <!-- The mirror of the URDF's <mimic joint="finger_joint"> on
+       right_finger_joint (gripper.xacro): both jaws travel the same distance
+       in from their own edge of the palm plate, so the grasp stays centred on
+       the palm centre line. -->
   <equality>
-    <connect anchor="0 0 0" body1="right_follower" body2="right_coupler" solimp="0.95 0.99 0.001" solref="0.005 1"/>
-    <connect anchor="0 0 0" body1="left_follower" body2="left_coupler" solimp="0.95 0.99 0.001" solref="0.005 1"/>
-    <joint joint1="finger_joint" joint2="left_driver_joint" polycoef="0 1 0 0 0" solimp="0.95 0.99 0.001"
-      solref="0.005 1"/>
+    <joint joint1="finger_joint" joint2="right_finger_joint" polycoef="0 1 0 0 0"
+      solimp="0.95 0.99 0.001" solref="0.005 1"/>
   </equality>
 
-  <!-- Native tendon-position servo for gripper_controllers. -->
+  <!-- Native position servo for gripper_controller
+       (position_controllers/GripperActionController, joint: finger_joint).
+       mujoco_ros2_control binds the ros2_control joint to the MuJoCo actuator
+       driving the identically named joint, so this name must stay in step with
+       mujoco_config.xacro. Driving finger_joint alone is enough; the equality
+       above carries right_finger_joint along. ctrlrange spans fully open (0)
+       to the jaws meeting on the centre line (0.055) and must match the
+       finger_joint command_interface limits. -->
   <actuator>
-    <position class="2f85" name="finger_joint" tendon="finger_joint" kp="500" dampratio="1"
-      ctrllimited="true" ctrlrange="0 0.725" forcelimited="true" forcerange="-100 100"/>
+    <position name="finger_joint" joint="finger_joint" kp="50000" dampratio="1"
+      ctrllimited="true" ctrlrange="0 0.055"
+      forcelimited="true" forcerange="-10000 10000"/>
   </actuator>
 
-
-
-  
 </mujoco>

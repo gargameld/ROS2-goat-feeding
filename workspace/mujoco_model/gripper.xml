@@ -1,0 +1,46 @@
+<mujocoinclude>
+  <!-- Custom parallel-jaw gripper, the MJCF twin of
+       robot_description/urdf/gripper/gripper.xacro. Every dimension and every
+       joint name here must stay in step with that file: mujoco_ros2_control
+       binds a ros2_control <joint> to the MuJoCo actuator whose joint carries
+       the same name, so the actuated jaw joint has to be called finger_joint
+       on both sides.
+
+       The body frame is the attachment_site frame of wrist_3_link, which is
+       arm_tool0 in the URDF: +Z is the approach axis and +X is the closing
+       (binormal) axis. -->
+  <body name="gripper_base" pos="0 0.1 0" quat="-1 1 0 0">
+    <!-- Mount disc, radius = the UR5e tool flange radius, z in [0, 0.01]. -->
+    <geom name="gripper_mount_disc" type="cylinder" size="0.0315 0.005" pos="0 0 0.005"
+      mass="0.15" rgba="0.25 0.25 0.25 1"/>
+    <!-- Palm plate: 0.13 along the closing axis, 0.07 across, z in [0.01, 0.02]. -->
+    <geom name="gripper_palm" type="box" size="0.065 0.035 0.005" pos="0 0 0.015"
+      mass="0.35" rgba="0.25 0.25 0.25 1"/>
+
+    <!-- Jaw plates: 0.01 thick along the closing axis, 0.07 long, 0.08 tall,
+         sitting on the palm at z in [0.02, 0.10]. Each body is placed at its
+         fully open pose (outer face flush with its palm edge) and slides
+         inwards, so both slide joints share the same 0 .. 0.055 range and the
+         equality constraint below keeps the jaws symmetric about the palm
+         centre line.
+
+         The jaw geoms carry priority="1", so their friction wins outright over
+         whatever they grasp: high sliding, torsional and rolling coefficients
+         keep the food from slipping, twisting or rolling out of the jaws. -->
+    <body name="left_jaw" pos="0.06 0 0.06">
+      <joint name="finger_joint" type="slide" axis="-1 0 0" range="0 0.055"
+        armature="0.01" damping="5"/>
+      <geom name="left_jaw_plate" type="box" size="0.005 0.035 0.04" mass="0.05"
+        condim="6" friction="5.0 3.0 3.0" solimp="0.95 0.99 0.001" solref="0.004 1"
+        priority="1" rgba="0.55 0.55 0.55 1"/>
+    </body>
+
+    <body name="right_jaw" pos="-0.06 0 0.06">
+      <joint name="right_finger_joint" type="slide" axis="1 0 0" range="0 0.055"
+        armature="0.01" damping="5"/>
+      <geom name="right_jaw_plate" type="box" size="0.005 0.035 0.04" mass="0.05"
+        condim="6" friction="5.0 3.0 3.0" solimp="0.95 0.99 0.001" solref="0.004 1"
+        priority="1" rgba="0.55 0.55 0.55 1"/>
+    </body>
+  </body>
+</mujocoinclude>

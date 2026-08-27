@@ -33,7 +33,7 @@ constexpr double kRequiredCartesianPathFraction = 0.999;
 // RRTConnect and the full per-retry time. Narrow-passage solutions have been
 // measured arriving in ~1 s when they arrive at all, so a short per-retry
 // budget costs almost nothing and buys many more independent restarts.
-constexpr double kPlanningTimeSeconds = 20.0;
+constexpr double kPlanningTimeSeconds = 30.0;
 constexpr int kNumPlanningAttempts = 1;
 constexpr int kPlanningRetries = 20;
 constexpr double kReachabilityPlanningTimeSeconds = 7.0;
@@ -49,13 +49,13 @@ constexpr int kReachabilityPlanningRetries = 20;
 // up front, where the answer is visible. KDL keeps re-seeding randomly until
 // this budget is gone, so it must be long enough for a genuinely reachable
 // pose to converge, not merely for one restart.
-constexpr double kGoalIkTimeoutSeconds = 1.0;
+constexpr double kGoalIkTimeoutSeconds = 3.0;
 // Wall-clock allowance for the round trip, which also covers move_group
 // locking the planning scene while a plan is in flight.
 constexpr std::chrono::seconds kComputeIkServiceTimeout{5};
-constexpr double kGoalPositionToleranceMeters = 0.02;
-constexpr double kGoalOrientationToleranceRadians = 0.0872665;
-constexpr double kGoalJointToleranceRadians = 0.01;
+constexpr double kGoalPositionToleranceMeters = 0.005;
+constexpr double kGoalOrientationToleranceRadians = 0.00872665;
+constexpr double kGoalJointToleranceRadians = 0.001;
 
 void log_pose(
   const rclcpp::Logger & logger,

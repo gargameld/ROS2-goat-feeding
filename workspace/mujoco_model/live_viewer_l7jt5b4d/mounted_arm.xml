@@ -1,0 +1,59 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mujocoinclude>
+  <body name="arm_base" pos="0 0 0.09" quat="0 0 0 -1">
+    <inertial mass="4.0" pos="0 0 0" diaginertia="0.00443333156 0.00443333156 0.0072" />
+    <geom type="mesh" mesh="base_0" material="arm_black" contype="0" conaffinity="0" group="2" />
+    <geom type="mesh" mesh="base_1" material="arm_jointgray" contype="0" conaffinity="0" group="2" />
+    <geom type="cylinder" size="0.09 0.04" rgba="0.278 0.278 0.278 0" />
+    <body name="shoulder_link" pos="0 0 0.163">
+      <inertial mass="3.7" pos="0 0 0" diaginertia="0.0102675 0.0102675 0.00666" />
+      <joint name="arm_shoulder_pan_joint" axis="0 0 1" limited="false" armature="0.1" />
+      <geom type="mesh" mesh="shoulder_0" material="arm_urblue" contype="0" conaffinity="0" group="2" />
+      <geom type="mesh" mesh="shoulder_1" material="arm_black" contype="0" conaffinity="0" group="2" />
+      <geom type="mesh" mesh="shoulder_2" material="arm_jointgray" contype="0" conaffinity="0" group="2" />
+      <geom type="cylinder" size="0.08 0.07" rgba="0.49 0.678 0.8 0" />
+      <body name="upper_arm_link" pos="0 0.138 0" quat="1 0 1 0">
+        <inertial mass="8.393" pos="0 0 0.2125" diaginertia="0.133886 0.133886 0.0151074" />
+        <joint name="arm_shoulder_lift_joint" axis="0 1 0" limited="false" armature="0.1" />
+        <geom type="mesh" mesh="upperarm_0" material="arm_linkgray" contype="0" conaffinity="0" group="2" />
+        <geom type="mesh" mesh="upperarm_1" material="arm_black" contype="0" conaffinity="0" group="2" />
+        <geom type="mesh" mesh="upperarm_2" material="arm_jointgray" contype="0" conaffinity="0" group="2" />
+        <geom type="mesh" mesh="upperarm_3" material="arm_urblue" contype="0" conaffinity="0" group="2" />
+        <geom type="capsule" size="0.055" fromto="0 0 0 0 0 0.425" rgba="0.82 0.82 0.82 0" />
+        <body name="forearm_link" pos="0 -0.131 0.425">
+          <inertial mass="2.275" pos="0 0 0.196" diaginertia="0.0311796 0.0311796 0.004095" />
+          <joint name="arm_elbow_joint" axis="0 1 0" limited="false" armature="0.1" />
+          <geom type="mesh" mesh="forearm_0" material="arm_urblue" contype="0" conaffinity="0" group="2" />
+          <geom type="mesh" mesh="forearm_1" material="arm_linkgray" contype="0" conaffinity="0" group="2" />
+          <geom type="mesh" mesh="forearm_2" material="arm_black" contype="0" conaffinity="0" group="2" />
+          <geom type="mesh" mesh="forearm_3" material="arm_jointgray" contype="0" conaffinity="0" group="2" />
+          <geom type="capsule" size="0.045" fromto="0 0 0 0 0 0.392" rgba="0.49 0.678 0.8 0" />
+          <body name="wrist_1_link" pos="0 0 0.392" quat="1 0 1 0">
+            <inertial mass="1.219" pos="0 0.127 0" diaginertia="0.0025599 0.0025599 0.0021942" />
+            <joint name="arm_wrist_1_joint" axis="0 1 0" limited="false" armature="0.1" />
+            <geom type="mesh" mesh="wrist1_0" material="arm_black" contype="0" conaffinity="0" group="2" />
+            <geom type="mesh" mesh="wrist1_1" material="arm_urblue" contype="0" conaffinity="0" group="2" />
+            <geom type="mesh" mesh="wrist1_2" material="arm_jointgray" contype="0" conaffinity="0" group="2" />
+            <geom type="capsule" size="0.035" fromto="0 0 0 0 0.127 0" rgba="0.033 0.033 0.033 0" />
+            <body name="wrist_2_link" pos="0 0.127 0">
+              <inertial mass="1.219" pos="0 0 0.1" diaginertia="0.0025599 0.0025599 0.0021942" />
+              <joint name="arm_wrist_2_joint" axis="0 0 1" limited="false" armature="0.1" />
+              <geom type="mesh" mesh="wrist2_0" material="arm_black" contype="0" conaffinity="0" group="2" />
+              <geom type="mesh" mesh="wrist2_1" material="arm_urblue" contype="0" conaffinity="0" group="2" />
+              <geom type="mesh" mesh="wrist2_2" material="arm_jointgray" contype="0" conaffinity="0" group="2" />
+              <geom type="capsule" size="0.035" fromto="0 0 0 0 0 0.1" rgba="0.49 0.678 0.8 0" />
+              <body name="wrist_3_link" pos="0 0 0.1">
+                <inertial mass="0.1889" pos="0 0.0771683 0" quat="1 0 0 1" diaginertia="0.000132134 9.90863e-05 9.90863e-05" />
+                <joint name="arm_wrist_3_joint" axis="0 1 0" limited="false" armature="0.1" />
+                <geom type="mesh" mesh="wrist3" material="arm_linkgray" contype="0" conaffinity="0" group="2" />
+                <geom type="capsule" size="0.025" fromto="0 0 0 0 0.1 0" rgba="0.82 0.82 0.82 0" />
+                <site name="attachment_site" pos="0 0.1 0" quat="-1 1 0 0" />
+                <include file="robotiq_2f85/2f85.xml" />
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </body>
+</mujocoinclude>

@@ -3,17 +3,17 @@
 
   <!-- Include the UR5e arm xacro -->
   <xacro:include filename="$(find robot_description)/urdf/arm.xacro"/>
-  
-  <!-- Include the Robotiq 2F-85 gripper xacro -->
+
+  <!-- Include the custom parallel-jaw gripper xacro -->
   <xacro:include filename="$(find robot_description)/urdf/gripper/gripper.xacro"/>
-  <xacro:robotiq_85_gripper/>
+  <xacro:parallel_gripper/>
 
-  
-
-  <!-- Attach the gripper base to the UR5e tool frame. -->
-  <joint name="tool0_to_robotiq_85_base" type="fixed">
+  <!-- Attach the gripper base to the UR5e tool frame. The gripper macro is
+       authored in the tool0 convention (+Z approach, +X closing), so this is
+       an identity transform. -->
+  <joint name="tool0_to_gripper_base" type="fixed">
     <parent link="arm_tool0"/>
-    <child link="robotiq_85_base_link"/>
+    <child link="gripper_base_link"/>
     <origin xyz="0 0 0" rpy="0 0 0"/>
   </joint>
 

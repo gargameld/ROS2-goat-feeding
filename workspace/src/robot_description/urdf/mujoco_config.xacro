@@ -95,11 +95,15 @@
         <state_interface name="effort"/>
       </joint>
 
-      <!-- Gripper Joint -->
+      <!-- Gripper Joint. The prismatic jaw travel of the custom parallel
+           gripper: 0 is fully open, 0.055 has the two jaws meeting on the
+           palm centre line. Must match the finger_joint actuator ctrlrange
+           in scene.xml. right_finger_joint mimics this one, so it needs no
+           interface of its own. -->
       <joint name="finger_joint">
         <command_interface name="position">
           <param name="min">0</param>
-          <param name="max">0.725</param>
+          <param name="max">0.055</param>
         </command_interface>
         <state_interface name="position"/>
         <state_interface name="velocity"/>

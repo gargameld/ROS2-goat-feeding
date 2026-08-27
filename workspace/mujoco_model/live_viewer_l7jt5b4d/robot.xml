@@ -1,0 +1,88 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mujoco>
+  <worldbody>
+    <light diffuse=".5 .5 .5" />
+    <body name="chassis" pos="0 0 0.26" childclass="robot">
+      <freejoint />
+      <body name="arm_mount" pos="0 0 0.10">
+        <include file="mounted_arm.xml" />
+      </body>
+      
+      <geom type="box" size="0.5 0.40 0.05" pos="0 0 0.14" mass="40" />
+      <site name="imu_sensor" pos="0 0 0.200" size="0.015" />
+      <site name="rear_right" pos="-0.40 -0.405 0.14" zaxis="-0.707107 -0.707107 0" size="0.01" />
+      <site name="front_right" pos="-0.40 0.405 0.14" zaxis="-0.707107 0.707107 0" size="0.01" />
+      <site name="rear_left" pos="0.40 -0.405 0.14" zaxis="0.707107 -0.707107 0" size="0.01" />
+      <site name="front_left" pos="0.40 0.405 0.14" zaxis="0.707107 0.707107 0" size="0.01" />
+      <site name="rear" pos="0 -0.505 0.14" zaxis="0 -1 0" size="0.01" />
+      <site name="front" pos="0 0.505 0.14" zaxis="0 1 0" size="0.01" />
+
+      <site name="front_lidar" pos="0.4 0 0.2" size="0.01" />
+      <site name="back_lidar" pos="-0.4 0 0.2" euler="0 0 180" size="0.01" />
+      
+
+      
+      
+      <camera name="robot_camera" mode="fixed" pos="0.5 0 0.38" xyaxes="0 -1 0  0.5 0 0.866025" resolution="320 240" />
+
+      <site name="camera_site" pos="0.5 0 0.38" />
+
+      
+      <camera name="left_camera" mode="fixed" pos="0 0.4 0.38" xyaxes="1 0 0  0 0.5 0.866025" resolution="320 240" />
+
+      <site name="left_camera_site" pos="0 0.4 0.38" />
+
+      <camera name="left_front_camera" mode="fixed" pos="0.3 0.4 0.38" xyaxes="0.866025 0.5 0  -0.25 0.433013 0.866025" resolution="320 240" />
+
+      <site name="left_front_camera_site" pos="0.3 0.4 0.38" />
+
+      <camera name="left_back_camera" mode="fixed" pos="-0.3 0.4 0.38" xyaxes="0.866025 -0.5 0  0.25 0.433013 0.866025" resolution="320 240" />
+
+      <site name="left_back_camera_site" pos="-0.3 0.4 0.38" />
+
+      
+      <body pos="0.35 0.25 -0.1">
+        <include file="front_left_wheel.xml" />
+      </body>
+
+      <body pos="-0.35 0.25 -0.1">
+        <include file="rear_left_wheel.xml" />
+      </body>
+
+      <body pos="0.35 -0.25 -0.1">
+        <include file="front_right_wheel.xml" />
+      </body>
+
+      <body pos="-0.35 -0.25 -0.1">
+        <include file="rear_right_wheel.xml" />
+      </body>
+
+    </body>
+  </worldbody>
+
+  <sensor>
+    <rangefinder name="rangefinder_front_right" site="front_right" cutoff="3" noise="0.005" />
+    <rangefinder name="rangefinder_front_left" site="front_left" cutoff="3" noise="0.005" />
+    <rangefinder name="rangefinder_rear_right" site="rear_right" cutoff="3" noise="0.005" />
+    <rangefinder name="rangefinder_rear_left" site="rear_left" cutoff="3" noise="0.005" />
+    <rangefinder name="rangefinder_rear" site="rear" cutoff="3" noise="0.005" />
+    <rangefinder name="rangefinder_front" site="front" cutoff="3" noise="0.005" />
+    <framequat name="imu_sensor_quat" objtype="site" objname="imu_sensor" />
+    <gyro name="imu_sensor_gyro" site="imu_sensor" noise="0.001" />
+    <accelerometer name="imu_sensor_accel" site="imu_sensor" noise="0.01" />
+  </sensor>
+
+  <actuator>
+    
+    <velocity name="motor_fr" joint="fr_wheel_joint" kv="25" />
+    <velocity name="motor_fl" joint="fl_wheel_joint" kv="25" />
+    <velocity name="motor_rr" joint="rr_wheel_joint" kv="25" />
+    <velocity name="motor_rl" joint="rl_wheel_joint" kv="25" />
+    <include file="arm_actuators.xml" />
+  </actuator>
+
+  <include file="back_lidar.xml" />
+  <include file="front_lidar.xml" />
+
+
+</mujoco>

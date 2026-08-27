@@ -11,7 +11,7 @@
       <freejoint name="box_free"/>
       <geom name="box" type="mesh" mesh="box" pos="0.037 0.0415 -0.0495" condim="6" friction="1 0.02 0.002" rgba="0.85 0.6 0.2 1"/>
     </body>
-    <body name="cone" pos="51 50 0.023">
+    <body name="food_cone" pos="51 50 0.023">
       <freejoint name="cone_free"/>
       <geom name="cone" type="mesh" mesh="cone" pos="0.017 0.009 -0.018" condim="6" friction="1 0.02 0.002" rgba="0.85 0.6 0.2 1"/>
     </body>
@@ -19,11 +19,11 @@
       <freejoint name="cube_free"/>
       <geom name="cube" type="mesh" mesh="cube" pos="0.0205 -0.0005 -0.0275" condim="6" friction="1 0.02 0.002" rgba="0.85 0.6 0.2 1"/>
     </body>
-    <body name="elipsoid" pos="53 50 0.0265">
+    <body name="food_elipsoid" pos="53 50 0.0265">
       <freejoint name="elipsoid_free"/>
       <geom name="elipsoid" type="mesh" mesh="elipsoid" pos="-0.0275 0.034 -0.0215" condim="6" friction="1 0.02 0.002" rgba="0.85 0.6 0.2 1"/>
     </body>
-    <body name="ring" pos="54 50 0.02025">
+    <body name="food_ring" pos="54 50 0.02025">
       <freejoint name="ring_free"/>
       <geom name="ring" type="mesh" mesh="ring" pos="0.034 -0.008 -0.01525" condim="6" friction="1 0.02 0.002" rgba="0.85 0.6 0.2 1"/>
     </body>

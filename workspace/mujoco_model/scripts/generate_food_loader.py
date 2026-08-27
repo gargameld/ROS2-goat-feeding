@@ -7,15 +7,18 @@ file (default: ``mujoco_model/food_loader.xml``). For every ``*.stl`` file it
 emits:
 
   * a ``<mesh>`` asset whose name is the STL file stem, and
-  * a free-floating ``<body>`` with the same name, placed far away from the
+  * a free-floating ``<body>`` named ``food_<stem>``, placed far away from the
     robot/arena so the food items do not interfere with the scene at startup.
 
 It also inserts ``<include file="food_loader.xml"/>`` into ``scene.xml`` (right
 after the ``robot.xml`` include) unless it is already present, so the scene
 loads the generated file automatically.
 
-Body/mesh names are taken verbatim from the STL file names, e.g.
-``box.stl -> body "box"``.
+Mesh, geom and joint names are taken verbatim from the STL file names, but the
+body name carries the ``food_`` prefix, e.g. ``box.stl -> body "food_box"``.
+The prefix is not cosmetic: the simulation GUI and the state-capture plugin
+discover the food items by scanning MuJoCo body names for it
+(``food_body_prefix``), so an unprefixed body is invisible to both.
 """
 
 from __future__ import annotations
@@ -49,6 +52,12 @@ MODEL_DIR = SCRIPT_DIR.parent
 # of grasp contacts.
 FOOD_CONDIM = 6
 FOOD_FRICTION = "1 0.02 0.002"  # sliding, torsional, rolling
+
+# Prefix prepended to every generated body name. Must match the
+# `food_body_prefix` parameter of the state-capture plugin and of the
+# simulation GUI's MuJoCo client -- both enumerate the food items by scanning
+# body names for it.
+FOOD_BODY_PREFIX = "food_"
 
 
 def find_stl_files(stl_dir: Path) -> list[Path]:
@@ -129,11 +138,14 @@ def build_include(
     clearance: float,
     condim: int = FOOD_CONDIM,
     friction: str = FOOD_FRICTION,
+    body_prefix: str = FOOD_BODY_PREFIX,
 ) -> ET.ElementTree:
     """Build the <mujocoinclude> element tree.
 
     Each body gets a freejoint so it is a movable rigid body, and is placed on
     a line starting at *start* (x, y), separated by *spacing* metres along +x.
+    Body names are *body_prefix* + the STL stem so the runtime can find them by
+    prefix; the mesh, geom and joint keep the bare stem.
 
     The geom is offset by ``-com`` so the body's origin (pos 0 0 0) coincides
     with the mesh's center of mass. Each body's z is then chosen so the mesh's
@@ -149,7 +161,7 @@ def build_include(
     x0, y0 = start
 
     for i, stl in enumerate(stl_files):
-        name = stl.stem  # body/mesh name == file name (without extension)
+        name = stl.stem  # mesh/geom/joint name == file name (without extension)
         mesh_file = f"{mesh_ref_dir}/{stl.name}"
 
         ET.SubElement(asset, "mesh", name=name, file=mesh_file, scale=scale_str)
@@ -164,7 +176,7 @@ def build_include(
         # (min_z - com_z)*scale below the body origin; lift so it clears the floor.
         z = clearance - (min_z * scale - cz)
         pos = f"{x0 + i * spacing:g} {y0:g} {z:g}"
-        body = ET.SubElement(worldbody, "body", name=name, pos=pos)
+        body = ET.SubElement(worldbody, "body", name=f"{body_prefix}{name}", pos=pos)
         ET.SubElement(body, "freejoint", name=f"{name}_free")
         ET.SubElement(
             body,
@@ -279,6 +291,13 @@ def main(argv: list[str] | None = None) -> int:
         help="Sliding, torsional and rolling friction of the food geoms.",
     )
     parser.add_argument(
+        "--body-prefix",
+        default=FOOD_BODY_PREFIX,
+        help="Prefix prepended to every body name. Must match the "
+        "`food_body_prefix` parameter used by the state-capture plugin and the "
+        "simulation GUI, which discover the food items by this prefix.",
+    )
+    parser.add_argument(
         "--no-scene-include",
         action="store_true",
         help="Do not modify scene.xml (only generate the include file).",
@@ -307,9 +326,11 @@ def main(argv: list[str] | None = None) -> int:
         clearance=args.clearance,
         condim=args.condim,
         friction=args.friction,
+        body_prefix=args.body_prefix,
     )
     write_pretty(tree, out_path)
-    print(f"Wrote {out_path} with {len(stl_files)} food bodies: {', '.join(p.stem for p in stl_files)}")
+    body_names = ", ".join(f"{args.body_prefix}{p.stem}" for p in stl_files)
+    print(f"Wrote {out_path} with {len(stl_files)} food bodies: {body_names}")
 
     if not args.no_scene_include:
         include_name = out_path.relative_to(args.scene.resolve().parent).as_posix()

@@ -33,11 +33,14 @@ class GraspMarkerNode(Node):
         )
         self.declare_parameter('axis_length', 0.04)
         self.declare_parameter('republish_period_sec', 0.5)
-        self.declare_parameter('finger_width', 0.012)
-        self.declare_parameter('hand_outer_diameter', 0.102)
-        self.declare_parameter('hand_depth', 0.037)
-        self.declare_parameter('hand_height', 0.022)
-        self.declare_parameter('finger_tip_from_tcp', 0.0139)
+        # Jaw geometry, mirroring robot_description's gripper.xacro and
+        # gpd_ros2's ros_eigen_params.cfg. hand_height is the full jaw length
+        # here, unlike the half-extent GPD's cfg wants.
+        self.declare_parameter('finger_width', 0.010)
+        self.declare_parameter('hand_outer_diameter', 0.130)
+        self.declare_parameter('hand_depth', 0.080)
+        self.declare_parameter('hand_height', 0.070)
+        self.declare_parameter('finger_tip_from_tcp', 0.040)
 
         static_qos = QoSProfile(
             depth=1,

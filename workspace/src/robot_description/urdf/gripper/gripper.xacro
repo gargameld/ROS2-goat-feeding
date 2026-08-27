@@ -1,521 +1,158 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-  <xacro:macro name="robotiq_85_gripper" params="">
-  <link
-    name="robotiq_85_base_link">
-    <inertial>
-      <origin
-        xyz="0.00021987 -2.3546E-10 0.030163"
-        rpy="0 0 0" />
-      <mass
-        value="0.30915" />
-      <inertia
-        ixx="0.00028972"
-        ixy="-5.7879E-10"
-        ixz="-1.8543E-06"
-        iyy="0.00030737"
-        iyz="1.682E-12"
-        izz="0.00019914" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://robot_description/urdf/gripper/meshes/robotiq_85_base_link_fine.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.1 0.1 0.1 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://robot_description/urdf/gripper/meshes/robotiq_85_base_link_coarse.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <link
-    name="left_outer_knuckle">
-    <inertial>
-      <origin
-        xyz="0.0178331863169983 3.68915177224286E-11 0.0021442477325704"
-        rpy="0 0 0" />
-      <mass
-        value="0.00684838849434396" />
-      <inertia
-        ixx="2.66832029033166E-07"
-        ixy="1.66142314639824E-15"
-        ixz="1.45945633322873E-07"
-        iyy="1.3889233257419E-06"
-        iyz="2.82951161241588E-15"
-        izz="1.26603336914415E-06" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://robot_description/urdf/gripper/meshes/outer_knuckle_fine.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.1 0.1 0.1 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://robot_description/urdf/gripper/meshes/outer_knuckle_coarse.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <joint
-    name="finger_joint"
-    type="revolute">
-    <origin
-      xyz="0.0306011444260539 0 0.0627920162695395"
-      rpy="0 0 0" />
-    <parent
-      link="robotiq_85_base_link" />
-    <child
-      link="left_outer_knuckle" />
-    <axis
-      xyz="0 -1 0" />
-    <limit
-	  lower="0"
-      upper="0.725"
-      velocity="2.0"
-      effort="10000" />
-  </joint>
-  <link
-    name="left_outer_finger">
-    <inertial>
-      <origin
-        xyz="0.00131451599174296 2.88942057994543E-15 0.0215404163180413"
-        rpy="0 0 0" />
-      <mass
-        value="0.0273093985570947" />
-      <inertia
-        ixx="8.51629628283022E-06"
-        ixy="2.58174336207405E-19"
-        ixz="3.83829504344079E-07"
-        iyy="6.9133328065108E-06"
-        iyz="-7.58589926143789E-19"
-        izz="2.25006832221981E-06" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://robot_description/urdf/gripper/meshes/outer_finger_fine.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.1 0.1 0.1 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://robot_description/urdf/gripper/meshes/outer_finger_coarse.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <joint
-    name="left_outer_finger_joint"
-    type="fixed">
-    <origin
-      xyz="0.0316910442266543 0 -0.00193396375724605"
-      rpy="0 0 0" />
-    <parent
-      link="left_outer_knuckle" />
-    <child
-      link="left_outer_finger" />
-    <axis
-      xyz="0 -1 0" />
-  </joint>
-  <link
-    name="left_inner_knuckle">
-    <inertial>
-      <origin
-        xyz="0.017097546626628 -3.93808524389535E-10 0.0224918438201868"
-        rpy="0 0 0" />
-      <mass
-        value="0.0110930853895903" />
-      <inertia
-        ixx="4.23392770691541E-06"
-        ixy="5.748978936968E-15"
-        ixz="1.78855677119788E-06"
-        iyy="3.96548790524392E-06"
-        iyz="1.05464666369669E-14"
-        izz="3.24068002883007E-06" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://robot_description/urdf/gripper/meshes/inner_knuckle_fine.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.1 0.1 0.1 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://robot_description/urdf/gripper/meshes/inner_knuckle_coarse.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <joint
-    name="left_inner_knuckle_joint"
-    type="revolute">
-    <origin
-      xyz="0.0127000000001501 0 0.0693074999999639"
-      rpy="0 0 0" />
-    <parent
-      link="robotiq_85_base_link" />
-    <child
-      link="left_inner_knuckle" />
-    <axis
-      xyz="0 -1 0" />
-    <limit
-      lower="0"
-      upper="0.8757"
-      velocity="2.0"
-      effort="10000" />
-    <mimic 
-      joint="finger_joint"
-      multiplier="1"
-      offset="0" />
-  </joint>
-  <link
-    name="left_inner_finger">
-    <inertial>
-      <origin
-        xyz="0.0060275613594574 -6.29183141465421E-15 0.00669925693133241"
-        rpy="0 0 0" />
-      <mass
-        value="0.00724255346165745" />
-      <inertia
-        ixx="1.47824274053603E-06"
-        ixy="-3.94884463570303E-19"
-        ixz="-3.45268847648622E-07"
-        iyy="1.70064480838395E-06"
-        iyz="3.5059838910097E-19"
-        izz="4.77151336838364E-07" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://robot_description/urdf/gripper/meshes/inner_finger_fine.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.1 0.1 0.1 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://robot_description/urdf/gripper/meshes/inner_finger_coarse.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <joint
-    name="left_inner_finger_joint"
-    type="revolute">
-    <origin
-      xyz="0.034585310861294 0 0.0454970193817975"
-      rpy="0 0 0" />
-    <parent
-      link="left_inner_knuckle" />
-    <child
-      link="left_inner_finger" />
-    <axis
-      xyz="0 -1 0" />
-    <limit
-      lower="0"
-      upper="0.8757"
-      velocity="2.0"
-      effort="10000" />
-    <mimic 
-      joint="finger_joint"
-      multiplier="-1"
-      offset="0" />
-  </joint>
-  <link
-    name="right_inner_knuckle">
-    <inertial>
-      <origin
-        xyz="0.0168606186773776 3.93808471820465E-10 0.0226699950793434"
-        rpy="0 0 0" />
-      <mass
-        value="0.0110930853895903" />
-      <inertia
-        ixx="4.27134775939882E-06"
-        ixy="-8.53568456728898E-15"
-        ixz="1.77774229944246E-06"
-        iyy="3.96548790524392E-06"
-        iyz="-8.45108024914164E-15"
-        izz="3.20325997634666E-06" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://robot_description/urdf/gripper/meshes/inner_knuckle_fine.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.1 0.1 0.1 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://robot_description/urdf/gripper/meshes/inner_knuckle_coarse.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <joint
-    name="right_inner_knuckle_joint"
-    type="revolute">
-    <origin
-      xyz="-0.0126999999998499 0 0.0693075000000361"
-      rpy="0 0 3.14159265358979" />
-    <parent
-      link="robotiq_85_base_link" />
-    <child
-      link="right_inner_knuckle" />
-    <axis
-      xyz="0 1 0" />
-    <limit
-      lower="0"
-      upper="0.8757"
-      velocity="2.0"
-      effort="10000" />
-    <mimic 
-      joint="finger_joint"
-      multiplier="-1"
-      offset="0" />
-  </joint>
-  <link
-    name="right_inner_finger">
-    <inertial>
-      <origin
-        xyz="0.00602756228812038 -6.47284509480176E-15 0.00669925609578108"
-        rpy="0 0 0" />
-      <mass
-        value="0.00724255346165744" />
-      <inertia
-        ixx="1.47824283625957E-06"
-        ixy="-3.95952064019123E-19"
-        ixz="-3.45268708875543E-07"
-        iyy="1.70064480838394E-06"
-        iyz="3.55286507960029E-19"
-        izz="4.77151241114822E-07" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://robot_description/urdf/gripper/meshes/inner_finger_fine.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.1 0.1 0.1 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://robot_description/urdf/gripper/meshes/inner_finger_coarse.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <joint
-    name="right_inner_finger_joint"
-    type="revolute">
-    <origin
-      xyz="0.0341060475457406 0 0.0458573878541688"
-      rpy="0 0 0" />
-    <parent
-      link="right_inner_knuckle" />
-    <child
-      link="right_inner_finger" />
-    <axis
-      xyz="0 1 0" />
-    <limit
-      lower="0"
-      upper="0.8757"
-      velocity="2.0"
-      effort="10000" />
-    <mimic 
-      joint="finger_joint"
-      multiplier="1"
-      offset="0" />
-  </joint>
-  <link
-    name="right_outer_knuckle">
-    <inertial>
-      <origin
-        xyz="0.0178097074051638 3.60493211424024E-11 0.00233123458346721"
-        rpy="0 0 0" />
-      <mass
-        value="0.00684838849401352" />
-      <inertia
-        ixx="2.70004361573169E-07"
-        ixy="1.59579467624491E-15"
-        ixz="1.56396493788199E-07"
-        iyy="1.38892332558312E-06"
-        iyz="2.82357800318817E-15"
-        izz="1.26286103637978E-06" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://robot_description/urdf/gripper/meshes/outer_knuckle_fine.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.1 0.1 0.1 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://robot_description/urdf/gripper/meshes/outer_knuckle_coarse.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <joint
-    name="right_outer_knuckle_joint"
-    type="revolute">
-    <origin
-      xyz="-0.0306011444258893 0 0.0627920162695395"
-      rpy="0 0 3.14159265358979" />
-    <parent
-      link="robotiq_85_base_link" />
-    <child
-      link="right_outer_knuckle" />
-    <axis
-      xyz="0 1 0" />
-    <limit
-      lower="0"
-      upper="0.8757"
-      velocity="2.0"
-      effort="10000" />
-    <mimic 
-      joint="finger_joint"
-      multiplier="-1"
-      offset="0" />
-  </joint>
-  <link
-    name="right_outer_finger">
-    <inertial>
-      <origin
-        xyz="0.00108844269639009 -2.611488350845E-15 0.0215530225245502"
-        rpy="0 0 0" />
-      <mass
-        value="0.0273093985570947" />
-      <inertia
-        ixx="8.52366028592721E-06"
-        ixy="3.41683380899422E-19"
-        ixz="3.18003675694284E-07"
-        iyy="6.91333280651081E-06"
-        iyz="7.37726682706417E-19"
-        izz="2.24270431912283E-06" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://robot_description/urdf/gripper/meshes/outer_finger_fine.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.1 0.1 0.1 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://robot_description/urdf/gripper/meshes/outer_finger_coarse.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <joint
-    name="right_outer_finger_joint"
-    type="fixed">
-    <origin
-      xyz="0.0317095909367246 0 -0.0016013564954687"
-      rpy="0 0 0" />
-    <parent
-      link="right_outer_knuckle" />
-    <child
-      link="right_outer_finger" />
-    <axis
-      xyz="0 1 0" />
-  </joint>
+  <!-- Custom parallel-jaw gripper.
+
+       Frame convention (shared with arm_tool0, which this macro mounts to):
+         +Z is the approach axis, pointing away from the wrist flange.
+         +X is the binormal, i.e. the direction the jaws close along. The grasp
+            pose provider builds TCP orientations with the GPD binormal as TCP
+            +X (grasp_config_conversion.py), so the jaws must travel along +/-X.
+         +Y is the remaining hand axis, the direction the jaws are long in.
+
+       Stack, from the flange outwards:
+         z in [0, 0.01]  mount disc, radius = the UR5e tool flange radius
+         z in [0.01, 0.02] palm plate, 0.13 along X (closing) x 0.07 along Y
+         z in [0.02, 0.10] the two jaw plates, 0.01 thick along X, 0.07 long
+                           along Y, 0.08 tall
+
+       Both jaws are driven off a single actuated joint: right_finger_joint
+       mimics finger_joint 1:1, so each jaw always sits the same distance in
+       from its own edge of the palm plate. The MJCF mirrors that with an
+       equality constraint between the same two joint names. -->
+  <xacro:macro name="parallel_gripper" params="">
+
+    <!-- UR5e tool flange radius (63 mm diameter). -->
+    <xacro:property name="mount_radius" value="0.0315"/>
+    <xacro:property name="mount_height" value="0.01"/>
+
+    <!-- Palm plate: 0.13 along the closing axis, 0.07 across it. -->
+    <xacro:property name="palm_x" value="0.13"/>
+    <xacro:property name="palm_y" value="0.07"/>
+    <xacro:property name="palm_z" value="0.01"/>
+
+    <!-- Jaw plate: 0.01 thick along the closing axis, 0.07 long to match the
+         palm it sits on, 0.08 tall. -->
+    <xacro:property name="jaw_x" value="0.01"/>
+    <xacro:property name="jaw_y" value="0.07"/>
+    <xacro:property name="jaw_z" value="0.08"/>
+
+    <!-- Jaw travel. At finger_joint = 0 each jaw's outer face is flush with
+         its edge of the palm, leaving an opening of palm_x - 2*jaw_x = 0.11 m.
+         At the upper limit the two inner faces meet on the palm centre line. -->
+    <xacro:property name="jaw_stroke" value="${palm_x / 2 - jaw_x}"/>
+
+    <xacro:property name="palm_mass" value="0.5"/>
+    <xacro:property name="jaw_mass" value="0.05"/>
+
+    <material name="gripper_body_gray">
+      <color rgba="0.25 0.25 0.25 1"/>
+    </material>
+    <material name="gripper_jaw_gray">
+      <color rgba="0.55 0.55 0.55 1"/>
+    </material>
+
+    <link name="gripper_base_link">
+      <!-- Lumped inertia of the disc plus palm, approximated as a single
+           solid box spanning z in [0, mount_height + palm_z]. -->
+      <inertial>
+        <origin xyz="0 0 ${(mount_height + palm_z) / 2}" rpy="0 0 0"/>
+        <mass value="${palm_mass}"/>
+        <inertia
+          ixx="${palm_mass / 12 * (palm_y * palm_y + (mount_height + palm_z) * (mount_height + palm_z))}"
+          ixy="0.0"
+          ixz="0.0"
+          iyy="${palm_mass / 12 * (palm_x * palm_x + (mount_height + palm_z) * (mount_height + palm_z))}"
+          iyz="0.0"
+          izz="${palm_mass / 12 * (palm_x * palm_x + palm_y * palm_y)}"/>
+      </inertial>
+
+      <visual>
+        <origin xyz="0 0 ${mount_height / 2}" rpy="0 0 0"/>
+        <geometry>
+          <cylinder radius="${mount_radius}" length="${mount_height}"/>
+        </geometry>
+        <material name="gripper_body_gray"/>
+      </visual>
+      <collision>
+        <origin xyz="0 0 ${mount_height / 2}" rpy="0 0 0"/>
+        <geometry>
+          <cylinder radius="${mount_radius}" length="${mount_height}"/>
+        </geometry>
+      </collision>
+
+      <visual>
+        <origin xyz="0 0 ${mount_height + palm_z / 2}" rpy="0 0 0"/>
+        <geometry>
+          <box size="${palm_x} ${palm_y} ${palm_z}"/>
+        </geometry>
+        <material name="gripper_body_gray"/>
+      </visual>
+      <collision>
+        <origin xyz="0 0 ${mount_height + palm_z / 2}" rpy="0 0 0"/>
+        <geometry>
+          <box size="${palm_x} ${palm_y} ${palm_z}"/>
+        </geometry>
+      </collision>
+    </link>
+
+    <!-- Jaw macro. reflect = +1 for the jaw on the +X edge of the palm,
+         -1 for the one on the -X edge. The link origin sits on the palm's
+         top face at the jaw's fully open position, and the joint axis points
+         inwards, so a positive joint value closes the gripper on both sides. -->
+    <xacro:macro name="gripper_jaw" params="name reflect">
+      <link name="${name}">
+        <inertial>
+          <origin xyz="${-reflect * jaw_x / 2} 0 ${jaw_z / 2}" rpy="0 0 0"/>
+          <mass value="${jaw_mass}"/>
+          <inertia
+            ixx="${jaw_mass / 12 * (jaw_y * jaw_y + jaw_z * jaw_z)}"
+            ixy="0.0"
+            ixz="0.0"
+            iyy="${jaw_mass / 12 * (jaw_x * jaw_x + jaw_z * jaw_z)}"
+            iyz="0.0"
+            izz="${jaw_mass / 12 * (jaw_x * jaw_x + jaw_y * jaw_y)}"/>
+        </inertial>
+        <visual>
+          <origin xyz="${-reflect * jaw_x / 2} 0 ${jaw_z / 2}" rpy="0 0 0"/>
+          <geometry>
+            <box size="${jaw_x} ${jaw_y} ${jaw_z}"/>
+          </geometry>
+          <material name="gripper_jaw_gray"/>
+        </visual>
+        <collision>
+          <origin xyz="${-reflect * jaw_x / 2} 0 ${jaw_z / 2}" rpy="0 0 0"/>
+          <geometry>
+            <box size="${jaw_x} ${jaw_y} ${jaw_z}"/>
+          </geometry>
+        </collision>
+      </link>
+    </xacro:macro>
+
+    <xacro:gripper_jaw name="left_jaw_link" reflect="1"/>
+    <xacro:gripper_jaw name="right_jaw_link" reflect="-1"/>
+
+    <!-- The single actuated degree of freedom. gripper_controller
+         (position_controllers/GripperActionController) commands this joint;
+         0 is fully open and jaw_stroke is fully closed. -->
+    <joint name="finger_joint" type="prismatic">
+      <origin xyz="${palm_x / 2} 0 ${mount_height + palm_z}" rpy="0 0 0"/>
+      <parent link="gripper_base_link"/>
+      <child link="left_jaw_link"/>
+      <axis xyz="-1 0 0"/>
+      <limit lower="0" upper="${jaw_stroke}" velocity="0.15" effort="100"/>
+    </joint>
+
+    <!-- Mimicking finger_joint 1:1 with the mirrored axis is what keeps both
+         jaws equidistant from their own edge of the palm. -->
+    <joint name="right_finger_joint" type="prismatic">
+      <origin xyz="${-palm_x / 2} 0 ${mount_height + palm_z}" rpy="0 0 0"/>
+      <parent link="gripper_base_link"/>
+      <child link="right_jaw_link"/>
+      <axis xyz="1 0 0"/>
+      <limit lower="0" upper="${jaw_stroke}" velocity="0.15" effort="100"/>
+      <mimic joint="finger_joint" multiplier="1" offset="0"/>
+    </joint>
 
   </xacro:macro>
 

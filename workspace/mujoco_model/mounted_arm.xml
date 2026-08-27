@@ -47,7 +47,7 @@
                 <geom type="mesh" mesh="wrist3" material="arm_linkgray" contype="0" conaffinity="0" group="2"/>
                 <geom type="capsule" size="0.025" fromto="0 0 0 0 0.1 0" rgba="0.82 0.82 0.82 0"/>
                 <site name="attachment_site" pos="0 0.1 0" quat="-1 1 0 0"/>
-                <include file="robotiq_2f85/2f85.xml"/>
+                <include file="gripper.xml"/>
               </body>
             </body>
           </body>

@@ -37,7 +37,7 @@ DEFAULT_CLUSTER_MIN_POINTS = 10
 # cluster must fit between these dimensions along every base_link axis. The
 # middle 90% is used so a few depth-camera outliers do not decide the result.
 DEFAULT_MIN_CLUSTER_AXIS_SPAN = 0.01
-DEFAULT_MAX_CLUSTER_AXIS_SPAN = 0.10
+DEFAULT_MAX_CLUSTER_AXIS_SPAN = 0.15
 CLUSTER_SPAN_PERCENTILES = (5.0, 95.0)
 CLUSTER_SPAN_ABSOLUTE_TOLERANCE = 1e-12
 

@@ -2,18 +2,21 @@
 
 A ``GraspConfig`` uses GPD's hand frame: X is approach, Y is the closing
 binormal, Z is the hand axis, and position is the base of the fingers. The
-robot's ``arm_tcp`` frame instead approaches along +Z and the Robotiq fingers
-close along +X/-X. It is close to, but not at, the physical fingertips: the
-Robotiq pads extend 13.9 mm beyond it. This module applies that fixed axis and
-position conversion before the poses are handed to MoveIt.
+robot's ``arm_tcp`` frame instead approaches along +Z and the parallel jaws
+close along +X/-X. It sits at the mid-height of the jaw plates, so the jaws
+extend 40 mm beyond it. This module applies that fixed axis and position
+conversion before the poses are handed to MoveIt.
 """
 
 from geometry_msgs.msg import PoseStamped
 import numpy as np
 
 
-DEFAULT_GPD_HAND_DEPTH = 0.037
-DEFAULT_FINGER_TIP_FROM_TCP = 0.0139
+# Must stay in step with the jaw plates in robot_description's gripper.xacro
+# and with hand_depth in gpd_ros2's ros_eigen_params.cfg: the plates are 80 mm
+# long and arm_tcp sits at their mid-height, 40 mm short of their tips.
+DEFAULT_GPD_HAND_DEPTH = 0.08
+DEFAULT_FINGER_TIP_FROM_TCP = 0.04
 DEFAULT_TCP_FROM_FINGER_BASE = (
     DEFAULT_GPD_HAND_DEPTH - DEFAULT_FINGER_TIP_FROM_TCP
 )
@@ -29,8 +32,8 @@ def grasp_configs_to_poses(
 
     ``tcp_from_finger_base`` is the distance from GPD's finger-base position to
     ``arm_tcp``. In TCP coordinates, +Z is GPD approach, +X is GPD binormal
-    (finger closing), and +Y is GPD axis. This matches the Robotiq URDF, whose
-    left and right finger chains are mounted along the TCP X axis.
+    (finger closing), and +Y is GPD axis. This matches the gripper URDF, whose
+    left and right jaws travel along the TCP X axis.
 
     If ``target_from_grasp_frame`` and ``target_frame`` are supplied, the
     resulting poses are transformed using the transform captured with the
@@ -96,7 +99,7 @@ def _grasp_axes_to_tcp_quaternion(approach, binormal, axis):
     """Return the TCP quaternion corresponding to GPD's hand axes.
 
     The TCP rotation columns are ``[binormal, axis, approach]``: TCP +X is the
-    Robotiq closing direction and TCP +Z is the direction in which the gripper
+    jaw closing direction and TCP +Z is the direction in which the gripper
     advances onto the object.
     """
     return _rotation_matrix_to_quaternion(
