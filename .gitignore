@@ -16,7 +16,7 @@
 !/workspace/src/**
 !/workspace/mujoco_model/
 !/workspace/mujoco_model/**
-/workspace/mujoco_model/live_view_*/
+/workspace/mujoco_model/live_view*/
 
 # Keep important saved simulation states.
 !/workspace/important states/
