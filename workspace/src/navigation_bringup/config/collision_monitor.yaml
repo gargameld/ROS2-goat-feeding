@@ -31,9 +31,11 @@ collision_monitor:
       # same padding the controller's footprint checker uses.
       points: "[[0.52, 0.42], [0.52, -0.42], [-0.52, -0.42], [-0.52, 0.42]]"
       # Look this many seconds ahead along the current velocity. Worst-case
-      # braking from the 1.50 m/s axis limit at the 2.50 m/s^2 decel limit
-      # takes ~0.6 s / ~0.45 m; 1.2 s leaves comfortable margin for command
-      # latency and the source timeout while still permitting a slow approach.
+      # braking from the 0.60 m/s axis limit, at the ~1.0 m/s^2 the drivetrain
+      # actually delivers, takes ~0.6 s / ~0.18 m -- and the projection runs on
+      # the commanded velocity, which the base overruns by ~1.25x. 1.2 s leaves
+      # margin for command latency and the source timeout while still
+      # permitting a slow approach.
       time_before_collision: 1.2
       # Granularity of the forward projection sweep.
       simulation_time_step: 0.1

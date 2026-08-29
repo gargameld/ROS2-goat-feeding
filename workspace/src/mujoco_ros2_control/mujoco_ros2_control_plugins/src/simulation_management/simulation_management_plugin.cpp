@@ -146,8 +146,7 @@ void SimulationManagementPlugin::handle_set_obstacle(const SetObstacle::Request:
 
   const std::unique_lock<std::recursive_mutex> lock(*mutex);
   std::string error;
-  response->success = obstacle_management_->set_obstacle(
-      request->position.x, request->position.y, request->size.x, request->size.y, request->size.z, error);
+  response->success = obstacle_management_->set_obstacle(request->position.x, request->position.y, error);
   response->message = response->success ? "Obstacle updated." : error;
   if (!response->success)
   {

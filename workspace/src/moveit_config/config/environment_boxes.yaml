@@ -113,3 +113,28 @@ environment_loader:
       parking_4_shelf: [2.75, -1.0, 0.275, 0.5, 1.6, 0.05]
       parking_4_shelf_ceiling: [2.7, -1.0, 0.975, 0.6, 1.7, 0.15]
       parking_4_shelf_wall: [2.5, -1.0, 0.1, 0.2, 1.7, 0.5]
+
+    # Safety expansion of the arm's collision geometry, in metres. Applies to
+    # robot-vs-world checks only (the boxes above and the food octomap), never to
+    # self-collision, so the SRDF adjacency exceptions still hold.
+    #
+    # The jaws are pinned at 0.0 on purpose: the food cubes are 55 mm and reach the
+    # octomap at 5 mm voxels, so padding the jaws would put the approach and grasp
+    # poses in collision with the very voxels being grasped. The base and wheels are
+    # left out for the same reason - the base parks inside the parking_*_shelf boxes.
+    #
+    # gripper_base_link is the exception: it carries the 130 x 70 x 10 mm palm plate,
+    # which sits behind the 80 mm jaws and so never needs to touch the food, but is
+    # exactly what swings into a shelf ceiling on approach. Padding is capped by the
+    # jaw depth left over once a cube is seated (80 - 55 = 25 mm), so keep it under
+    # ~0.02 or a fully inserted cube will collide with the padded plate.
+    link_padding:
+      arm_shoulder_link: 0.00
+      arm_upper_arm_link: 0.00
+      arm_forearm_link: 0.0
+      arm_wrist_1_link: 0.0
+      arm_wrist_2_link: 0.0
+      arm_wrist_3_link: 0.0
+      gripper_base_link: 0.0
+      left_jaw_link: 0.0
+      right_jaw_link: 0.0

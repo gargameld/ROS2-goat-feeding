@@ -67,13 +67,17 @@ void ArmBehavior::initializeMoveIt(const Configuration & configuration)
 
 void ArmBehavior::initializeInterfaces(const Configuration & configuration)
 {
+  planning_scene_manager_ = std::make_unique<PlanningSceneManager>(
+    nodeHandle(), moveit_mutex_, configuration.tcp_link,
+    PayloadDescription{
+      configuration.payload_id, configuration.box_dimensions,
+      configuration.gripper_touch_links});
   motion_executor_ = std::make_unique<MotionExecutor>(
-    nodeHandle(), move_group_, moveit_mutex_, configuration.tcp_link, configuration.home_pose);
-  payload_manager_ = std::make_unique<PayloadManager>(
-    moveit_mutex_, configuration.tcp_link, configuration.payload_id,
-    configuration.box_dimensions, configuration.gripper_touch_links);
+    nodeHandle(), move_group_, moveit_mutex_, *planning_scene_manager_, configuration.tcp_link,
+    configuration.home_pose);
   action_server_ = std::make_unique<ArmActionServer>(nodeHandle(), *motion_executor_);
-  service_server_ = std::make_unique<PayloadServiceServer>(nodeHandle(), *payload_manager_);
+  service_server_ = std::make_unique<PayloadServiceServer>(
+    nodeHandle(), *planning_scene_manager_);
 }
 
 rclcpp::Node::SharedPtr ArmBehavior::nodeHandle()

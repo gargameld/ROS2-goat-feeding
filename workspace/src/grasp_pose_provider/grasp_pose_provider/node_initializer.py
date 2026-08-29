@@ -35,8 +35,8 @@ class GraspPoseProviderNode(Node):
         super().__init__('grasp_pose_provider')
 
         # The directory holding one stored empty-plate dump per camera, named
-        # after the camera that recorded it. Defaults to the copy shipped with
-        # the package sources.
+        # after the camera that recorded it. Defaults to the copy installed
+        # with the package.
         self.declare_parameter(
             'stored_pointcloud_dir',
             stored_model.DEFAULT_STORED_POINTCLOUD_DIR,

@@ -67,6 +67,6 @@
     <disable_collisions link1="fr_wheel_link" link2="rr_wheel_link" reason="Never"/>
     <disable_collisions link1="gripper_base_link" link2="left_jaw_link" reason="Adjacent"/>
     <disable_collisions link1="gripper_base_link" link2="right_jaw_link" reason="Adjacent"/>
-    <disable_collisions link1="left_jaw_link" link2="right_jaw_link" reason="Default"/>
+    <disable_collisions link1="left_jaw_link" link2="right_jaw_link" reason="Never"/>
     <disable_collisions link1="rl_wheel_link" link2="rr_wheel_link" reason="Never"/>
 </robot>

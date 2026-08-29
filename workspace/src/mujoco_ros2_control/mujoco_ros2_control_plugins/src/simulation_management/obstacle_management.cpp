@@ -47,18 +47,12 @@ ObstacleState ObstacleManagement::state() const
   };
 }
 
-bool ObstacleManagement::set_obstacle(double x, double y, double width, double length, double height,
-                                      std::string& error)
+bool ObstacleManagement::set_obstacle(double x, double y, std::string& error)
 {
-  const double values[] = { x, y, width, length, height };
+  const double values[] = { x, y };
   if (!std::all_of(std::begin(values), std::end(values), [](double value) { return std::isfinite(value); }))
   {
-    error = "Obstacle position and dimensions must be finite.";
-    return false;
-  }
-  if (width <= 0.0 || length <= 0.0 || height <= 0.0)
-  {
-    error = "Obstacle dimensions must be greater than zero.";
+    error = "Obstacle position must be finite.";
     return false;
   }
 
@@ -77,20 +71,14 @@ bool ObstacleManagement::set_obstacle(double x, double y, double width, double l
   }
 
   const double old_position[] = { geom->pos[0], geom->pos[1], geom->pos[2] };
-  const double old_size[] = { geom->size[0], geom->size[1], geom->size[2] };
   geom->pos[0] = x;
   geom->pos[1] = y;
-  geom->pos[2] = height / 2.0;
-  geom->size[0] = width / 2.0;
-  geom->size[1] = length / 2.0;
-  geom->size[2] = height / 2.0;
 
   if (mj_recompile(spec_, nullptr, model_, data_) != 0)
   {
     const char* compile_error = mjs_getError(spec_);
     error = compile_error && compile_error[0] ? compile_error : "MuJoCo failed to recompile the obstacle edit.";
     std::copy(std::begin(old_position), std::end(old_position), geom->pos);
-    std::copy(std::begin(old_size), std::end(old_size), geom->size);
     (void)mj_recompile(spec_, nullptr, model_, data_);
     return false;
   }

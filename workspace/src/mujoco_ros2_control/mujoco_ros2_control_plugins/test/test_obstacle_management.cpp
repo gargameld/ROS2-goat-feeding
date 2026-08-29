@@ -3,6 +3,7 @@
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 
+#include <limits>
 #include <string>
 
 #include <gtest/gtest.h>
@@ -56,29 +57,29 @@ protected:
   mjData* data{ nullptr };
 };
 
-TEST_F(ObstacleManagementTest, RecompilesFullDimensionsAndKeepsBoxOnFloor)
+TEST_F(ObstacleManagementTest, MovesObstacleAndPreservesDimensions)
 {
   ObstacleManagement management(spec, model, data);
   std::string error;
 
-  ASSERT_TRUE(management.set_obstacle(-1.5, 3.0, 2.0, 4.0, 1.2, error)) << error;
+  ASSERT_TRUE(management.set_obstacle(-1.5, 3.0, error)) << error;
 
   const ObstacleState state = management.state();
   EXPECT_DOUBLE_EQ(state.x, -1.5);
   EXPECT_DOUBLE_EQ(state.y, 3.0);
-  EXPECT_DOUBLE_EQ(state.width, 2.0);
-  EXPECT_DOUBLE_EQ(state.length, 4.0);
+  EXPECT_DOUBLE_EQ(state.width, 0.8);
+  EXPECT_DOUBLE_EQ(state.length, 1.0);
   EXPECT_DOUBLE_EQ(state.height, 1.2);
-  EXPECT_DOUBLE_EQ(state.z, state.height / 2.0);
+  EXPECT_DOUBLE_EQ(state.z, 0.6);
 }
 
-TEST_F(ObstacleManagementTest, RejectsNonPositiveDimensionsWithoutChangingModel)
+TEST_F(ObstacleManagementTest, RejectsNonFinitePositionWithoutChangingModel)
 {
   ObstacleManagement management(spec, model, data);
   const ObstacleState before = management.state();
   std::string error;
 
-  EXPECT_FALSE(management.set_obstacle(5.0, 6.0, 0.0, 1.0, 1.0, error));
+  EXPECT_FALSE(management.set_obstacle(std::numeric_limits<double>::quiet_NaN(), 6.0, error));
 
   const ObstacleState after = management.state();
   EXPECT_DOUBLE_EQ(after.x, before.x);

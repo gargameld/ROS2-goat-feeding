@@ -22,12 +22,15 @@ controller_server:
 
     goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
-      # Require position and yaw tolerances to hold on the same control cycle.
-      stateful: false
+      # Latch the position check once it is satisfied. Requiring 0.04 m and
+      # 0.04 rad to hold on the *same* 50 ms cycle is not achievable for a
+      # stochastic optimizer on a base that overruns its commands, so the run
+      # never terminated and the robot kept nudging at the wall.
+      stateful: true
       # Do not report success while the base is still almost a metre from the
       # required path endpoint.
-      xy_goal_tolerance: 0.07
-      yaw_goal_tolerance: 0.05
+      xy_goal_tolerance: 0.04
+      yaw_goal_tolerance: 0.04
 
     FollowPath:
       plugin: "nav2_mppi_controller::MPPIController"
@@ -37,21 +40,42 @@ controller_server:
       iteration_count: 1
       # Keep rollouts close to the current command. Large velocity perturbations
       # make consecutive MPPI cycles choose alternating lateral corrections.
-      vx_std: 0.30
-      vy_std: 0.30
+      # Scaled with the speed limits below so the samples do not spend most of
+      # their range clipped against them.
+      vx_std: 0.15
+      vy_std: 0.15
       wz_std: 0.10
-      # Symmetric omnidirectional speed and acceleration limits.
-      vx_max: 1.50
-      vx_min: -1.50
-      vy_max: 1.50
-      wz_max: 2.00
-      # Keep MPPI responsive; the downstream smoother owns the gentle ramp.
-      ax_max: 2.50
-      ax_min: -2.50
-      ay_max: 2.50
-      ay_min: -2.50
-      az_max: 4.00
-      prune_distance: 1.00
+      # Symmetric omnidirectional speed and acceleration limits, held well below
+      # what the drivetrain will actually deliver. The MJCF wheels roll on a
+      # 0.15 m effective radius against the 0.12 m declared in controllers.yaml,
+      # so true ground speed is ~1.25x the command and wheel odometry does not
+      # report the difference.
+      #
+      # Sized against the tightest stop in the arena. The hole poses put the
+      # base 0.75 m from the wall at x=+/-2.45..2.50, leaving the padded
+      # footprint 0.23 m of travel. At 0.60 the real speed is 0.75 m/s, and
+      # worst-case braking (1.0 m/s^2 measured) plus ~0.1 s of command latency
+      # needs 0.36 m -- more than the whole corridor. 0.45 needs 0.21 m.
+      vx_max: 0.45
+      vx_min: -0.45
+      vy_max: 0.45
+      wz_max: 1.20
+      # An honest deceleration model. The base measures ~1.0-1.6 m/s^2 of real
+      # deceleration, so claiming 2.5 made MPPI plan stops the robot could not
+      # make and enter the approach to an obstacle still carrying speed. Take
+      # the low end of that measured range rather than the middle: planning
+      # against the weakest braking the base actually delivers makes the
+      # optimizer start slowing sooner, and the smoother is still free to brake
+      # harder (-2.50) than this if a command demands it.
+      ax_max: 1.20
+      ax_min: -1.00
+      ay_max: 1.20
+      ay_min: -1.00
+      az_max: 2.00
+      # The rollout horizon is 56 * 0.05 s = 2.8 s, about 1.26 m at vx_max.
+      # Feed the critics at least that much path, or the trajectories run past
+      # the end of the reference they are scored against.
+      prune_distance: 1.50
       # Bound closest-point searches to the local portion of a detour so a
       # later segment across an obstacle cannot become the tracking target.
       max_robot_pose_search_dist: 1.00
@@ -83,14 +107,25 @@ controller_server:
         # Unlike CostCritic's sampled inflated-cell cost, this critic explicitly
         # balances obstacle distance against path alignment and performs exact
         # footprint collision checks near obstacles.
-        repulsion_weight: 1.5
-        critical_weight: 20.0
+        # Weighted against GoalCritic (30) and PathFollowCritic (50): the
+        # repulsion term is averaged over the trajectory, so at 2.5 it moved
+        # the total cost by well under one unit and never influenced which
+        # rollout won.
+        repulsion_weight: 6.0
+        critical_weight: 100.0
         consider_footprint: true
         collision_cost: 1000000.0
         # Match physical padding (0.02 m) plus this margin to the collision
         # monitor's 0.22 m hard-stop reserve.
+        # Cannot be raised: the hole poses park the footprint 0.23 m from the
+        # wall, so a wider severe-penalty band would price the goal itself out.
         collision_margin_distance: 0.20
-        near_goal_distance: 1.0
+        # Obstacle repulsion is suppressed within this radius of the goal so it
+        # cannot fight goal convergence. At 1.0 m that covered the whole final
+        # approach to a hole -- the robot closed the last metre onto a wall
+        # with no repulsive gradient at all, which is the segment where it ran
+        # in. Keep it just outside the goal tolerance instead.
+        near_goal_distance: 0.25
       GoalCritic:
         enabled: true
         cost_power: 1
@@ -104,14 +139,14 @@ controller_server:
         # Do not spend most of the route rotating toward the final yaw. Align
         # during the final approach, after translation has done useful work.
         cost_weight: 30.0
-        threshold_to_consider: 0.8
+        threshold_to_consider: 2.0
       PathAlignCritic:
         enabled: true
         cost_power: 1
         # The global planner replans around dynamic obstacles at 2 Hz, so MPPI
         # should closely execute that collision-free path rather than disable
         # alignment and independently cut across its obstacle-side corner.
-        cost_weight: 100.0
+        cost_weight: 20.0
         max_path_occupancy_ratio: 1.0
         trajectory_point_step: 1
         # Keep path alignment active through goal acceptance (0.15 m) so the

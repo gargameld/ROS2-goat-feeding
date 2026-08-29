@@ -1,31 +1,36 @@
 <mujocoinclude>
+  <default>
+    <default class="food">
+      <geom type="mesh" condim="6" friction="10.0 0.02 0.001" priority="0" solref="0.005 1" solimp="0.95 0.99 0.001" density="1000" rgba="0.85 0.6 0.2 1"/>
+    </default>
+  </default>
   <asset>
-    <mesh name="box" file="food_items_stl_files/box.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="cone" file="food_items_stl_files/cone.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="cube" file="food_items_stl_files/cube.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="elipsoid" file="food_items_stl_files/elipsoid.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="ring" file="food_items_stl_files/ring.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="box" file="food_items_stl_files/box.stl" scale="0.001 0.001 0.001" inertia="exact"/>
+    <mesh name="cone" file="food_items_stl_files/cone.stl" scale="0.001 0.001 0.001" inertia="exact"/>
+    <mesh name="cube" file="food_items_stl_files/cube.stl" scale="0.001 0.001 0.001" inertia="exact"/>
+    <mesh name="elipsoid" file="food_items_stl_files/elipsoid.stl" scale="0.001 0.001 0.001" inertia="exact"/>
+    <mesh name="ring" file="food_items_stl_files/ring.stl" scale="0.001 0.001 0.001" inertia="exact"/>
   </asset>
   <worldbody>
     <body name="food_box" pos="50 50 0.0545">
       <freejoint name="box_free"/>
-      <geom name="box" type="mesh" mesh="box" pos="0.037 0.0415 -0.0495" condim="6" friction="1 0.02 0.002" rgba="0.85 0.6 0.2 1"/>
+      <geom name="box" class="food" mesh="box" pos="0.037 0.0415 -0.0495"/>
     </body>
     <body name="food_cone" pos="51 50 0.023">
       <freejoint name="cone_free"/>
-      <geom name="cone" type="mesh" mesh="cone" pos="0.017 0.009 -0.018" condim="6" friction="1 0.02 0.002" rgba="0.85 0.6 0.2 1"/>
+      <geom name="cone" class="food" mesh="cone" pos="0.017 0.009 -0.018"/>
     </body>
     <body name="food_cube" pos="52 50 0.0325">
       <freejoint name="cube_free"/>
-      <geom name="cube" type="mesh" mesh="cube" pos="0.0205 -0.0005 -0.0275" condim="6" friction="1 0.02 0.002" rgba="0.85 0.6 0.2 1"/>
+      <geom name="cube" class="food" mesh="cube" pos="0.0205 -0.0005 -0.0275"/>
     </body>
     <body name="food_elipsoid" pos="53 50 0.0265">
       <freejoint name="elipsoid_free"/>
-      <geom name="elipsoid" type="mesh" mesh="elipsoid" pos="-0.0275 0.034 -0.0215" condim="6" friction="1 0.02 0.002" rgba="0.85 0.6 0.2 1"/>
+      <geom name="elipsoid" class="food" mesh="elipsoid" pos="-0.0275 0.034 -0.0215"/>
     </body>
     <body name="food_ring" pos="54 50 0.02025">
       <freejoint name="ring_free"/>
-      <geom name="ring" type="mesh" mesh="ring" pos="0.034 -0.008 -0.01525" condim="6" friction="1 0.02 0.002" rgba="0.85 0.6 0.2 1"/>
+      <geom name="ring" class="food" mesh="ring" pos="0.034 -0.008 -0.01525"/>
     </body>
   </worldbody>
 </mujocoinclude>

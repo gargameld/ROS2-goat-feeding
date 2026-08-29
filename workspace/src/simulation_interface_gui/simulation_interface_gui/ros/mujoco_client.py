@@ -193,7 +193,7 @@ class MujocoClient:
         return result
 
     def set_obstacle(self, obstacle: ObstacleState) -> Future[None]:
-        """Request a new XY position and full dimensions for the floor box."""
+        """Request a new XY position for the floor box."""
         values = self._validate_obstacle(obstacle)
         result: Future[None] = Future()
 
@@ -207,9 +207,7 @@ class MujocoClient:
                         f'ROS service {self._obstacle_service!r} is unavailable.'
                     )
                 request = SetObstacle.Request()
-                request.position.x, request.position.y = values[:2]
-                request.position.z = values[-1] / 2.0
-                request.size.x, request.size.y, request.size.z = values[3:]
+                request.position.x, request.position.y, request.position.z = values
                 response_future = self._obstacle_client.call_async(request)
                 response_future.add_done_callback(finish_request)
             except BaseException as error:
@@ -363,13 +361,8 @@ class MujocoClient:
             obstacle.position.x,
             obstacle.position.y,
             obstacle.position.z,
-            obstacle.width,
-            obstacle.length,
-            obstacle.height,
         )
         converted = tuple(float(value) for value in values)
         if not all(math.isfinite(value) for value in converted):
-            raise ValueError('Obstacle values must be finite numbers.')
-        if any(value <= 0.0 for value in converted[3:]):
-            raise ValueError('Obstacle dimensions must be greater than zero.')
+            raise ValueError('Obstacle position must contain finite numbers.')
         return converted

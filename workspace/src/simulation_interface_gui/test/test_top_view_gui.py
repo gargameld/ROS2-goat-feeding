@@ -115,8 +115,8 @@ def test_window_displays_amcl_and_simulation_poses():
     window.close()
 
 
-def test_window_emits_obstacle_dimensions_and_arrow_position():
-    """Dimension and arrow controls emit complete managed-box state."""
+def test_window_emits_arrow_position_and_preserves_obstacle_dimensions():
+    """Arrow controls move the managed box without changing its dimensions."""
     application = _application()
     window = TopViewWindow()
     commands = []
@@ -125,13 +125,13 @@ def test_window_emits_obstacle_dimensions_and_arrow_position():
         ObstacleState(Point3D(1.0, 2.0, 0.5), 0.8, 1.2, 1.0)
     )
     application.processEvents()
-    window._dimension_boxes['height'].setValue(1.5)
 
-    window._apply_obstacle_dimensions()
     window._move_obstacle(window._OBSTACLE_MOVE_STEP, 0.0)
     application.processEvents()
 
-    assert commands[0].height == 1.5
-    assert commands[1].position.x == 1.5
-    assert commands[1].position.z == 0.75
+    assert commands[0].position.x == 1.5
+    assert commands[0].position.z == 0.5
+    assert (commands[0].width, commands[0].length, commands[0].height) == (
+        0.8, 1.2, 1.0,
+    )
     window.close()

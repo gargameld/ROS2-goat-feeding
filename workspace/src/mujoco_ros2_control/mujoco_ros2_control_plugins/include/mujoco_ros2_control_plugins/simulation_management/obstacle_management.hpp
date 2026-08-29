@@ -33,7 +33,7 @@ public:
 
   bool is_available() const;
   ObstacleState state() const;
-  bool set_obstacle(double x, double y, double width, double length, double height, std::string& error);
+  bool set_obstacle(double x, double y, std::string& error);
 
 private:
   mjsGeom* find_geom() const;

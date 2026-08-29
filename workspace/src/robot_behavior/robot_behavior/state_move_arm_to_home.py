@@ -1,6 +1,11 @@
 """Behavior state that moves the arm to its home pose."""
 
+import time
+
 from robot_behavior.base_state import BaseState
+
+
+STARTUP_WAIT_SECONDS = 20.0
 
 
 class StateMoveArmToHome(BaseState):
@@ -19,6 +24,10 @@ class StateMoveArmToHome(BaseState):
             request_listener,
         )
         self.shared_state_data = shared_state_data
+        self.logger.info(
+            f'Waiting {STARTUP_WAIT_SECONDS:.0f} seconds before moving home'
+        )
+        time.sleep(STARTUP_WAIT_SECONDS)
 
     def on_entry(self) -> None:
         """Start the move-to-home action."""

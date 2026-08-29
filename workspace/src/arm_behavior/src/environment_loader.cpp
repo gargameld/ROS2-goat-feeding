@@ -1,5 +1,6 @@
 #include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -9,6 +10,7 @@
 
 #include "geometry_msgs/msg/pose.hpp"
 #include "moveit_msgs/msg/collision_object.hpp"
+#include "moveit_msgs/msg/link_padding.hpp"
 #include "moveit_msgs/srv/apply_planning_scene.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "shape_msgs/msg/solid_primitive.hpp"
@@ -109,6 +111,55 @@ std::vector<moveit_msgs::msg::CollisionObject> read_boxes(
   return objects;
 }
 
+// Safety expansion of the robot's own collision geometry. MoveIt applies link
+// padding only to robot-vs-world checks (the boxes above plus the food octomap);
+// self-collision stays unpadded unless CollisionRequest::pad_self_collisions is
+// set, so the SRDF adjacencies are unaffected.
+std::vector<moveit_msgs::msg::LinkPadding> read_link_padding(
+  const rclcpp::Node::SharedPtr & node)
+{
+  const std::string prefix = "link_padding.";
+
+  // Unlike `boxes`, the padded links are not enumerated by an explicit ID list:
+  // the YAML map is read straight off the parameter overrides, so adding a link
+  // is a one-line edit. Iteration order is the map's, i.e. deterministic.
+  std::vector<moveit_msgs::msg::LinkPadding> padding;
+  for (const auto & [name, value] :
+    node->get_node_parameters_interface()->get_parameter_overrides())
+  {
+    if (name.rfind(prefix, 0) != 0) {
+      continue;
+    }
+
+    const std::string link_name = name.substr(prefix.size());
+    if (link_name.empty()) {
+      throw std::runtime_error("'link_padding' must map link names to padding values");
+    }
+
+    double amount = 0.0;
+    switch (value.get_type()) {
+      case rclcpp::ParameterType::PARAMETER_DOUBLE:
+        amount = value.get<double>();
+        break;
+      case rclcpp::ParameterType::PARAMETER_INTEGER:
+        amount = static_cast<double>(value.get<std::int64_t>());
+        break;
+      default:
+        throw std::runtime_error("Padding for link '" + link_name + "' must be a number");
+    }
+    if (!std::isfinite(amount) || amount < 0.0) {
+      throw std::runtime_error(
+              "Padding for link '" + link_name + "' must be finite and non-negative");
+    }
+
+    moveit_msgs::msg::LinkPadding entry;
+    entry.link_name = link_name;
+    entry.padding = amount;
+    padding.push_back(std::move(entry));
+  }
+  return padding;
+}
+
 }  // namespace
 
 int main(int argc, char * argv[])
@@ -131,6 +182,7 @@ int main(int argc, char * argv[])
     }
 
     auto objects = read_boxes(node, frame_id);
+    auto link_padding = read_link_padding(node);
     auto client = node->create_client<moveit_msgs::srv::ApplyPlanningScene>(service_name);
     if (!client->wait_for_service(std::chrono::duration<double>(service_wait_timeout))) {
       throw std::runtime_error("Planning scene service '" + service_name + "' is unavailable");
@@ -140,8 +192,17 @@ int main(int argc, char * argv[])
     request->scene.is_diff = true;
     request->scene.robot_state.is_diff = true;
     request->scene.world.collision_objects = std::move(objects);
-    
+    request->scene.link_padding = std::move(link_padding);
+
     const std::size_t object_count = request->scene.world.collision_objects.size();
+    // MoveIt silently keeps padding entries for link names it does not know, so
+    // log them: a typo shows up here and nowhere else.
+    for (const auto & entry : request->scene.link_padding) {
+      RCLCPP_INFO(
+        node->get_logger(), "Padding link '%s' by %.3f m",
+        entry.link_name.c_str(), entry.padding);
+    }
+    const std::size_t padded_link_count = request->scene.link_padding.size();
     auto future = client->async_send_request(request);
     if (rclcpp::spin_until_future_complete(node, future) != rclcpp::FutureReturnCode::SUCCESS) {
       throw std::runtime_error("Failed while calling planning scene service '" + service_name + "'");
@@ -150,8 +211,8 @@ int main(int argc, char * argv[])
       throw std::runtime_error("MoveIt rejected the environment planning scene diff");
     }
     RCLCPP_INFO(
-      node->get_logger(), "Added %zu environment boxes in frame '%s'",
-      object_count, frame_id.c_str());
+      node->get_logger(), "Added %zu environment boxes in frame '%s' and padded %zu links",
+      object_count, frame_id.c_str(), padded_link_count);
   } catch (const std::exception & error) {
     RCLCPP_ERROR(node->get_logger(), "Unable to load environment: %s", error.what());
     rclcpp::shutdown();

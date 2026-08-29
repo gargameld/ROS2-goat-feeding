@@ -1,4 +1,11 @@
 # Webtop desktop with ROS 2 and the goat-feeding workspace.
+#
+# Pinned to the last webtop tag built on Ubuntu 24.04 (noble). Do not bump it
+# without also changing ROS_DISTRO: ubuntu-xfce-version-6af183f9 (2026-04-09)
+# and every tag after it rebase onto Ubuntu 26.04 "resolute", and
+# packages.ros.org publishes only ros-lyrical-* for resolute -- no ros-jazzy-*
+# -- so the apt-get install below dies with "Unable to locate package
+# ros-jazzy-desktop".
 ARG WEBTOP_IMAGE=ubuntu-xfce-version-d5ad760c
 ARG ROS_DISTRO=jazzy
 ARG DEFAULT_USERNAME=abc
@@ -35,7 +42,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ros-dev-tools ros-${ROS_DISTRO}-desktop \
         ros-${ROS_DISTRO}-navigation2 ros-${ROS_DISTRO}-nav2-bringup \
         ros-${ROS_DISTRO}-moveit-ros-perception && \
-    python3 -m pip install open3d --break-system-packages && \
     mkdir -p /config/workspace /config/.XDG /config/.ros/log && \
     sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
     sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
@@ -56,6 +62,30 @@ RUN git clone https://github.com/rohitmenon86/gpd.git /opt/tmp/gpd && \
     mv /opt/tmp/gpd/models /opt/gpd/models && \
     ldconfig && \
     rm -rf /opt/tmp/gpd
+
+# MuJoCo and Open3D have no apt packages, so they come from PyPI. Install them
+# as abc -- the user the ROS nodes run as -- so they land in that user's
+# /config/.local rather than the system tree. Four details here are easy to get
+# wrong, and each one fails in its own way:
+#   - /config is still root-owned at build time (LinuxServer's init only
+#     chowns it at container start), so abc cannot create /config/.local and
+#     pip aborts with "[Errno 13] Permission denied: '/config/.local'".
+#     install -d fixes the ownership first.
+#   - HOME. runuser does not switch HOME, so without setting it here --user
+#     would resolve to /root/.local and abc would never see the packages.
+#   - /usr/bin/python3 by absolute path. The base image sets VIRTUAL_ENV=/lsiopy
+#     and puts /lsiopy/bin first on PATH; this webtop tag has no python3 there,
+#     but newer ones do, and a bare `python3` that resolves into that venv is
+#     invisible to the ROS nodes, which run under /usr/bin/python3.
+#   - --break-system-packages. Ubuntu marks its python3 EXTERNALLY-MANAGED and
+#     pip refuses to touch it, user site included, without this flag.
+# numpy is deliberately left out: pip sees ROS's system numpy 1.26 through
+# dist-packages and leaves it alone, which is what we want -- a numpy 2.x in
+# /config/.local would shadow it and break ROS's Python extension modules.
+RUN install -d -o abc -g abc /config /config/.local && \
+    runuser -u abc -- env HOME=/config \
+        /usr/bin/python3 -m pip install --user --break-system-packages --no-cache-dir \
+        mujoco open3d
 
 # Select the OpenGL driver at runtime instead of baking one host's choice into
 # the image. MuJoCo's viewer and its offscreen camera rendering go through

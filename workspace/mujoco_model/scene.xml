@@ -2,6 +2,32 @@
   <option cone="elliptic" impratio="10"/>
   <option timestep="0.001" iterations="10"/>
 
+  <!-- multiccd makes the convex collision routine return the whole contact
+       manifold instead of a single deepest point. The engine this simulation
+       actually runs is the vendored MuJoCo 3.4.0 (mujoco_vendor); it leaves
+       the flag off, unlike the much newer `mujoco` pip wheel, where it is on
+       by default. That difference is not cosmetic. With one contact point a
+       food item resting flat on a parking shelf has nothing holding its
+       orientation: the single point carries the entire normal force, and the
+       torsional and rolling friction budgeted at that one point leaks, so the
+       item yaws in place at a steady 0.7 deg/s and never stops. Measured on
+       food_box thrown onto parking1 and then left alone, 30 s after it
+       settles: 21.5 deg of spin without the flag, 0.00 deg with it.
+
+       It also roughly triples grasp security, because the jaw pads get a real
+       contact patch rather than a point: ramping a pull-out force on a clamped
+       item until it moves 5 mm, the box breaks loose at 19 N without the flag
+       and 145 N with it.
+
+       It is free here. The robot's own geoms are primitives (boxes, cylinders,
+       spheres, planes) and never take the convex collision path at all, so
+       only the five food meshes are affected: 20 s of driving with the arm
+       sweeping simulates in 3.1 s of wall clock and reaches the same peak
+       contact count either way, with no solver warnings. -->
+  <option>
+    <flag multiccd="enable"/>
+  </option>
+
   <!-- The food items park at x~50 y~50, so the auto-computed model bounding box
        is 63 m across. MuJoCo scales the clipping planes by stat.extent, which
        put near at znear*63 = 0.63 m: the whole robot sat inside the near plane
@@ -168,11 +194,31 @@
        mujoco_config.xacro. Driving finger_joint alone is enough; the equality
        above carries right_finger_joint along. ctrlrange spans fully open (0)
        to the jaws meeting on the centre line (0.055) and must match the
-       finger_joint command_interface limits. -->
+       finger_joint command_interface limits.
+
+       kp and forcerange are what let a grasp finish, not just what sets the
+       grip. Closing on an object leaves the servo with a standing position
+       error (the jaws stop around 0.024 while commanded to 0.055), so
+       gripper_controller can never end a GripperCommand goal through its
+       goal_tolerance path and only its stall path is left: it needs
+       |velocity| under stall_velocity_threshold (0.001) for a full
+       stall_timeout (1 s), see robot_control/config/controllers.yaml.
+
+       kp=50000 with forcerange +/-10000 could not deliver that. It drove
+       1.5 kN into the item and buzzed the blocked jaw at 0.02 to 0.06 m/s, so
+       the stall timer was reset on 98 percent of cycles and the action never
+       returned a result: the gripper sat visibly closed in the sim while the
+       behavior state machine hung in closeGripper indefinitely. The buzz is
+       servo stiffness against the 1 ms Euler step. With an effective jaw mass
+       of 0.06 kg (0.05 plus armature 0.01), kp=50000 puts w*dt at 0.91,
+       essentially the explicit integration stability limit; kp=5000 brings it
+       to 0.29 and a blocked jaw settles dead still. forcerange then caps the
+       squeeze at 150 N, which is also the low end of the 150 to 870 N clamp
+       range the pull-out table in gripper.xml was measured over. -->
   <actuator>
-    <position name="finger_joint" joint="finger_joint" kp="50000" dampratio="1"
+    <position name="finger_joint" joint="finger_joint" kp="10000" dampratio="1"
       ctrllimited="true" ctrlrange="0 0.055"
-      forcelimited="true" forcerange="-10000 10000"/>
+      forcelimited="true" forcerange="-1500 1500"/>
   </actuator>
 
 </mujoco>

@@ -308,8 +308,8 @@ def test_get_robot_state_reports_unavailable_service(client_and_runtime):
         client.get_robot_state().result()
 
 
-def test_set_obstacle_maps_position_and_dimensions(client_and_runtime):
-    """Managed-box state maps to the set-obstacle service request."""
+def test_set_obstacle_maps_position(client_and_runtime):
+    """Managed-box position maps to the set-obstacle service request."""
     client, runtime = client_and_runtime
     obstacle = ObstacleState(Point3D(1.0, -2.0, 0.5), 0.8, 1.2, 1.0)
 
@@ -319,4 +319,3 @@ def test_set_obstacle_maps_position_and_dimensions(client_and_runtime):
     assert (request.position.x, request.position.y, request.position.z) == (
         1.0, -2.0, 0.5,
     )
-    assert (request.size.x, request.size.y, request.size.z) == (0.8, 1.2, 1.0)

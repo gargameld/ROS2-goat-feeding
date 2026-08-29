@@ -1,10 +1,12 @@
-"""Tests for the gripper-closing and object-lifting behavior states."""
+"""Tests for the gripper-closing and gripper-opening behavior states."""
 
 from types import SimpleNamespace
 
 from robot_behavior.shared_state_data import SharedStateData
+from robot_behavior.state_attach_object_to_gripper import (
+    StateAttachObjectToGripper,
+)
 from robot_behavior.state_close_gripper import StateCloseGripper
-from robot_behavior.state_lift_gripper import StateLiftGripper
 from robot_behavior.state_open_gripper import StateOpenGripper
 
 
@@ -41,7 +43,7 @@ class FakeBehaviorClient:
         self.node = FakeNode()
         self.close_handlers = None
         self.open_handlers = None
-        self.lift_handlers = None
+        self.attach_handlers = None
         self.clear_octomap_handlers = None
         self.unlock_base_handlers = None
 
@@ -51,8 +53,8 @@ class FakeBehaviorClient:
     def open_gripper(self, **handlers):
         self.open_handlers = handlers
 
-    def lift_gripper(self, **handlers):
-        self.lift_handlers = handlers
+    def attach_object_to_gripper(self, **handlers):
+        self.attach_handlers = handlers
 
     def clear_octomap(self, **handlers):
         self.clear_octomap_handlers = handlers
@@ -120,29 +122,29 @@ def test_close_gripper_finishes_null_when_the_grip_fails():
     assert transitions == [None]
 
 
-def test_lift_gripper_brings_the_arm_home_after_a_successful_lift():
-    """A lifted object is carried home before it is delivered."""
+def test_attach_object_brings_the_arm_straight_home():
+    """The arm goes home once the object is in the planning scene."""
     transitions = []
     client = FakeBehaviorClient()
-    state = StateLiftGripper(client, transitions.append)
+    state = StateAttachObjectToGripper(client, transitions.append)
 
     state.on_entry()
-    client.lift_handlers['result_handler'](
+    client.attach_handlers['response_handler'](
         SimpleNamespace(success=True, message='')
     )
 
     assert transitions == ['moveToHome']
 
 
-def test_lift_gripper_finishes_null_when_the_lift_fails():
-    """A failed lift also ends the chain."""
+def test_attach_object_finishes_null_when_the_attachment_fails():
+    """A planning scene that rejects the object ends the chain."""
     transitions = []
     client = FakeBehaviorClient()
-    state = StateLiftGripper(client, transitions.append)
+    state = StateAttachObjectToGripper(client, transitions.append)
 
     state.on_entry()
-    client.lift_handlers['result_handler'](
-        SimpleNamespace(success=False, message='no plan')
+    client.attach_handlers['response_handler'](
+        SimpleNamespace(success=False, message='no object')
     )
 
     assert transitions == [None]

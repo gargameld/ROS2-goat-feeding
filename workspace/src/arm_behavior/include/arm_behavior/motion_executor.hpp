@@ -11,6 +11,7 @@
 #include "moveit_msgs/srv/get_position_ik.hpp"
 
 #include "arm_behavior/operation_result.hpp"
+#include "arm_behavior/planning_scene_manager.hpp"
 
 namespace arm
 {
@@ -24,6 +25,7 @@ public:
     rclcpp::Node::SharedPtr node,
     std::shared_ptr<MoveGroupInterface> move_group,
     std::shared_ptr<std::mutex> moveit_mutex,
+    PlanningSceneManager & planning_scene,
     std::string tcp_link,
     std::string home_pose_name);
 
@@ -55,6 +57,7 @@ private:
   rclcpp::Client<moveit_msgs::srv::GetPositionIK>::SharedPtr compute_ik_client_;
   rclcpp::Node::SharedPtr node_;
   std::shared_ptr<std::mutex> moveit_mutex_;
+  PlanningSceneManager & planning_scene_;
   std::string tcp_link_;
   std::string home_pose_name_;
 };

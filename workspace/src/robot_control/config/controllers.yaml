@@ -90,6 +90,8 @@ gripper_controller:
     use_sim_time: true
     joint: finger_joint
     allow_stalling: true
+    stall_velocity_threshold: 0.1
+    stall_timeout: 0.5
 
 imu_sensor_broadcaster:
   ros__parameters:

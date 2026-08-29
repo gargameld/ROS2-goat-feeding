@@ -20,8 +20,8 @@ add_executable(arm_behavior_node
   src/arm_behavior.cpp
   src/main.cpp
   src/motion_executor.cpp
-  src/payload_manager.cpp
   src/payload_service_server.cpp
+  src/planning_scene_manager.cpp
   src/simulation_control.cpp
 )
 add_executable(environment_loader

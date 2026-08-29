@@ -13,6 +13,7 @@
        Stack, from the flange outwards:
          z in [0, 0.01]  mount disc, radius = the UR5e tool flange radius
          z in [0.01, 0.02] palm plate, 0.13 along X (closing) x 0.07 along Y
+                           (its collision box is oversized - see palm_collision_*)
          z in [0.02, 0.10] the two jaw plates, 0.01 thick along X, 0.07 long
                            along Y, 0.08 tall
 
@@ -26,10 +27,32 @@
     <xacro:property name="mount_radius" value="0.0315"/>
     <xacro:property name="mount_height" value="0.01"/>
 
-    <!-- Palm plate: 0.13 along the closing axis, 0.07 across it. -->
+    <!-- Palm plate: 0.13 along the closing axis, 0.07 across it. These are the
+         physical dimensions - visual geometry, jaw joint origins, jaw stroke and
+         the MJCF twin all key off them. -->
     <xacro:property name="palm_x" value="0.13"/>
     <xacro:property name="palm_y" value="0.07"/>
     <xacro:property name="palm_z" value="0.01"/>
+
+    <!-- Collision-only palm footprint, deliberately larger than the physical
+         plate. MuJoCo proxies arm_forearm_link with a capsule
+         (mujoco_model/mounted_arm.xml) whose hemispherical caps add the 45 mm
+         radius past each end of its `fromto` segment, so the simulated forearm
+         claims ~45 mm of space beyond where forearm.stl - the mesh MoveIt
+         collision-checks - actually ends. Folded wrist poses put the palm and
+         jaws inside that phantom shell: the sim reports a contact the planner
+         never saw. Growing the palm's collision box covers the discrepancy from
+         the gripper side, which unlike `link_padding` does reach self-collision
+         checks (those run against the unpadded robot; see
+         arm_behavior/src/environment_loader.cpp).
+
+         Sizing: sweeping wrist space against the MuJoCo model, the deepest such
+         incursion needs 10 mm of growth per side to become visible to MoveIt.
+         20 mm along X and 15 mm along Y leaves roughly 2x that. Note this box is
+         also what robot-vs-world checks inflate by link_padding.gripper_base_link
+         (moveit_config/config/environment_boxes.yaml), so the two stack. -->
+    <xacro:property name="palm_collision_x" value="0.17"/>
+    <xacro:property name="palm_collision_y" value="0.07"/>
 
     <!-- Jaw plate: 0.01 thick along the closing axis, 0.07 long to match the
          palm it sits on, 0.08 tall. -->
@@ -91,7 +114,7 @@
       <collision>
         <origin xyz="0 0 ${mount_height + palm_z / 2}" rpy="0 0 0"/>
         <geometry>
-          <box size="${palm_x} ${palm_y} ${palm_z}"/>
+          <box size="${palm_collision_x} ${palm_collision_y} ${palm_z}"/>
         </geometry>
       </collision>
     </link>

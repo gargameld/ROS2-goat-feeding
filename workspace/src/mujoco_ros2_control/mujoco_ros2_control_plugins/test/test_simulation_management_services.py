@@ -39,6 +39,12 @@ def main():
             initial_state.obstacle_position.x,
             initial_state.obstacle_position.y,
         )
+        initial_z_and_size = (
+            initial_state.obstacle_position.z,
+            initial_state.obstacle_size.x,
+            initial_state.obstacle_size.y,
+            initial_state.obstacle_size.z,
+        )
         if initial_xy != (-2.0, -7.5):
             raise AssertionError(
                 f'Expected obstacle to start in the corner, received {initial_xy}.'
@@ -47,9 +53,6 @@ def main():
         request.position.x = 1.25
         request.position.y = -1.75
         request.position.z = 99.0
-        request.size.x = 0.6
-        request.size.y = 1.4
-        request.size.z = 1.2
         response = call(node, set_client, request)
         if not response.success:
             raise RuntimeError(response.message)
@@ -63,7 +66,7 @@ def main():
             state.obstacle_size.y,
             state.obstacle_size.z,
         )
-        expected = (1.25, -1.75, 0.6, 0.6, 1.4, 1.2)
+        expected = (1.25, -1.75, *initial_z_and_size)
         if any(abs(left - right) > 1e-9 for left, right in zip(actual, expected)):
             raise AssertionError(f'Expected {expected}, received {actual}.')
         print(f'Live obstacle state: {actual}')

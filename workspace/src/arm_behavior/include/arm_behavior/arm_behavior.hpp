@@ -12,8 +12,8 @@
 
 #include "arm_behavior/arm_action_server.hpp"
 #include "arm_behavior/motion_executor.hpp"
-#include "arm_behavior/payload_manager.hpp"
 #include "arm_behavior/payload_service_server.hpp"
+#include "arm_behavior/planning_scene_manager.hpp"
 
 namespace arm
 {
@@ -58,8 +58,8 @@ private:
 
   std::shared_ptr<moveit::planning_interface::MoveGroupInterface> move_group_;
   std::shared_ptr<std::mutex> moveit_mutex_;
+  std::unique_ptr<PlanningSceneManager> planning_scene_manager_;
   std::unique_ptr<MotionExecutor> motion_executor_;
-  std::unique_ptr<PayloadManager> payload_manager_;
   std::unique_ptr<ArmActionServer> action_server_;
   std::unique_ptr<PayloadServiceServer> service_server_;
 };

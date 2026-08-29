@@ -7,7 +7,7 @@
 #include "arm_interface/srv/detach_object_from_gripper.hpp"
 #include "rclcpp/rclcpp.hpp"
 
-#include "arm_behavior/payload_manager.hpp"
+#include "arm_behavior/planning_scene_manager.hpp"
 
 namespace arm
 {
@@ -15,7 +15,7 @@ namespace arm
 class PayloadServiceServer
 {
 public:
-  PayloadServiceServer(rclcpp::Node::SharedPtr node, PayloadManager & payload_manager);
+  PayloadServiceServer(rclcpp::Node::SharedPtr node, PlanningSceneManager & planning_scene);
 
 private:
   void attach(
@@ -25,7 +25,7 @@ private:
     const std::shared_ptr<arm_interface::srv::DetachObjectFromGripper::Request> request,
     std::shared_ptr<arm_interface::srv::DetachObjectFromGripper::Response> response);
 
-  PayloadManager & payload_manager_;
+  PlanningSceneManager & planning_scene_;
   rclcpp::Service<arm_interface::srv::AttachObjectToGripper>::SharedPtr attach_service_;
   rclcpp::Service<arm_interface::srv::DetachObjectFromGripper>::SharedPtr detach_service_;
 };

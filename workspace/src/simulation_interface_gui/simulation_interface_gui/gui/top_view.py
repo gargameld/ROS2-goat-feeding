@@ -181,7 +181,6 @@ class TopViewWindow(QMainWindow):
         self._food_name_edit: QLineEdit | None = None
         self._parking_box: QSpinBox | None = None
         self._request_parking_box: QSpinBox | None = None
-        self._dimension_boxes: dict[str, QDoubleSpinBox] = {}
         self._obstacle_state: ObstacleState | None = None
         self._amcl_pose_label = QLabel('Waiting for map to base_link transform...')
         self._odom_pose_label = QLabel('Waiting for odom to base_link transform...')
@@ -265,25 +264,6 @@ class TopViewWindow(QMainWindow):
 
         obstacle_group = QGroupBox('Obstacle box', panel)
         obstacle_layout = QVBoxLayout(obstacle_group)
-        dimension_form = QFormLayout()
-        for label, field_name in (
-            ('Height', 'height'),
-            ('Width', 'width'),
-            ('Length', 'length'),
-        ):
-            spin_box = QDoubleSpinBox(obstacle_group)
-            spin_box.setRange(0.01, 10.0)
-            spin_box.setDecimals(3)
-            spin_box.setSingleStep(0.1)
-            spin_box.setSuffix(' m')
-            self._dimension_boxes[field_name] = spin_box
-            dimension_form.addRow(label, spin_box)
-        obstacle_layout.addLayout(dimension_form)
-
-        apply_button = QPushButton('Apply dimensions', obstacle_group)
-        apply_button.clicked.connect(self._apply_obstacle_dimensions)
-        obstacle_layout.addWidget(apply_button)
-
         arrows = QGridLayout()
         up_button = QPushButton('Up', obstacle_group)
         left_button = QPushButton('Left', obstacle_group)
@@ -332,17 +312,6 @@ class TopViewWindow(QMainWindow):
         """Ask the behavior node to collect food from the selected parking."""
         self.food_request_requested.emit(self._request_parking_box.value())
 
-    def _apply_obstacle_dimensions(self) -> None:
-        if self._obstacle_state is None:
-            self.set_status('Obstacle state is not available yet.', is_error=True)
-            return
-        self._emit_obstacle_update(
-            position=self._obstacle_state.position,
-            width=self._dimension_boxes['width'].value(),
-            length=self._dimension_boxes['length'].value(),
-            height=self._dimension_boxes['height'].value(),
-        )
-
     def _move_obstacle(self, delta_x: float, delta_y: float) -> None:
         if self._obstacle_state is None:
             self.set_status('Obstacle state is not available yet.', is_error=True)
@@ -352,22 +321,24 @@ class TopViewWindow(QMainWindow):
             position=Point3D(
                 position.x + delta_x,
                 position.y + delta_y,
-                self._obstacle_state.height / 2.0,
+                position.z,
             ),
-            width=self._obstacle_state.width,
-            length=self._obstacle_state.length,
-            height=self._obstacle_state.height,
         )
 
     def _emit_obstacle_update(
         self,
         *,
         position: Point3D,
-        width: float,
-        length: float,
-        height: float,
     ) -> None:
-        obstacle = ObstacleState(position, width, length, height)
+        current = self._obstacle_state
+        if current is None:
+            return
+        obstacle = ObstacleState(
+            position,
+            current.width,
+            current.length,
+            current.height,
+        )
         self._obstacle_state = obstacle
         self.obstacle_update_requested.emit(obstacle)
 
@@ -388,9 +359,6 @@ class TopViewWindow(QMainWindow):
     @pyqtSlot(object)
     def _apply_obstacle_state(self, obstacle: ObstacleState) -> None:
         self._obstacle_state = obstacle
-        self._dimension_boxes['width'].setValue(obstacle.width)
-        self._dimension_boxes['length'].setValue(obstacle.length)
-        self._dimension_boxes['height'].setValue(obstacle.height)
 
     @staticmethod
     def _format_pose(pose: Pose2D) -> str:

@@ -19,6 +19,12 @@ setup(
             os.path.join('share', package_name, 'launch'),
             glob('launch/*.launch.py'),
         ),
+        # The stored empty-plate dumps the food detection subtracts; see
+        # grasp_pose_provider/stored_model.py.
+        (
+            os.path.join('share', package_name, 'stored_pointcloud_data'),
+            glob('stored_pointcloud_data/*.yaml'),
+        ),
     ],
     install_requires=['setuptools', 'open3d', 'numpy', 'pyyaml'],
     zip_safe=True,

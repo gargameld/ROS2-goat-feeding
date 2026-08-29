@@ -10,6 +10,9 @@ class FakeLogger:
         """Return this logger as the requested child."""
         return self
 
+    def info(self, _message):
+        """Accept an info log call."""
+
 
 class FakeNode:
     """Provide the node interface used while constructing states."""
@@ -66,5 +69,6 @@ def test_state_machine_shares_request_listener_with_states():
     assert state_machine.states['openGripper'].shared_state_data is (
         state_machine.shared_state_data
     )
+    assert 'liftGripper' not in state_machine.states
     state_machine.change_state(None)
     assert state_machine.current_state == 'nullState'

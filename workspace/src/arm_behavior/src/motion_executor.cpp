@@ -5,6 +5,7 @@
 #include <cmath>
 #include <iomanip>
 #include <sstream>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -15,13 +16,12 @@
 #include "moveit_msgs/msg/robot_trajectory.hpp"
 #include "rclcpp/rclcpp.hpp"
 
+#include "arm_behavior/planning_scene_manager.hpp"
 #include "arm_behavior/simulation_control.hpp"
 
 namespace
 {
 
-constexpr double kCartesianLiftStep = 0.01;
-constexpr double kRequiredCartesianPathFraction = 0.999;
 // Narrow passages (e.g. threading the arm between the 0.1m quoridor walls in
 // environment_boxes.yaml) are low-probability regions for a randomized sampler,
 // so planning here either succeeds almost immediately or not at all.
@@ -53,6 +53,30 @@ constexpr double kGoalIkTimeoutSeconds = 3.0;
 // Wall-clock allowance for the round trip, which also covers move_group
 // locking the planning scene while a plan is in flight.
 constexpr std::chrono::seconds kComputeIkServiceTimeout{5};
+// The home pose is reached from inside a parking bay, where the gripper is
+// still holding the food cube it lifted off the shelf. The retract sweeps the
+// forearm back across the shelf plate it was just reaching over, so
+// collision-checking these four plates makes it unplannable. The bay walls,
+// ceilings and every other environment box stay checked.
+const std::vector<std::string> kParkingShelfCollisionObjects{
+  "parking_1_shelf",
+  "parking_2_shelf",
+  "parking_3_shelf",
+  "parking_4_shelf"};
+// The payload box attached to arm_tcp is a coarse envelope, not the food cube:
+// arm_tcp sits mid-jaw, and the box runs 0.15 m out along its +Z, roughly
+// 0.11 m past the fingertips (see payload.box_dimensions in
+// config/arm_behavior.yaml). Around a cube on a shelf, that overhang reaches
+// through the plate the cube rests on and through the lip at the front of the
+// bay, so the lift's start and goal states are in collision with geometry the
+// cube itself never touches -- and since the payload is rigidly attached, no
+// IK solution for the goal pose can avoid it. Excusing the payload alone
+// against those two boxes keeps every robot link checked against them.
+const std::vector<std::string> kPayloadIgnoredCollisionObjects{
+  "parking_1_shelf", "parking_1_shelf_wall",
+  "parking_2_shelf", "parking_2_shelf_wall",
+  "parking_3_shelf", "parking_3_shelf_wall",
+  "parking_4_shelf", "parking_4_shelf_wall"};
 constexpr double kGoalPositionToleranceMeters = 0.005;
 constexpr double kGoalOrientationToleranceRadians = 0.00872665;
 constexpr double kGoalJointToleranceRadians = 0.001;
@@ -190,11 +214,13 @@ MotionExecutor::MotionExecutor(
   rclcpp::Node::SharedPtr node,
   std::shared_ptr<MoveGroupInterface> move_group,
   std::shared_ptr<std::mutex> moveit_mutex,
+  PlanningSceneManager & planning_scene,
   std::string tcp_link,
   std::string home_pose_name)
 : move_group_(std::move(move_group)),
   node_(std::move(node)),
   moveit_mutex_(std::move(moveit_mutex)),
+  planning_scene_(planning_scene),
   tcp_link_(std::move(tcp_link)),
   home_pose_name_(std::move(home_pose_name))
 {
@@ -256,60 +282,69 @@ OperationResult MotionExecutor::moveToHomePose()
   if (!move_group_->setNamedTarget(home_pose_name_)) {
     return {false, "Named SRDF state '" + home_pose_name_ + "' was not found"};
   }
-  return planAndExecute("home pose");
+
+  // Ignore the parking shelf plates, and the payload envelope's overhang into
+  // the shelf geometry, for this motion only; the scope puts the planning scene
+  // back exactly as it was found. The retract starts where the lift ended,
+  // which is still inside the bay with the payload box overhanging the shelf
+  // lip (see kParkingShelfCollisionObjects and kPayloadIgnoredCollisionObjects).
+  const std::string motion_description = "home pose";
+  CollisionExceptions exceptions;
+  exceptions.world_object_ids = kParkingShelfCollisionObjects;
+  exceptions.payload_object_ids = kPayloadIgnoredCollisionObjects;
+  const auto collision_scope = planning_scene_.allowCollisions(exceptions, motion_description);
+  return planAndExecute(motion_description);
 }
 
 OperationResult MotionExecutor::lift(double distance)
 {
   std::lock_guard<std::mutex> lock(*moveit_mutex_);
-  auto target_pose = move_group_->getCurrentPose(tcp_link_).pose;
   const auto logger = rclcpp::get_logger("arm.motion_executor");
+  const auto current_pose = move_group_->getCurrentPose(tcp_link_);
+  auto target_pose = current_pose.pose;
   log_pose(logger, "Lift source pose for " + tcp_link_, target_pose);
   target_pose.position.z += distance;
   RCLCPP_INFO(logger, "Requested lift distance: %.6f m", distance);
   log_pose(logger, "Lift target pose for " + tcp_link_, target_pose);
 
-  move_group_->setStartStateToCurrentState();
-  move_group_->clearPoseTargets();
-  if (!move_group_->setPoseTarget(target_pose, tcp_link_)) {
-    return {false, "MoveIt rejected the lifted arm_tcp target pose"};
+  // The lift is collision-checked, so the food must be out of the octomap
+  // before anything is planned. The gripper has just closed on the cube, which
+  // leaves the fingers inside the voxels it was mapped as; those voxels can
+  // never be observed as free again because the gripper itself now occludes
+  // them, so they would put the start state in collision. The cube is not lost
+  // by dropping them: it is carried by the payload box attached to arm_tcp,
+  // which stays collision-checked against the rest of the scene. closeGripper
+  // already clears the octomap, but a lift that plans against real geometry
+  // must not depend on an earlier state having done so.
+  if (!planning_scene_.clearOctomap()) {
+    return {false, "Refusing to plan the lift: the grasped food may still be in the octomap"};
   }
 
-  moveit_msgs::msg::RobotTrajectory trajectory;
-  pause_simulation(node_);
-  double fraction;
-  try {
-    // Collision checking is disabled for the retreat. The gripper has just
-    // closed on the food cube, so the fingers are in contact with it by
-    // definition and the octomap still holds the voxels they closed around;
-    // a collision-checked lift rejects its very first waypoint. The motion is
-    // a short, straight, vertical retreat out of a shelf whose surroundings
-    // were already checked on the way in.
-    fraction = move_group_->computeCartesianPath(
-      {target_pose}, kCartesianLiftStep, trajectory, false);
-  } catch (...) {
-    try {
-      resume_simulation(node_);
-    } catch (const std::exception & error) {
-      RCLCPP_ERROR(
-        logger, "Failed to resume simulation after Cartesian planning error: %s", error.what());
-    }
-    throw;
+  // Planned exactly like move_arm_to_pose: a pose goal handed to OMPL with the
+  // usual retries, not a Cartesian interpolation. computeCartesianPath cannot
+  // report why it stopped -- a rejected waypoint looks the same whether the
+  // arm needed to move differently or the goal was never reachable at all --
+  // and it gave up at the first centimetre here, where the planner's
+  // START_STATE_IN_COLLISION / GOAL_IN_COLLISION codes name the problem. The
+  // motion is a 0.1 m retreat inside a bay the arm has already been planned
+  // into; nothing about it needs a straight-line TCP path.
+  std::string target_frame;
+  const auto target_result =
+    setPoseTarget(target_pose, current_pose.header.frame_id, target_frame);
+  if (!target_result.success) {
+    return target_result;
   }
-  resume_simulation(node_);
-  move_group_->clearPoseTargets();
-  if (fraction < kRequiredCartesianPathFraction) {
-    return {false, "Unable to compute a complete Cartesian lift"};
-  }
+  const std::string motion_description = "lifted pose in frame '" + target_frame + "'";
 
-  MoveGroupInterface::Plan plan;
-  plan.trajectory = std::move(trajectory);
-  log_path(plan, "Cartesian lift");
-  const auto execution_result = move_group_->execute(plan);
-  if (execution_result != moveit::core::MoveItErrorCode::SUCCESS) {
-    return {false, "Failed to execute Cartesian lift"};
-  }
-  return {true, "Cartesian lift completed"};
+  // Excuse the attached payload envelope against the shelf plates and lips it
+  // overhangs, for this motion alone (see kPayloadIgnoredCollisionObjects).
+  // Every robot link stays checked against them, and against the shelf ceiling
+  // the gripper is rising towards, the bay walls and every other environment
+  // box; self-collision is untouched.
+  CollisionExceptions exceptions;
+  exceptions.payload_object_ids = kPayloadIgnoredCollisionObjects;
+  const auto collision_scope = planning_scene_.allowCollisions(exceptions, motion_description);
+  return planAndExecute(motion_description);
 }
 
 void MotionExecutor::log_path(

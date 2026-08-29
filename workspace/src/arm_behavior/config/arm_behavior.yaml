@@ -14,7 +14,3 @@
         - gripper_base_link
         - left_jaw_link
         - right_jaw_link
-        - parking_1_shelf
-        - parking_2_shelf
-        - parking_3_shelf
-        - parking_4_shelf

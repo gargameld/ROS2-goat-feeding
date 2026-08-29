@@ -11,12 +11,14 @@ velocity_smoother:
     feedback: "OPEN_LOOP"
 
     # Keep the same symmetric holonomic limits as MPPI.
-    max_velocity: [1.50, 1.50, 2.00]
-    min_velocity: [-1.50, -1.50, -2.00]
+    max_velocity: [0.60, 0.60, 1.20]
+    min_velocity: [-0.60, -0.60, -1.20]
 
-    # Match MPPI's acceleration model so its collision predictions reflect
-    # the commands that are actually sent to the drivetrain.
-    max_accel: [2.50, 2.50, 4.00]
+    # Match MPPI's acceleration model so its collision predictions reflect the
+    # commands that are actually sent to the drivetrain. Deceleration stays
+    # faster than that model on purpose: the smoother must never be what limits
+    # a commanded stop, and braking harder than MPPI predicted only errs safe.
+    max_accel: [1.20, 1.20, 2.00]
     max_decel: [-2.50, -2.50, -4.00]
     deadband_velocity: [0.0, 0.0, 0.0]
     velocity_timeout: 0.30

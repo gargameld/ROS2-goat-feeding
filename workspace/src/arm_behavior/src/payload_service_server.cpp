@@ -7,8 +7,8 @@ namespace arm
 
 PayloadServiceServer::PayloadServiceServer(
   rclcpp::Node::SharedPtr node,
-  PayloadManager & payload_manager)
-: payload_manager_(payload_manager)
+  PlanningSceneManager & planning_scene)
+: planning_scene_(planning_scene)
 {
   attach_service_ = node->create_service<arm_interface::srv::AttachObjectToGripper>(
     "attach_object_to_gripper",
@@ -22,7 +22,7 @@ void PayloadServiceServer::attach(
   const std::shared_ptr<arm_interface::srv::AttachObjectToGripper::Request>,
   std::shared_ptr<arm_interface::srv::AttachObjectToGripper::Response> response)
 {
-  const auto result = payload_manager_.attach();
+  const auto result = planning_scene_.attachPayload();
   response->success = result.success;
   response->message = result.message;
 }
@@ -31,7 +31,7 @@ void PayloadServiceServer::detach(
   const std::shared_ptr<arm_interface::srv::DetachObjectFromGripper::Request>,
   std::shared_ptr<arm_interface::srv::DetachObjectFromGripper::Response> response)
 {
-  const auto result = payload_manager_.detach();
+  const auto result = planning_scene_.detachPayload();
   response->success = result.success;
   response->message = result.message;
 }

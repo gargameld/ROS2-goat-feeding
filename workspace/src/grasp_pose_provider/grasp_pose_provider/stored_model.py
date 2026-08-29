@@ -24,6 +24,10 @@ import os
 
 import numpy as np
 import open3d as o3d
+from ament_index_python.packages import (
+    PackageNotFoundError,
+    get_package_share_directory,
+)
 
 from grasp_pose_provider import (
     camera_transforms,
@@ -32,19 +36,44 @@ from grasp_pose_provider import (
 )
 
 
-# Directory of the stored per-camera dumps shipped with the package sources.
-# Resolved from this file's real path so it works from the source tree (and
-# from a ``--symlink-install`` build, whose module is a symlink back to
-# source):
+# Name of the directory holding the stored per-camera dumps, both in the
+# package sources and in the share directory setup.py installs them to.
+STORED_POINTCLOUD_DIRNAME = 'stored_pointcloud_data'
+# Extension of the stored dumps.
+STORED_POINTCLOUD_SUFFIX = '.yaml'
+
+# The copy in the sources, resolved from this file's real path:
 # .../grasp_pose_provider/grasp_pose_provider/stored_model.py
 #   -> .../grasp_pose_provider/stored_pointcloud_data/
 _PACKAGE_MODULE_DIR = os.path.dirname(os.path.realpath(__file__))
-DEFAULT_STORED_POINTCLOUD_DIR = os.path.join(
+_SOURCE_STORED_POINTCLOUD_DIR = os.path.join(
     os.path.dirname(_PACKAGE_MODULE_DIR),
-    'stored_pointcloud_data',
+    STORED_POINTCLOUD_DIRNAME,
 )
-# Extension of the stored dumps.
-STORED_POINTCLOUD_SUFFIX = '.yaml'
+
+
+def _default_stored_pointcloud_dir():
+    """Return the directory holding the stored per-camera dumps.
+
+    ``setup.py`` installs them into the package's share directory, so that is
+    where they are looked up first. Only a run against sources that have not
+    been installed -- a source checkout, or a build whose share directory
+    predates the dumps being installed -- falls back to the copy sitting next
+    to this module, which is reachable whenever the module itself is a symlink
+    back into the source tree.
+    """
+    try:
+        share_dir = get_package_share_directory('grasp_pose_provider')
+    except (PackageNotFoundError, LookupError):
+        return _SOURCE_STORED_POINTCLOUD_DIR
+    installed_dir = os.path.join(share_dir, STORED_POINTCLOUD_DIRNAME)
+    if os.path.isdir(installed_dir):
+        return installed_dir
+    return _SOURCE_STORED_POINTCLOUD_DIR
+
+
+# Directory of the stored per-camera dumps shipped with the package.
+DEFAULT_STORED_POINTCLOUD_DIR = _default_stored_pointcloud_dir()
 
 
 def camera_name(topic):

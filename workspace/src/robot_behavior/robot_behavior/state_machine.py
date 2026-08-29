@@ -9,7 +9,6 @@ from robot_behavior.state_attach_object_to_gripper import (
 )
 from robot_behavior.state_close_gripper import StateCloseGripper
 from robot_behavior.state_find_grasp_pose import StateFindGraspPose
-from robot_behavior.state_lift_gripper import StateLiftGripper
 from robot_behavior.state_move_arm_to_hole_pose import StateMoveArmToHolePose
 from robot_behavior.state_move_arm_to_home import StateMoveArmToHome
 from robot_behavior.state_move_arm_to_pose import StateMoveArmToPose
@@ -68,10 +67,6 @@ class StateMachine:
                 self.shared_state_data,
             ),
             'attachObjectToGripper': StateAttachObjectToGripper(
-                behavior_client,
-                self.change_state,
-            ),
-            'liftGripper': StateLiftGripper(
                 behavior_client,
                 self.change_state,
             ),

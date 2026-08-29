@@ -16,7 +16,9 @@ class StateAttachObjectToGripper(BaseState):
     def _handle_response(self, response) -> None:
         if response.success:
             self.logger.info('Object attached to the gripper in the planning scene')
-            self.request_state_transition('liftGripper')
+            # The object is held and no longer an obstacle, so the arm goes
+            # straight home instead of lifting first.
+            self.request_state_transition('moveToHome')
             return
 
         self.logger.error(
