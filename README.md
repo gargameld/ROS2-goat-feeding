@@ -25,7 +25,7 @@ next step is to install [docker desktop](https://www.docker.com/products/docker-
 open new Ubuntu terminal and cd to the user folder. run the command
 
 ```bash
-git clone https://github.com/gargameld/ROS2-goat-feeding/tree/master
+git clone https://github.com/gargameld/ROS2-goat-feeding
 ```
 
 (or alternatively drag the folder ROS2-goat-feeding to the user folder). cd to the repository.
@@ -33,7 +33,7 @@ git clone https://github.com/gargameld/ROS2-goat-feeding/tree/master
 the next step is to get an image for the container. you can either pull it from docker hub or alternatively build it by yourself. if you want to build the image run the command
 
 ```bash
-docker build -t yotambar123/ros-goat-feeding:final
+docker build -t yotambar123/ros-goat-feeding:final ~/ROS2-goat-feeding
 ```
 
 if you want to pull the image run the command
@@ -45,7 +45,7 @@ docker pull yotambar123/ros-goat-feeding:final
 after building/pulling the image start the container:
 
 ```bash
-docker run -v /home/<ubuntu-username>/ROS2-goat-feeding/workspace:/config/workspace -p 3000:3000 -p 3001:3001 -p 2222:22 -p –name ros2_goat_feeding_container yotambar123/ros-goat-feeding:final
+docker run -v /home/<ubuntu-username>/ROS2-goat-feeding/workspace:/config/workspace -p 3000:3000 -p 3001:3001 -p 2222:22 –name ros2_goat_feeding_container yotambar123/ros-goat-feeding:final
 ```
 
 ## how to run the system
@@ -54,6 +54,7 @@ open a browser and enter the address localhost:3000. open a command line and run
 
 ```bash
 cd ~/workspace
+sudo chown -R abc:abc /home/abc/workspace
 ```
 
 ```bash
@@ -65,7 +66,7 @@ rosdep update
 ```
 
 ```bash
-rosdep install --from_paths src --ignore_src -r -y
+rosdep install --from-paths src --ignore-src -r -y
 ```
 
 build the packages:

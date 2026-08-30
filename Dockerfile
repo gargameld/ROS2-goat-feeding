@@ -49,6 +49,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /etc/bash.bashrc && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
+RUN chown root:root /etc/sudo.conf && \
+    chown root:root /etc/sudoers && \
+    chown -R root:root /etc/sudoers.d && \
+    chmod 644 /etc/sudo.conf && \
+    chmod 440 /etc/sudoers && \
+    chmod 750 /etc/sudoers.d
+
 ENV LANG=en_US.UTF-8 \
     ROS_DISTRO=${ROS_DISTRO}
 
