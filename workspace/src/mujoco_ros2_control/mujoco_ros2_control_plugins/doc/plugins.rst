@@ -43,11 +43,13 @@ are preserved.
 ``throw_food`` teleports a free-floating food body into one of the numbered parking areas. The
 request carries the target ``parking_index`` (1..``parking_count``), the ``food_name`` of the body
 to move, an ``x``/``y`` position expressed in that parking's frame, and a 4-element ``orientation``
-quaternion in MuJoCo order (``w, x, y, z``). The position and orientation are composed with the
-parking body's current world pose; the world-frame drop height is taken from the
-``throw_food_height`` parameter (the requested Z is fixed). The handler rewrites the body's
-free-joint ``qpos`` and zeroes its ``qvel`` while holding the simulation mutex, so the item starts
-at rest. The orientation is normalised, so an un-normalised quaternion is accepted.
+quaternion in MuJoCo order (``w, x, y, z``). Each parking frame is map-aligned and configured with
+an ``offset`` from the map origin plus inclusive local ``min_x``, ``max_x``, ``min_y``, and
+``max_y`` limits. Requests outside those limits fail with a descriptive response message. The
+world-frame drop height is taken from the ``throw_food_height`` parameter (the requested Z is
+fixed). The handler rewrites the body's free-joint ``qpos`` and zeroes its ``qvel`` while holding
+the simulation mutex, so the item starts at rest. The orientation is normalised, so an
+un-normalised quaternion is accepted.
 
 **Example**
 
@@ -75,6 +77,14 @@ at rest. The orientation is normalised, so an un-normalised quaternion is accept
            type: "mujoco_ros2_control_plugins/SimulationManagementPlugin"
            throw_food_height: 0.3
            parking_count: 4
+           parking_frames:
+             parking_1:
+               offset: [2.5, -7.0]
+               min_x: 0.0
+               max_x: 0.5
+               min_y: -0.8
+               max_y: 0.8
+             # Configure parking_2 through parking_4 in the same way.
 
 
 Usage

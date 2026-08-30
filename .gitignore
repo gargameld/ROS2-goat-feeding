@@ -4,10 +4,9 @@
 # Keep the ignore rules themselves in the repository.
 !/.gitignore
 
-# Keep the container build definition and its helper scripts.
+# Keep the container build definition.
 !/Dockerfile
-!/docker/
-!/docker/**
+/docker/
 
 # Keep the ROS source tree and simulation model sources.
 !/workspace/
@@ -18,9 +17,8 @@
 !/workspace/mujoco_model/**
 /workspace/mujoco_model/live_view*/
 
-# Keep important saved simulation states.
-!/workspace/important states/
-!/workspace/important states/**
+# Ignore saved simulation states.
+/workspace/important states/
 
 # Keep all Python modules in capture, but ignore generated captures and the local environment.
 !/workspace/capture/

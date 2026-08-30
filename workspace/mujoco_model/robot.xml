@@ -11,12 +11,6 @@
            while it was supposed to be stationary. -->
       <geom type="box" size="0.5 0.40 0.05" pos="0 0 0.14" mass="40"/>
       <site name="imu_sensor" pos="0 0 0.200" size="0.015"/>
-      <site name="rear_right" pos="-0.40 -0.405 0.14" zaxis="-0.707107 -0.707107 0" size="0.01"/>
-      <site name="front_right" pos="-0.40 0.405 0.14" zaxis="-0.707107 0.707107 0" size="0.01"/>
-      <site name="rear_left" pos="0.40 -0.405 0.14" zaxis="0.707107 -0.707107 0" size="0.01"/>
-      <site name="front_left" pos="0.40 0.405 0.14" zaxis="0.707107 0.707107 0" size="0.01"/>
-      <site name="rear" pos="0 -0.505 0.14" zaxis="0 -1 0" size="0.01"/>
-      <site name="front" pos="0 0.505 0.14" zaxis="0 1 0" size="0.01"/>
 
       <site name="front_lidar" pos="0.4 0 0.2" size="0.01"/>
       <site name="back_lidar" pos="-0.4 0 0.2" euler="0 0 180" size="0.01"/>
@@ -81,12 +75,6 @@
   </worldbody>
 
   <sensor>
-    <rangefinder name="rangefinder_front_right" site="front_right" cutoff="3" noise="0.005"/>
-    <rangefinder name="rangefinder_front_left" site="front_left" cutoff="3" noise="0.005"/>
-    <rangefinder name="rangefinder_rear_right" site="rear_right" cutoff="3" noise="0.005"/>
-    <rangefinder name="rangefinder_rear_left" site="rear_left" cutoff="3" noise="0.005"/>
-    <rangefinder name="rangefinder_rear" site="rear" cutoff="3" noise="0.005"/>
-    <rangefinder name="rangefinder_front" site="front" cutoff="3" noise="0.005"/>
     <framequat name="imu_sensor_quat" objtype="site" objname="imu_sensor"/>
     <gyro name="imu_sensor_gyro" site="imu_sensor" noise="0.001"/>
     <accelerometer name="imu_sensor_accel" site="imu_sensor" noise="0.01"/>

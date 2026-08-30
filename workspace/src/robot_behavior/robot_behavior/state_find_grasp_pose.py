@@ -1,7 +1,5 @@
 """Behavior state that requests a reachable food grasp pose."""
 
-import time
-
 from robot_behavior.base_state import BaseState
 
 
@@ -19,7 +17,6 @@ class StateFindGraspPose(BaseState):
 
     def on_entry(self) -> None:
         """Pin the base, then clear any previous grasp and request a new one."""
-        time.sleep(40)
         self.shared_state_data.grasp_pose = None
         self.shared_state_data.grasp_reference_frame = ''
         # The grasp pose is captured in the camera frame and handed to the arm

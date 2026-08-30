@@ -135,6 +135,8 @@ def generate_launch_description():
             'autostart': True,
             'node_names': [
                 'map_server',
+                'keepout_filter_mask_server',
+                'keepout_costmap_filter_info_server',
                 'amcl',
                 'controller_server',
                 'velocity_smoother',
@@ -146,20 +148,21 @@ def generate_launch_description():
         }],
     )
 
-    start_lifecycle_manager_after_controllers = RegisterEventHandler(
-        EventHandler(
-            matcher=lambda event: getattr(event, 'name', None) ==
-            'robot_control.ControllerSpawnersComplete',
-            entities=[lifecycle_manager],
-            handle_once=True,
-        )
-    )
-
     behavior_node = Node(
         package='robot_behavior',
         executable='robot_behavior',
         name='behavior_node',
         output='screen',
+        prefix=['bash -c "exec \"$0\" \"$@\" > /config/workspace/capture/behavior_node_output 2>&1" ']
+    )
+
+    start_system_nodes_after_controllers = RegisterEventHandler(
+        EventHandler(
+            matcher=lambda event: getattr(event, 'name', None) ==
+            'robot_control.ControllerSpawnersComplete',
+            entities=[lifecycle_manager, behavior_node],
+            handle_once=True,
+        )
     )
 
     return LaunchDescription([
@@ -174,6 +177,5 @@ def generate_launch_description():
         grasp_pose_provider,
         gpd_server,
         grasp_rvis,
-        start_lifecycle_manager_after_controllers,
-        behavior_node,
+        start_system_nodes_after_controllers,
     ])

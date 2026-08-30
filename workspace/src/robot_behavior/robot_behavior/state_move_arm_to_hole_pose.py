@@ -10,19 +10,16 @@ class StateMoveArmToHolePose(BaseState):
         self,
         behavior_client,
         request_state_transition,
-        request_listener,
+        shared_state_data,
         map_parameters,
     ):
-        super().__init__(
-            behavior_client,
-            request_state_transition,
-            request_listener,
-        )
+        super().__init__(behavior_client, request_state_transition)
+        self.shared_state_data = shared_state_data
         self.map_parameters = map_parameters
 
     def on_entry(self) -> None:
         """Start moving the arm to the configured hole pose."""
-        parking_number = self.request_listener.get_parking_number()
+        parking_number = self.shared_state_data.parking_number
         if parking_number is None:
             self.logger.error('Cannot move the arm without a food request')
             self.request_state_transition(None)

@@ -8,24 +8,24 @@
 #include <algorithm>
 #include <cmath>
 #include <iterator>
+#include <sstream>
 #include <utility>
 
 namespace mujoco_ros2_control_plugins
 {
 
-FoodManagement::FoodManagement(mjModel* model, mjData* data, double throw_height, int parking_count,
-                               std::string parking_prefix)
+FoodManagement::FoodManagement(mjModel* model, mjData* data, double throw_height,
+                               std::vector<ParkingFrame> parking_frames)
   : model_(model)
   , data_(data)
   , throw_height_(throw_height)
-  , parking_count_(parking_count)
-  , parking_prefix_(std::move(parking_prefix))
+  , parking_frames_(std::move(parking_frames))
 {
 }
 
 bool FoodManagement::is_available() const
 {
-  return model_ != nullptr && data_ != nullptr && parking_count_ > 0;
+  return model_ != nullptr && data_ != nullptr && !parking_frames_.empty();
 }
 
 int FoodManagement::find_free_joint(const std::string& body_name, std::string& error) const
@@ -59,9 +59,9 @@ bool FoodManagement::throw_food(int parking_index, const std::string& food_name,
     error = "The MuJoCo simulation is unavailable.";
     return false;
   }
-  if (parking_index < 1 || parking_index > parking_count_)
+  if (parking_index < 1 || static_cast<std::size_t>(parking_index) > parking_frames_.size())
   {
-    error = "parking_index must be between 1 and " + std::to_string(parking_count_) + ".";
+    error = "parking_index must be between 1 and " + std::to_string(parking_frames_.size()) + ".";
     return false;
   }
 
@@ -69,6 +69,24 @@ bool FoodManagement::throw_food(int parking_index, const std::string& food_name,
   if (!std::all_of(std::begin(planar), std::end(planar), [](double value) { return std::isfinite(value); }))
   {
     error = "The requested x/y position must be finite.";
+    return false;
+  }
+
+  const ParkingFrame& parking_frame = parking_frames_[static_cast<std::size_t>(parking_index - 1)];
+  if (x < parking_frame.min_x || x > parking_frame.max_x)
+  {
+    std::ostringstream message;
+    message << "Requested x=" << x << " is outside the allowed range [" << parking_frame.min_x << ", "
+            << parking_frame.max_x << "] for parking " << parking_index << ".";
+    error = message.str();
+    return false;
+  }
+  if (y < parking_frame.min_y || y > parking_frame.max_y)
+  {
+    std::ostringstream message;
+    message << "Requested y=" << y << " is outside the allowed range [" << parking_frame.min_y << ", "
+            << parking_frame.max_y << "] for parking " << parking_index << ".";
+    error = message.str();
     return false;
   }
   if (!std::all_of(quat, quat + 4, [](double value) { return std::isfinite(value); }))
@@ -91,46 +109,24 @@ bool FoodManagement::throw_food(int parking_index, const std::string& food_name,
     component /= quat_norm;
   }
 
-  const std::string parking_name = parking_prefix_ + std::to_string(parking_index);
-  const int parking_id = mj_name2id(model_, mjOBJ_BODY, parking_name.c_str());
-  if (parking_id < 0)
-  {
-    error = "No parking body named '" + parking_name + "' exists in the simulation.";
-    return false;
-  }
-
   const int joint = find_free_joint(food_name, error);
   if (joint < 0)
   {
     return false;
   }
 
-  // Compose the parking-frame request into the world frame using the parking's
-  // current world pose (position, orientation) from the forward kinematics.
-  mjtNum parking_quat[4];
-  mju_copy4(parking_quat, data_->xquat + 4 * parking_id);
-
-  const mjtNum local_offset[3] = { x, y, 0.0 };
-  mjtNum world_offset[3];
-  mju_rotVecQuat(world_offset, local_offset, parking_quat);
-
-  mjtNum world_pos[3];
-  mju_add3(world_pos, data_->xpos + 3 * parking_id, world_offset);
-
-  const mjtNum req_quat[4] = { request_quat[0], request_quat[1], request_quat[2], request_quat[3] };
-  mjtNum world_quat[4];
-  mju_mulQuat(world_quat, parking_quat, req_quat);
-
   const int qpos_adr = model_->jnt_qposadr[joint];
   const int dof_adr = model_->jnt_dofadr[joint];
 
-  data_->qpos[qpos_adr + 0] = world_pos[0];
-  data_->qpos[qpos_adr + 1] = world_pos[1];
+  // Parking frames are map-aligned, so only their configured translation is
+  // needed to express the request in the simulation's map/world frame.
+  data_->qpos[qpos_adr + 0] = parking_frame.offset_x + x;
+  data_->qpos[qpos_adr + 1] = parking_frame.offset_y + y;
   data_->qpos[qpos_adr + 2] = throw_height_;  // constant world-frame drop height
-  data_->qpos[qpos_adr + 3] = world_quat[0];
-  data_->qpos[qpos_adr + 4] = world_quat[1];
-  data_->qpos[qpos_adr + 5] = world_quat[2];
-  data_->qpos[qpos_adr + 6] = world_quat[3];
+  data_->qpos[qpos_adr + 3] = request_quat[0];
+  data_->qpos[qpos_adr + 4] = request_quat[1];
+  data_->qpos[qpos_adr + 5] = request_quat[2];
+  data_->qpos[qpos_adr + 6] = request_quat[3];
 
   // Clear the free joint's linear and angular velocity so the item starts at rest.
   for (int dof = 0; dof < 6; ++dof)

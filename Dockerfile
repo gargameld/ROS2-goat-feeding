@@ -87,28 +87,6 @@ RUN install -d -o abc -g abc /config /config/.local && \
         /usr/bin/python3 -m pip install --user --break-system-packages --no-cache-dir \
         mujoco open3d
 
-# Select the OpenGL driver at runtime instead of baking one host's choice into
-# the image. MuJoCo's viewer and its offscreen camera rendering go through
-# OpenGL, and the driver that reaches hardware differs per host: D3D12 on WSL,
-# libGLX_nvidia with the nvidia container runtime, plain Mesa on a native
-# /dev/dri. gl-autodetect.sh probes glxinfo (hence mesa-utils above) and exports
-# whatever it takes to avoid the llvmpipe software fallback.
-COPY docker/gl-autodetect.sh /usr/local/lib/gl-autodetect.sh
-RUN chmod 0644 /usr/local/lib/gl-autodetect.sh && \
-    echo 'source /usr/local/lib/gl-autodetect.sh' >> /etc/bash.bashrc
-
-# Run sshd under s6 instead of starting it during build. LinuxServer's baseimage
-# picks up any executable in /custom-services.d and supervises it, so /init stays
-# PID 1 (required by s6-overlay) while sshd runs as a managed service.
-RUN mkdir -p /custom-services.d && \
-    { \
-        echo '#!/usr/bin/with-contenv bash'; \
-        echo 'mkdir -p /run/sshd'; \
-        echo '[ -f /etc/ssh/ssh_host_ed25519_key ] || ssh-keygen -A'; \
-        echo 'exec /usr/sbin/sshd -D -e'; \
-    } > /custom-services.d/sshd && \
-    chmod +x /custom-services.d/sshd
-
 # Ownership of /config is normally fixed at runtime by LinuxServer's init, but we
 # seed these dirs so the ROS/XDG paths exist and ROS can create log files. abc is
 # the default LSIO user (911).

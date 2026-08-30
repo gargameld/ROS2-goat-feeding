@@ -40,8 +40,8 @@ class StateCloseGripper(BaseState):
         )
 
     def _handle_result(self, result) -> None:
-        if not result.reached_goal and not result.stalled:
-            self.logger.error('Failed to close the gripper')
+        if result.reached_goal or not result.stalled:
+            self.logger.error('Failed to close the gripper on the food object')
             self.request_state_transition(None)
             return
 

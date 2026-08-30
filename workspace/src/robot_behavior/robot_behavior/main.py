@@ -31,7 +31,6 @@ def main(args=None):
     rclpy.init(args=args)
     node = RobotBehaviorNode()
     behavior_client = BehaviorClient(node)
-    request_listener = RequestListener(node)
     configuration_file = (
         Path(get_package_share_directory('robot_behavior'))
         / 'config'
@@ -40,8 +39,12 @@ def main(args=None):
     map_parameters = MapParametersLoader(configuration_file)
     state_machine = StateMachine(
         behavior_client,
-        request_listener,
         map_parameters,
+    )
+    request_listener = RequestListener(
+        node,
+        state_machine.change_parking_request,
+        state_machine.is_busy,
     )
     state_machine.change_state('moveToHome')
     tick_period = (

@@ -44,6 +44,12 @@ global_costmap:
       robot_radius: 0.4
       footprint_padding: 0.0
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+      filters: ["keepout_filter"]
+
+      keepout_filter:
+        plugin: "nav2_costmap_2d::KeepoutFilter"
+        enabled: true
+        filter_info_topic: "/keepout_costmap_filter_info"
 
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"

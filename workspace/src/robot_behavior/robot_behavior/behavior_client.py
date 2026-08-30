@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
 from arm_interface.action import LiftGripper, MoveArmToHomePose, MoveArmToPose
-from arm_interface.srv import AttachObjectToGripper
+from arm_interface.srv import AttachObjectToGripper, DetachObjectFromGripper
 from control_msgs.action import GripperCommand
 from grasp_pose_interface.action import ProvideGraspPose
 from nav2_msgs.action import NavigateToPose
@@ -21,6 +21,8 @@ CLEAR_OCTOMAP_SERVICE = '/clear_octomap'
 CLOSE_GRIPPER = 'close_gripper'
 CLOSE_GRIPPER_ACTION = '/gripper_controller/gripper_cmd'
 CLOSED_GRIPPER_POSITION = 0.055
+DETACH_OBJECT_FROM_GRIPPER = 'detach_object_from_gripper'
+DETACH_OBJECT_FROM_GRIPPER_SERVICE = '/detach_object_from_gripper'
 GRIPPER_MAX_EFFORT = 5.0
 LIFT_DISTANCE_METERS = 0.1
 LIFT_GRIPPER = 'lift_gripper'
@@ -108,6 +110,11 @@ class BehaviorClient:
             ATTACH_OBJECT_TO_GRIPPER,
             AttachObjectToGripper,
             ATTACH_OBJECT_TO_GRIPPER_SERVICE,
+        )
+        self.register_service(
+            DETACH_OBJECT_FROM_GRIPPER,
+            DetachObjectFromGripper,
+            DETACH_OBJECT_FROM_GRIPPER_SERVICE,
         )
         self.register_service(
             CLEAR_OCTOMAP,
@@ -273,6 +280,21 @@ class BehaviorClient:
         return self.invoke_service(
             ATTACH_OBJECT_TO_GRIPPER,
             AttachObjectToGripper.Request(),
+        )
+
+    def detach_object_from_gripper(
+        self,
+        *,
+        response_handler: Optional[Handler] = None,
+    ):
+        """Detach the configured payload box from the gripper in MoveIt."""
+        self.set_service_handler(
+            DETACH_OBJECT_FROM_GRIPPER,
+            response_handler,
+        )
+        return self.invoke_service(
+            DETACH_OBJECT_FROM_GRIPPER,
+            DetachObjectFromGripper.Request(),
         )
 
     def clear_octomap(

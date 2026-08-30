@@ -14,12 +14,13 @@ from simulation_interface_gui.presentation.scene import TopViewScene
 
 
 _BASE_CORNERS = (
-    Point3D(-0.40, -0.50, 0.0),
-    Point3D(0.40, -0.50, 0.0),
-    Point3D(0.40, 0.50, 0.0),
-    Point3D(-0.40, 0.50, 0.0),
+    Point3D(-0.50, -0.40, 0.0),
+    Point3D(0.50, -0.40, 0.0),
+    Point3D(0.50, 0.40, 0.0),
+    Point3D(-0.50, 0.40, 0.0),
 )
-_ORIENTATION_POINT = Point3D(0.0, 0.65, 0.0)
+# robot.xml defines chassis +X as forward and +Y as left.
+_ORIENTATION_POINT = Point3D(0.65, 0.0, 0.0)
 
 
 def _line(start_x: float, start_y: float, end_x: float, end_y: float) -> Line2D:

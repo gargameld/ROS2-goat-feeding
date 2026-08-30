@@ -1,5 +1,7 @@
 """Tests for request waiting and parking navigation states."""
 
+from types import SimpleNamespace
+
 from robot_behavior.map_parameters_loader import MapPose
 from robot_behavior.state_navigate_to_parking import StateNavigateToParking
 from robot_behavior.state_wait_food_request import StateWaitFoodRequest
@@ -95,5 +97,25 @@ def test_navigation_state_uses_requested_pose_then_finds_grasp_pose():
     assert target.header.frame_id == 'map'
     assert target.pose.position.x == 1.95
     assert target.pose.position.y == -3.0
-    handlers['result_handler'](object())
+    handlers['result_handler'](SimpleNamespace(error_code=0, error_msg=''))
     assert transitions == ['findGraspPose']
+
+
+def test_navigation_failure_enters_null_state():
+    """A failed Nav2 action must not continue to grasp detection."""
+    transitions = []
+    client = FakeBehaviorClient()
+    state = StateNavigateToParking(
+        client,
+        transitions.append,
+        FakeRequestListener(3),
+        FakeMapParameters(),
+    )
+
+    state.on_entry()
+    _, handlers = client.navigation
+    handlers['result_handler'](
+        SimpleNamespace(error_code=106, error_msg='No valid control')
+    )
+
+    assert transitions == [None]

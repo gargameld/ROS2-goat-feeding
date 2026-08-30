@@ -3,7 +3,6 @@
 from typing import Callable, Optional
 
 from robot_behavior.behavior_client import BehaviorClient
-from robot_behavior.request_listener import RequestListener
 
 
 StateTransitionRequest = Callable[[Optional['BaseState']], None]
@@ -16,7 +15,6 @@ class BaseState:
         self,
         behavior_client: BehaviorClient,
         request_state_transition: StateTransitionRequest,
-        request_listener: RequestListener | None = None,
     ):
         """Store the clients shared by behavior states."""
         self.behavior_client = behavior_client
@@ -24,7 +22,6 @@ class BaseState:
             type(self).__name__
         )
         self.request_state_transition = request_state_transition
-        self.request_listener = request_listener
 
     def on_entry(self) -> None:
         """Run when this state becomes current."""

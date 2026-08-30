@@ -4,7 +4,7 @@ from robot_behavior.base_state import BaseState
 
 
 class StateOpenGripper(BaseState):
-    """Open the gripper and record that the object is no longer held."""
+    """Open the gripper and detach its payload from the planning scene."""
 
     def __init__(
         self,
@@ -45,5 +45,22 @@ class StateOpenGripper(BaseState):
             return
 
         self.shared_state_data.object_gripped = False
-        self.logger.info('Gripper opened and the object released')
+        self.logger.info(
+            'Gripper opened; detaching the payload from the planning scene'
+        )
+        self.behavior_client.detach_object_from_gripper(
+            response_handler=self._handle_detach_response,
+        )
+
+    def _handle_detach_response(self, response) -> None:
+        if not response.success:
+            self.logger.error(
+                'Failed to detach payload from the planning scene: '
+                f'{response.message}'
+            )
+            self.request_state_transition(None)
+            return
+
+        self.shared_state_data.parking_number = None
+        self.logger.info('Payload detached and the object released')
         self.request_state_transition('moveToHome')

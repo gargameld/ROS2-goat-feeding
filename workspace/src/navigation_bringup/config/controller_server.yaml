@@ -111,15 +111,15 @@ controller_server:
         # repulsion term is averaged over the trajectory, so at 2.5 it moved
         # the total cost by well under one unit and never influenced which
         # rollout won.
-        repulsion_weight: 6.0
-        critical_weight: 100.0
+        repulsion_weight: 300.0
+        critical_weight: 200.0
         consider_footprint: true
         collision_cost: 1000000.0
         # Match physical padding (0.02 m) plus this margin to the collision
         # monitor's 0.22 m hard-stop reserve.
         # Cannot be raised: the hole poses park the footprint 0.23 m from the
         # wall, so a wider severe-penalty band would price the goal itself out.
-        collision_margin_distance: 0.20
+        collision_margin_distance: 0.30
         # Obstacle repulsion is suppressed within this radius of the goal so it
         # cannot fight goal convergence. At 1.0 m that covered the whole final
         # approach to a hole -- the robot closed the last metre onto a wall
@@ -183,11 +183,17 @@ local_costmap:
       height: 7
       resolution: 0.05
       footprint: "[[0.50, 0.40], [0.50, -0.40], [-0.50, -0.40], [-0.50, 0.40]]"
-      # The global costmap owns the 0.10 m route reserve. MPPI collision-checks
-      # the physical footprint with a small numerical allowance, avoiding a
-      # second 0.10 m expansion of every already-inflated local obstacle.
+      # Keep only a small numerical allowance as a hard collision boundary.
+      # ObstaclesCritic applies the larger 0.20 m clearance as a soft penalty,
+      # so the controller can still generate an escape command near obstacles.
       footprint_padding: 0.02
       plugins: ["obstacle_layer", "inflation_layer"]
+      filters: ["keepout_filter"]
+
+      keepout_filter:
+        plugin: "nav2_costmap_2d::KeepoutFilter"
+        enabled: true
+        filter_info_topic: "/keepout_costmap_filter_info"
 
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"

@@ -26,6 +26,33 @@
         throw_food_height: 0.5
         # Number of parking areas addressable by the throw_food service (1..N).
         parking_count: 4
+        # Each map-aligned parking frame has a map-frame XY origin and an
+        # inclusive allowed XY range expressed in that parking frame.
+        parking_frames:
+          parking_1:
+            offset: [2.6, -7.0]
+            min_x: 0.0
+            max_x: 0.3
+            min_y: -0.2
+            max_y: 0.2
+          parking_2:
+            offset: [2.6, -5.0]
+            min_x: 0.0
+            max_x: 0.3
+            min_y: -0.2
+            max_y: 0.2
+          parking_3:
+            offset: [2.6, -3.0]
+            min_x: 0.0
+            max_x: 0.3
+            min_y: -0.2
+            max_y: 0.2
+          parking_4:
+            offset: [2.6, -1.0]
+            min_x: 0.0
+            max_x: 0.3
+            min_y: -0.2
+            max_y: 0.2
       lock_robot_base:
         type: "mujoco_ros2_control_plugins/LockRobotBasePlugin"
         # Name of the MJCF body carrying the base free joint that lock_base pins.

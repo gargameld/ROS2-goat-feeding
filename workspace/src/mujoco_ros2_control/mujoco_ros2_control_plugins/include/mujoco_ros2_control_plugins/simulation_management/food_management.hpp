@@ -7,6 +7,7 @@
 #define MUJOCO_ROS2_CONTROL_PLUGINS__FOOD_MANAGEMENT_HPP_
 
 #include <string>
+#include <vector>
 
 #include <mujoco/mujoco.h>
 
@@ -14,11 +15,24 @@ namespace mujoco_ros2_control_plugins
 {
 
 /**
+ * @brief Map-frame origin and local XY limits for one parking frame.
+ */
+struct ParkingFrame
+{
+  double offset_x;
+  double offset_y;
+  double min_x;
+  double max_x;
+  double min_y;
+  double max_y;
+};
+
+/**
  * @brief Teleports free-floating food bodies into a parking area.
  *
  * Each food item is expected to be a body carrying a single free joint. The
  * manager rewrites that joint's qpos so the item appears at a requested pose,
- * expressed relative to a numbered parking body, at a fixed drop height.
+ * expressed relative to a configured parking frame, at a fixed drop height.
  */
 class FoodManagement
 {
@@ -27,11 +41,9 @@ public:
    * @param model            The live MuJoCo model.
    * @param data             The live MuJoCo data.
    * @param throw_height     World-frame z (metres) the food is placed at.
-   * @param parking_count    Number of parking bodies (indices 1..parking_count).
-   * @param parking_prefix   Body-name prefix for parkings ("parking" -> "parking1").
+   * @param parking_frames   Parking origins in the map frame and their local limits.
    */
-  FoodManagement(mjModel* model, mjData* data, double throw_height, int parking_count = 4,
-                 std::string parking_prefix = "parking");
+  FoodManagement(mjModel* model, mjData* data, double throw_height, std::vector<ParkingFrame> parking_frames);
 
   bool is_available() const;
 
@@ -55,8 +67,7 @@ private:
   mjModel* model_;
   mjData* data_;
   double throw_height_;
-  int parking_count_;
-  std::string parking_prefix_;
+  std::vector<ParkingFrame> parking_frames_;
 };
 
 }  // namespace mujoco_ros2_control_plugins

@@ -4,7 +4,6 @@ from types import SimpleNamespace
 
 from geometry_msgs.msg import Pose
 
-import robot_behavior.state_find_grasp_pose as find_grasp_pose_module
 from robot_behavior.shared_state_data import SharedStateData
 from robot_behavior.state_find_grasp_pose import StateFindGraspPose
 from robot_behavior.state_move_arm_to_pose import StateMoveArmToPose
@@ -52,19 +51,14 @@ class FakeBehaviorClient:
         self.move_request = (pose, reference_frame, handlers)
 
 
-def test_find_grasp_pose_stores_result_and_transitions_to_arm_motion(
-    monkeypatch,
-):
+def test_find_grasp_pose_stores_result_and_transitions_to_arm_motion():
     """The grasp result is passed to the next state through shared data."""
-    sleep_calls = []
-    monkeypatch.setattr(find_grasp_pose_module.time, 'sleep', sleep_calls.append)
     transitions = []
     client = FakeBehaviorClient()
     shared_data = SharedStateData()
     state = StateFindGraspPose(client, transitions.append, shared_data)
 
     state.on_entry()
-    assert sleep_calls == [20]
     assert client.grasp_handlers is None
     client.lock_base_handlers['response_handler'](
         SimpleNamespace(success=True, message='')
@@ -84,9 +78,8 @@ def test_find_grasp_pose_stores_result_and_transitions_to_arm_motion(
     assert transitions == ['moveArmToPose']
 
 
-def test_find_grasp_pose_finishes_null_when_food_is_not_found(monkeypatch):
+def test_find_grasp_pose_finishes_null_when_food_is_not_found():
     """An unsuccessful grasp lookup does not start arm motion."""
-    monkeypatch.setattr(find_grasp_pose_module.time, 'sleep', lambda _seconds: None)
     transitions = []
     client = FakeBehaviorClient()
     state = StateFindGraspPose(
@@ -106,11 +99,8 @@ def test_find_grasp_pose_finishes_null_when_food_is_not_found(monkeypatch):
     assert transitions == [None]
 
 
-def test_find_grasp_pose_finishes_null_when_the_base_cannot_be_locked(
-    monkeypatch,
-):
+def test_find_grasp_pose_finishes_null_when_the_base_cannot_be_locked():
     """An unpinned base would invalidate the grasp, so the chain ends."""
-    monkeypatch.setattr(find_grasp_pose_module.time, 'sleep', lambda _seconds: None)
     transitions = []
     client = FakeBehaviorClient()
     state = StateFindGraspPose(

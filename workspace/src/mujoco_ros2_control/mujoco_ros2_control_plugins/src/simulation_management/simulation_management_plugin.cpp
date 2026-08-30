@@ -14,15 +14,85 @@
 
 #include "mujoco_ros2_control_plugins/simulation_management/simulation_management_plugin.hpp"
 
+#include <algorithm>
+#include <cmath>
 #include <functional>
+#include <iterator>
 #include <mutex>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include <pluginlib/class_list_macros.hpp>
 
 namespace mujoco_ros2_control_plugins
 {
+
+namespace
+{
+
+bool load_parking_frames(const rclcpp::Node::SharedPtr& node, const std::string& param_prefix, int parking_count,
+                         std::vector<ParkingFrame>& parking_frames, std::string& error)
+{
+  if (parking_count <= 0)
+  {
+    error = "parking_count must be greater than zero.";
+    return false;
+  }
+
+  parking_frames.clear();
+  parking_frames.reserve(static_cast<std::size_t>(parking_count));
+  for (int parking_index = 1; parking_index <= parking_count; ++parking_index)
+  {
+    const std::string parking_prefix =
+        param_prefix + "parking_frames.parking_" + std::to_string(parking_index) + ".";
+    const std::string offset_param = parking_prefix + "offset";
+    const std::string min_x_param = parking_prefix + "min_x";
+    const std::string max_x_param = parking_prefix + "max_x";
+    const std::string min_y_param = parking_prefix + "min_y";
+    const std::string max_y_param = parking_prefix + "max_y";
+
+    const std::vector<std::string> required_parameters = {
+      offset_param, min_x_param, max_x_param, min_y_param, max_y_param
+    };
+    for (const std::string& parameter : required_parameters)
+    {
+      if (!node->has_parameter(parameter))
+      {
+        error = "Required parking configuration parameter '" + parameter + "' is missing.";
+        return false;
+      }
+    }
+
+    const std::vector<double> offset = node->get_parameter(offset_param).as_double_array();
+    if (offset.size() != 2)
+    {
+      error = "Parameter '" + offset_param + "' must contain exactly two values: [x, y].";
+      return false;
+    }
+
+    ParkingFrame frame{ offset[0], offset[1], node->get_parameter(min_x_param).as_double(),
+                        node->get_parameter(max_x_param).as_double(), node->get_parameter(min_y_param).as_double(),
+                        node->get_parameter(max_y_param).as_double() };
+    const double values[] = { frame.offset_x, frame.offset_y, frame.min_x,
+                              frame.max_x,   frame.min_y,    frame.max_y };
+    if (!std::all_of(std::begin(values), std::end(values), [](double value) { return std::isfinite(value); }))
+    {
+      error = "Parking " + std::to_string(parking_index) + " configuration must contain only finite values.";
+      return false;
+    }
+    if (frame.min_x > frame.max_x || frame.min_y > frame.max_y)
+    {
+      error = "Parking " + std::to_string(parking_index) +
+              " configuration requires min_x <= max_x and min_y <= max_y.";
+      return false;
+    }
+    parking_frames.push_back(frame);
+  }
+  return true;
+}
+
+}  // namespace
 
 bool SimulationManagementPlugin::init(rclcpp::Node::SharedPtr node, const mjModel* model, mjData* data)
 {
@@ -71,9 +141,18 @@ bool SimulationManagementPlugin::init(rclcpp::Node::SharedPtr node, const mjMode
   }
   const double throw_food_height = node_->get_parameter(throw_food_height_param).as_double();
   const int parking_count = static_cast<int>(node_->get_parameter(parking_count_param).as_int());
+  std::vector<ParkingFrame> parking_frames;
+  std::string parking_configuration_error;
+  if (!load_parking_frames(node_, param_prefix, parking_count, parking_frames, parking_configuration_error))
+  {
+    RCLCPP_ERROR(logger_, "Invalid parking-frame configuration: %s", parking_configuration_error.c_str());
+    cleanup();
+    return false;
+  }
   RCLCPP_INFO(logger_, "Using '%s' = %.3f and '%s' = %d.", throw_food_height_param.c_str(), throw_food_height,
               parking_count_param.c_str(), parking_count);
-  food_management_ = std::make_unique<FoodManagement>(model_, data_, throw_food_height, parking_count);
+  food_management_ =
+      std::make_unique<FoodManagement>(model_, data_, throw_food_height, std::move(parking_frames));
 
   get_robot_state_service_ = node_->create_service<GetRobotState>(
       "get_robot_state", std::bind(&SimulationManagementPlugin::handle_get_robot_state, this,
@@ -157,6 +236,7 @@ void SimulationManagementPlugin::handle_set_obstacle(const SetObstacle::Request:
 void SimulationManagementPlugin::handle_throw_food(const ThrowFood::Request::SharedPtr request,
                                                    ThrowFood::Response::SharedPtr response)
 {
+  response->success = false;
   auto* mutex = simulation_mutex();
   if (!mutex || !food_management_)
   {

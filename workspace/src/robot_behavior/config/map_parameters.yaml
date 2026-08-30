@@ -29,11 +29,11 @@ hole_poses:
   3:  # black hole
     frame_id: map
     position: {x: -1.65, y: 6.1, z: 0.0}
-    orientation: {x: 0.0, y: 0.0, z: 1.0, w: 1.0}
+    orientation: {x: 0.0, y: 0.0, z: -0.7071, w: 0.7071}
   4:  # magenta hole
     frame_id: map
     position: {x: -1.65, y: 2.1, z: 0.0}
-    orientation: {x: 0.0, y: 0.0, z: 1.0, w: 1.0}
+    orientation: {x: 0.0, y: 0.0, z: -0.7071, w: 0.7071}
 
 # Arm targets above the hole that serves each parking.
 hole_arm_poses:

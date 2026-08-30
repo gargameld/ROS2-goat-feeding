@@ -1,5 +1,7 @@
 """Behavior state that navigates to the requested parking area."""
 
+from nav2_msgs.action import NavigateToPose
+
 from robot_behavior.base_state import BaseState
 
 
@@ -10,19 +12,16 @@ class StateNavigateToParking(BaseState):
         self,
         behavior_client,
         request_state_transition,
-        request_listener,
+        shared_state_data,
         map_parameters,
     ):
-        super().__init__(
-            behavior_client,
-            request_state_transition,
-            request_listener,
-        )
+        super().__init__(behavior_client, request_state_transition)
+        self.shared_state_data = shared_state_data
         self.map_parameters = map_parameters
 
     def on_entry(self) -> None:
         """Look up the requested target and start Nav2 navigation."""
-        parking_number = self.request_listener.get_parking_number()
+        parking_number = self.shared_state_data.parking_number
         if parking_number is None:
             self.logger.error('Cannot navigate without a food request')
             self.request_state_transition(None)
@@ -51,6 +50,12 @@ class StateNavigateToParking(BaseState):
             f'Distance remaining: {feedback.distance_remaining:.2f} m'
         )
 
-    def _handle_result(self, _result) -> None:
+    def _handle_result(self, result) -> None:
+        if result.error_code != NavigateToPose.Result.NONE:
+            detail = result.error_msg or f'error code {result.error_code}'
+            self.logger.error(f'Parking navigation failed: {detail}')
+            self.request_state_transition(None)
+            return
+
         self.logger.info('Parking navigation finished')
         self.request_state_transition('findGraspPose')
