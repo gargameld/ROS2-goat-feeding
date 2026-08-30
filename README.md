@@ -1,5 +1,3 @@
-# README
-
 ## how to install the system
 
 the following instructions are for windows 10 or 11. start from installing WSL. open a windows terminal as administrator and run
@@ -41,7 +39,7 @@ docker build -t yotambar123/ros-goat-feeding:final
 if you want to pull the image run the command
 
 ```bash
-docker pull yotambar123/ros-goat-feeding: ros-goat-feeding:final
+docker pull yotambar123/ros-goat-feeding:final
 ```
 
 after building/pulling the image start the container:
@@ -84,6 +82,13 @@ source install/setup.bash
 
 the repository contains many configuration files. since we build with the flag --symlink-install, changing the configurations in the source will automatically change them in the installation and effect the next run. most of the configurations are already tuned for optimized performance and should not be touched, but there are some configurations worth knowing about.
 
+
+| parameters                                     | location                                                                                    | meaning                                                                                                                                                                              |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| parking poses,<br>hole poses<br>hole arm poses | robot_behavior/config/map_parameters.yaml                                                   | defines<br>different<br>states the<br>robot needs<br>to reach<br>during the<br>simulation.                                                                                           |
+| box dimentions                                 | arm_behavior/config/arm_behavior.yaml                                                       | when the<br>gripper<br>garasps<br>food, the<br>planning<br>scene<br>manager<br>adds box to<br>the<br>planning<br>scene to<br>avoid<br>collision of<br>the food<br>with<br>obstacles. |
+| xy_goal_tolerance<br>yaw_goal_tolerance        | navigation_bringup/config/controller_server                                                 | how close<br>the robot<br>will reach to<br>the target<br>pose.                                                                                                                       |
+| parking frames                                 | mujoco_ros2_control/mujoco_ros2_control_plugins<br>/config/mujoco_ros2_control_plugins.yaml | defines the<br>frames relative to<br>which you<br>specify the<br>food<br>throwing<br>position in<br>the GUI. it<br>also defines<br>the allowed<br>throwing<br>position<br>range.     |
 ## adding custom food objects to the simulation
 
 the available foods in the simulation are cube, box, cone, elipsoid and ring. you can also add custom food shapes. in order to do it you need to create an STL file of the food. I recommend to create it from [tinker cad](https://www.tinkercad.com/) 3D editor. once you have a ready STL file, drag it to the folder /config/workspace/mujoco_model/food_items_stl_files.
