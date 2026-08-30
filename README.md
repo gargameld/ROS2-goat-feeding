@@ -54,7 +54,7 @@ open a browser and enter the address localhost:3000. open a command line and run
 
 ```bash
 cd ~/workspace
-sudo chown -R abc:abc /home/abc/workspace
+sudo chown -R abc:abc /config/workspace
 ```
 
 ```bash
