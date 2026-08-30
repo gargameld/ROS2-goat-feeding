@@ -133,5 +133,3 @@ python3 capture/simulation_3d_interface/live_mujoco_viewer.py
 ```
 
 for any additional questions contact me. my email is yotam.ambar@gmail.com.
-README.md
-מציג את README.md.ההצעות עודכנו
