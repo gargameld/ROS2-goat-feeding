@@ -73,7 +73,7 @@ rosdep install --from_paths src --ignore_src -r -y
 build the packages:
 
 ```bash
-colcon build –symlink-install
+colcon build --symlink-install
 ```
 
 ```bash
