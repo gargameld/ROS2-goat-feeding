@@ -47,7 +47,7 @@ docker pull yotambar123/ros-goat-feeding: ros-goat-feeding:final
 after building/pulling the image start the container:
 
 ```bash
-docker run -v /home/&lt;username&gt;/ROS2-goat-feeding/workspace:/config/workspace -p 3000:3000 -p 3001:3001 -p 2222:22 -p –name ros2_goat_feeding_container yotambar123/ros-goat-feeding:final
+docker run -v /home/<ubuntu-username>/ROS2-goat-feeding/workspace:/config/workspace -p 3000:3000 -p 3001:3001 -p 2222:22 -p –name ros2_goat_feeding_container yotambar123/ros-goat-feeding:final
 ```
 
 ## how to run the system
@@ -73,7 +73,7 @@ rosdep install --from_paths src --ignore_src -r -y
 build the packages:
 
 ```bash
-colcon build –symlink-install
+colcon build --symlink-install
 ```
 
 ```bash
