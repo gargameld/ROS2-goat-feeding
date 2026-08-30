@@ -35,8 +35,6 @@ after building/pulling the image start the container:
 
 docker run -v /home/&lt;username&gt;/ROS2-goat-feeding/workspace:/config/workspace -p 3000:3000 -p 3001:3001 -p 2222:22 -p –name ros2_goat_feeding_container yotambar123/ros-goat-feeding:final
 
-**how to run the system**
-
 open a browser and enter the address localhost:3000. open a command line and run the following commands to install all the required dependencies:
 
 cd ~/workspace
