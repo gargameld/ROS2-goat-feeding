@@ -8,6 +8,11 @@
 !/Dockerfile
 /docker/
 
+# Keep the repository documentation and its media.
+!/README.md
+!/media/
+!/media/**
+
 # Keep the ROS source tree and simulation model sources.
 !/workspace/
 /workspace/*
