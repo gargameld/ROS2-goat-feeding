@@ -1,8 +1,3 @@
-// Copyright 2026 OpenAI
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-
 #ifndef MUJOCO_ROS2_CONTROL_PLUGINS__FOOD_MANAGEMENT_HPP_
 #define MUJOCO_ROS2_CONTROL_PLUGINS__FOOD_MANAGEMENT_HPP_
 

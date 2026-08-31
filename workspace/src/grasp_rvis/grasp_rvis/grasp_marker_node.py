@@ -2,7 +2,7 @@
 
 import math
 
-from geometry_msgs.msg import Point, PoseStamped
+from geometry_msgs.msg import Point
 from grasp_pose_interface.msg import GraspPoseArray
 import rclpy
 from rclpy.node import Node
@@ -12,7 +12,6 @@ from visualization_msgs.msg import Marker, MarkerArray
 
 DEFAULT_POSES_TOPIC = '/grasp_pose_candidates'
 DEFAULT_MARKERS_TOPIC = '/grasp_rvis/grasp_markers'
-DEFAULT_GRIPPER_MARKERS_TOPIC = '/grasp_rvis/gripper_markers'
 
 _AXES = (
     ((1.0, 0.0, 0.0), (1.0, 0.1, 0.1, 1.0)),
@@ -22,27 +21,15 @@ _AXES = (
 
 
 class GraspMarkerNode(Node):
-    """Publish one permanent, toggleable marker namespace per grasp pose."""
+    """Publish one marker namespace per grasp pose."""
 
     def __init__(self):
         super().__init__('grasp_marker_node')
         self.declare_parameter('poses_topic', DEFAULT_POSES_TOPIC)
         self.declare_parameter('markers_topic', DEFAULT_MARKERS_TOPIC)
-        self.declare_parameter(
-            'gripper_markers_topic', DEFAULT_GRIPPER_MARKERS_TOPIC
-        )
         self.declare_parameter('axis_length', 0.04)
-        self.declare_parameter('republish_period_sec', 0.5)
-        # Jaw geometry, mirroring robot_description's gripper.xacro and
-        # gpd_ros2's ros_eigen_params.cfg. hand_height is the full jaw length
-        # here, unlike the half-extent GPD's cfg wants.
-        self.declare_parameter('finger_width', 0.010)
-        self.declare_parameter('hand_outer_diameter', 0.130)
-        self.declare_parameter('hand_depth', 0.080)
-        self.declare_parameter('hand_height', 0.070)
-        self.declare_parameter('finger_tip_from_tcp', 0.040)
 
-        static_qos = QoSProfile(
+        qos = QoSProfile(
             depth=1,
             reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
@@ -50,61 +37,27 @@ class GraspMarkerNode(Node):
         self._publisher = self.create_publisher(
             MarkerArray,
             self.get_parameter('markers_topic').value,
-            static_qos,
-        )
-        self._gripper_publisher = self.create_publisher(
-            MarkerArray,
-            self.get_parameter('gripper_markers_topic').value,
-            static_qos,
+            qos,
         )
         self._subscription = self.create_subscription(
             GraspPoseArray,
             self.get_parameter('poses_topic').value,
             self._poses_callback,
-            static_qos,
+            qos,
         )
-        self._cached_pose_markers = None
-        self._cached_gripper_markers = None
-        period = float(self.get_parameter('republish_period_sec').value)
-        if period <= 0.0:
-            raise ValueError('republish_period_sec must be positive.')
-        self._republish_timer = self.create_timer(period, self._republish)
-
     def _poses_callback(self, message):
-        pose_markers = MarkerArray()
-        gripper_markers = MarkerArray()
-
+        markers = MarkerArray()
         for index, pose in enumerate(message.poses):
-            pose_markers.markers.extend(self._pose_markers(index, pose))
-            gripper_markers.markers.extend(
-                self._gripper_markers(index, pose)
-            )
+            markers.markers.extend(self._pose_markers(index, pose))
 
-        # Clear candidates from the previous result once, then cache only ADD
-        # markers. Re-sending the ADD markers lets RViz restore a namespace
-        # after its checkbox is disabled and enabled again.
-        self._publish_with_clear(self._publisher, pose_markers)
-        self._publish_with_clear(self._gripper_publisher, gripper_markers)
-        self._cached_pose_markers = pose_markers
-        self._cached_gripper_markers = gripper_markers
+        # Clear candidates from the previous result before publishing the new
+        # static batch.
+        clear = Marker()
+        clear.action = Marker.DELETEALL
+        self._publisher.publish(MarkerArray(markers=[clear, *markers.markers]))
         self.get_logger().info(
             f'Visualizing {len(message.poses)} static grasp candidates'
         )
-
-    @staticmethod
-    def _publish_with_clear(publisher, markers):
-        update = MarkerArray()
-        clear = Marker()
-        clear.action = Marker.DELETEALL
-        update.markers = [clear, *markers.markers]
-        publisher.publish(update)
-
-    def _republish(self):
-        """Re-send ADD markers so RViz namespace toggles are reversible."""
-        if self._cached_pose_markers is not None:
-            self._publisher.publish(self._cached_pose_markers)
-        if self._cached_gripper_markers is not None:
-            self._gripper_publisher.publish(self._cached_gripper_markers)
 
     def _pose_markers(self, index, pose):
         namespace = f'grasp_{index:03d}'
@@ -151,65 +104,17 @@ class GraspMarkerNode(Node):
         markers.append(label)
         return markers
 
-    def _gripper_markers(self, index, pose):
-        """Create a parallel-jaw gripper behind an ``arm_tcp`` pose.
-
-        ``arm_tcp`` has +Z along approach, +X along the finger-closing
-        direction, and +Y across the finger height. The pads extend beyond
-        the TCP by ``finger_tip_from_tcp``.
-        """
-        namespace = f'grasp_{index:03d}'
-        finger_width = float(self.get_parameter('finger_width').value)
-        outer_diameter = float(
-            self.get_parameter('hand_outer_diameter').value
-        )
-        hand_depth = float(self.get_parameter('hand_depth').value)
-        hand_height = float(self.get_parameter('hand_height').value)
-        finger_tip_from_tcp = float(
-            self.get_parameter('finger_tip_from_tcp').value
-        )
-        half_spacing = 0.5 * (outer_diameter - finger_width)
-        finger_center = finger_tip_from_tcp - 0.5 * hand_depth
-        finger_base = finger_tip_from_tcp - hand_depth
-
-        specs = (
-            # Center offsets and dimensions in TCP [closing, height, approach].
-            ((-half_spacing, 0.0, finger_center),
-             (finger_width, hand_height, hand_depth)),
-            ((half_spacing, 0.0, finger_center),
-             (finger_width, hand_height, hand_depth)),
-            ((0.0, 0.0, finger_base - 0.01),
-             (2.0 * half_spacing, hand_height, 0.02)),
-        )
-        markers = []
-        for marker_id, (offset, dimensions) in enumerate(specs):
-            marker = Marker()
-            marker.header.frame_id = pose.header.frame_id
-            marker.ns = namespace
-            marker.id = marker_id
-            marker.type = Marker.CUBE
-            marker.action = Marker.ADD
-            rotated_offset = _rotate_vector(pose, offset)
-            marker.pose.position = _point_at(pose, rotated_offset)
-            marker.pose.orientation = pose.pose.orientation
-            marker.scale.x, marker.scale.y, marker.scale.z = dimensions
-            marker.color.r = 0.08
-            marker.color.g = 0.35
-            marker.color.b = 1.0
-            marker.color.a = 0.65
-            markers.append(marker)
-        return markers
-
 
 def _point_at(pose, offset):
-    point = Point()
-    point.x = pose.pose.position.x + offset[0]
-    point.y = pose.pose.position.y + offset[1]
-    point.z = pose.pose.position.z + offset[2]
-    return point
+    position = pose.pose.position
+    return Point(
+        x=position.x + offset[0],
+        y=position.y + offset[1],
+        z=position.z + offset[2],
+    )
 
 
-def _rotate_vector(pose: PoseStamped, vector):
+def _rotate_vector(pose, vector):
     """Rotate ``vector`` by ``pose``'s quaternion without using timestamps."""
     q = pose.pose.orientation
     norm = math.sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w)

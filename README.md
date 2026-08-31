@@ -50,7 +50,7 @@ docker run -v /home/<ubuntu-username>/ROS2-goat-feeding/workspace:/config/worksp
 
 ## how to run the system
 
-open a browser and enter the address localhost:3000. open a command line and run the following commands to install all the required dependencies:
+open a browser and enter the address localhost:3000. open a command line inside the WebTop tab and run the following commands to install all the required dependencies on the container:
 
 ```bash
 cd ~/workspace
@@ -95,7 +95,7 @@ the repository contains many configuration files. since we build with the flag -
 
 the available foods in the simulation are cube, box, cone, elipsoid and ring. you can also add custom food shapes. in order to do it you need to create an STL file of the food. I recommend to create it from [tinker cad](https://www.tinkercad.com/) 3D editor. once you have a ready STL file, drag it to the folder /config/workspace/mujoco_model/food_items_stl_files.
 
-comment: the GPD is not sophisticated enough and for most of the food objects it fails to find good candidate grasp poses. I recommend starting from box and later try to test the simulation with other objects as well.
+comment: the GPD is not sophisticated enough and for most of the food objects it fails to find good candidate grasp poses. It is recommended to start from box and later try to test the simulation with other objects as well.
 
 ## how to run the system
 

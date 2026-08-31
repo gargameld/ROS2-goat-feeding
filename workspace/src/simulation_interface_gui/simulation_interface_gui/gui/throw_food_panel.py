@@ -36,6 +36,7 @@ class ThrowFoodPanel(QGroupBox):
 
         self._food_name_edit = QLineEdit(self)
         self._food_name_edit.setPlaceholderText('food object name (no prefix)')
+        self._food_name_edit.setText('box')
         layout.addRow('Food name', self._food_name_edit)
 
         self._parking_box = QSpinBox(self)
