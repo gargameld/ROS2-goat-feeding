@@ -7,7 +7,7 @@
       id: lifted_payload
       # Box dimensions [x, y, z] in metres. The box extends from arm_tcp
       # along its positive Z axis and remains collision-checked after attachment.
-      box_dimensions: [0.10, 0.10, 0.15]
+      box_dimensions: [0.10, 0.10, 0.10]
       # Only these links may overlap the attached payload.
       gripper_touch_links:
         - arm_tcp

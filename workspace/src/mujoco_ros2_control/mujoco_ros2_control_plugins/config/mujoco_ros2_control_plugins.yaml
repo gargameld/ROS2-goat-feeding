@@ -20,6 +20,9 @@
         buffer_capacity: 4096
         output_directory: "/config/workspace/capture"
         output_file: "simulation_states.csv"
+        # Static geoms have no qpos, so capture this model-side position for
+        # live_mujoco_viewer.py and other replay tools.
+        obstacle_geom_name: "obstacle"
       simulation_management:
         type: "mujoco_ros2_control_plugins/SimulationManagementPlugin"
         # Constant world-frame z height (metres) that thrown food is placed at.

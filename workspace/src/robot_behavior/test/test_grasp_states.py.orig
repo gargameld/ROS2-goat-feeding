@@ -12,9 +12,6 @@ from robot_behavior.state_move_arm_to_pose import StateMoveArmToPose
 class FakeLogger:
     """Accept state log calls."""
 
-    def __init__(self):
-        self.error_messages = []
-
     def get_child(self, _name):
         return self
 
@@ -24,18 +21,15 @@ class FakeLogger:
     def debug(self, _message):
         pass
 
-    def error(self, message):
-        self.error_messages.append(message)
+    def error(self, _message):
+        pass
 
 
 class FakeNode:
     """Provide logging to states."""
 
-    def __init__(self):
-        self.logger = FakeLogger()
-
     def get_logger(self):
-        return self.logger
+        return FakeLogger()
 
 
 class FakeBehaviorClient:
@@ -102,10 +96,6 @@ def test_find_grasp_pose_finishes_null_when_food_is_not_found():
         SimpleNamespace(food_found=False)
     )
 
-    assert client.node.logger.error_messages == [
-        'Food was not found',
-        'No reachable food grasp pose was found',
-    ]
     assert transitions == [None]
 
 

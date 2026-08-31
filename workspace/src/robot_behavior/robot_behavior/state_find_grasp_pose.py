@@ -54,6 +54,7 @@ class StateFindGraspPose(BaseState):
 
     def _handle_result(self, result) -> None:
         if not result.food_found:
+            self.logger.error('Food was not found')
             self.logger.error('No reachable food grasp pose was found')
             self.request_state_transition(None)
             return

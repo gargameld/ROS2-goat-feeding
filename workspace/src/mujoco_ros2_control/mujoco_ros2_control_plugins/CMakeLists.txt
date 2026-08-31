@@ -31,6 +31,7 @@ endif()
 add_library(mujoco_ros2_control_plugins SHARED
   src/mujoco_3d_lidar_plugin.cpp
   src/state_capture_plugin.cpp
+  src/state_capture_consumer.cpp
   src/lock_robot_base_plugin.cpp
   # simulation management plugin and the model-editing classes it drives
   src/simulation_management/simulation_management_plugin.cpp

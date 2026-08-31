@@ -15,16 +15,11 @@
 #ifndef MUJOCO_ROS2_CONTROL_PLUGINS__STATE_CAPTURE_PLUGIN_HPP_
 #define MUJOCO_ROS2_CONTROL_PLUGINS__STATE_CAPTURE_PLUGIN_HPP_
 
-#include <atomic>
-#include <condition_variable>
 #include <cstddef>
-#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <memory>
-#include <mutex>
 #include <string>
-#include <thread>
 #include <vector>
 
 #include <rclcpp/rclcpp.hpp>
@@ -33,6 +28,8 @@
 
 namespace mujoco_ros2_control_plugins
 {
+
+class StateCaptureConsumer;
 
 class StateCapturePlugin : public MuJoCoROS2ControlPluginBase
 {
@@ -45,15 +42,6 @@ public:
   void cleanup() override;
 
 private:
-  struct StateSample
-  {
-    double simulation_time{ 0.0 };
-    std::vector<double> qpos;
-    // Free-joint qpos values of the tracked STL food bodies, concatenated in
-    // food_bodies_ order (7 values per free joint: px, py, pz, qw, qx, qy, qz).
-    std::vector<double> food_qpos;
-  };
-
   // A free-floating STL food body tracked by name prefix, and the slice of the
   // MuJoCo qpos array that stores its free-joint state.
   struct FoodBody
@@ -63,8 +51,10 @@ private:
     int qpos_count{ 0 };
   };
 
-  void consumer_loop();
-  void drain_buffer();
+  bool configure_parameters();
+  void discover_food_bodies(const mjModel* model);
+  bool initialize_output_file();
+  void start_consumer();
 
   rclcpp::Node::SharedPtr node_;
   rclcpp::Logger logger_{ rclcpp::get_logger("StateCapturePlugin") };
@@ -72,15 +62,13 @@ private:
   std::filesystem::path output_path_;
   std::ofstream output_stream_;
 
-  std::vector<StateSample> ring_buffer_;
   std::size_t buffer_capacity_{ 4096 };
   std::size_t nq_{ 0 };
   std::vector<FoodBody> food_bodies_;
   std::size_t food_qpos_total_{ 0 };
   std::string food_body_prefix_{ "food_" };
-  std::atomic<uint64_t> write_sequence_{ 0 };
-  std::atomic<uint64_t> read_sequence_{ 0 };
-  std::atomic<uint64_t> dropped_samples_{ 0 };
+  std::string obstacle_geom_name_{ "obstacle" };
+  int obstacle_geom_id_{ -1 };
 
   double capture_rate_hz_{ 30.0 };
   double flush_interval_seconds_{ 4.0 };
@@ -88,11 +76,7 @@ private:
   double previous_simulation_time_{ 0.0 };
   bool capture_schedule_initialized_{ false };
 
-  std::thread consumer_thread_;
-  std::mutex consumer_mutex_;
-  std::condition_variable consumer_cv_;
-  bool stop_requested_{ false };
-  std::atomic<bool> capture_enabled_{ false };
+  std::unique_ptr<StateCaptureConsumer> consumer_;
 };
 
 }  // namespace mujoco_ros2_control_plugins

@@ -16,10 +16,11 @@ written is picked up as it grows; when playback reaches the last state the clock
 holds there until more states are appended, and if the capture restarts (the CSV
 shrinks) playback restarts from the top with it.
 
-No physics is stepped. The viewer is *passive*: the qpos vector comes straight
-out of the CSV, ``mj_forward`` places the bodies, and the window is synced. Mouse
-and keyboard work as usual, so you can orbit, zoom, toggle visualisation flags
-and pick bodies while the replay runs.
+No physics is stepped. The viewer is *passive*: the qpos vector and the captured
+position of the static obstacle geom come straight out of the CSV,
+``mj_forward`` places the bodies, and the window is synced. Mouse and keyboard
+work as usual, so you can orbit, zoom, toggle visualisation flags and pick
+bodies while the replay runs.
 
 This is a standalone program: it is NOT part of the ROS system and does not
 import any ROS packages. It needs ``mujoco``, ``numpy`` and a display; the MJCF
@@ -121,6 +122,35 @@ def parse_qpos(line: bytes, qpos_count: int) -> np.ndarray | None:
     return qpos if np.all(np.isfinite(qpos)) else None
 
 
+def find_position_columns(csv_path: Path, geom_name: str) -> tuple[int, int, int] | None:
+    """Find the CSV field indices holding a captured static geom position."""
+    try:
+        with csv_path.open("r", encoding="utf-8", newline="") as stream:
+            header = stream.readline().strip().split(",")
+    except OSError:
+        return None
+
+    names = [f"{geom_name}_pos_{component}" for component in range(3)]
+    try:
+        return tuple(header.index(name) for name in names)
+    except ValueError:
+        return None
+
+
+def parse_position(line: bytes, columns: tuple[int, int, int] | None) -> np.ndarray | None:
+    """Return a captured static geom position, if this CSV row contains one."""
+    if columns is None:
+        return None
+    fields = line.decode("utf-8", errors="replace").split(",")
+    if len(fields) <= max(columns):
+        return None
+    try:
+        position = np.asarray([float(fields[index]) for index in columns], dtype=float)
+    except ValueError:
+        return None
+    return position if np.all(np.isfinite(position)) else None
+
+
 class StateStream:
     """Reads the capture CSV from the top and hands out its rows in order.
 
@@ -181,6 +211,7 @@ class StateStream:
 
 def run_viewer(args: argparse.Namespace) -> None:
     qpos_count = read_qpos_column_count(args.csv)
+    obstacle_columns = find_position_columns(args.csv, args.obstacle_geom)
     model, temporary_directory = build_model(args.model)
     try:
         if model.nq != qpos_count:
@@ -190,6 +221,16 @@ def run_viewer(args: argparse.Namespace) -> None:
             )
 
         data = mujoco.MjData(model)
+        obstacle_geom_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, args.obstacle_geom)
+        if obstacle_columns is not None and obstacle_geom_id < 0:
+            raise SystemExit(
+                f"CSV contains a position for geom '{args.obstacle_geom}', but that geom is absent from the model."
+            )
+        if obstacle_columns is None:
+            print(
+                f"Capture has no '{args.obstacle_geom}_pos_*' columns; "
+                "static obstacle movement cannot be replayed from this CSV."
+            )
         stream = StateStream(args.csv, qpos_count)
         period = 1.0 / args.rate
         step = period * args.speed  # simulation seconds covered by one frame
@@ -228,12 +269,16 @@ def run_viewer(args: argparse.Namespace) -> None:
                 if line is not None:
                     qpos = parse_qpos(line, qpos_count)
                     if qpos is not None:
+                        obstacle_position = parse_position(line, obstacle_columns)
                         # Replay only: velocities stay zero and no step is taken,
                         # so the window shows exactly what was captured.
-                        data.qpos[:] = qpos
-                        data.qvel[:] = 0.0
-                        data.time = shown_time
-                        mujoco.mj_forward(model, data)
+                        with viewer.lock():
+                            data.qpos[:] = qpos
+                            data.qvel[:] = 0.0
+                            data.time = shown_time
+                            if obstacle_position is not None:
+                                model.geom_pos[obstacle_geom_id] = obstacle_position
+                            mujoco.mj_forward(model, data)
                         frames += 1
                 viewer.sync()
 
@@ -267,6 +312,11 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--speed", type=float, default=1.0, help="playback speed relative to simulation time (default: 1)"
     )
+    parser.add_argument(
+        "--obstacle-geom",
+        default="obstacle",
+        help="name of the static obstacle geom captured as model position (default: obstacle)",
+    )
     args = parser.parse_args()
     args.csv = args.csv.expanduser().resolve()
     args.model = args.model.expanduser().resolve()
@@ -274,6 +324,8 @@ def parse_arguments() -> argparse.Namespace:
         raise SystemExit("--rate must be a positive number of hertz")
     if not math.isfinite(args.speed) or args.speed <= 0.0:
         raise SystemExit("--speed must be a positive multiplier")
+    if not args.obstacle_geom:
+        raise SystemExit("--obstacle-geom must not be empty")
     if not args.csv.is_file():
         raise SystemExit(f"Capture CSV does not exist: {args.csv}")
     if not args.model.is_file():

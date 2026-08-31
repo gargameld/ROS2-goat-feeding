@@ -14,8 +14,8 @@
 
 #include "mujoco_ros2_control_plugins/state_capture_plugin.hpp"
 
-#include <algorithm>
-#include <chrono>
+#include "mujoco_ros2_control_plugins/state_capture_consumer.hpp"
+
 #include <iomanip>
 #include <limits>
 #include <string_view>
@@ -42,6 +42,37 @@ bool StateCapturePlugin::init(rclcpp::Node::SharedPtr node, const mjModel* model
   node_ = std::move(node);
   logger_ = node_->get_logger().get_child("StateCapturePlugin");
 
+  if (!configure_parameters())
+  {
+    return false;
+  }
+
+  nq_ = static_cast<std::size_t>(model->nq);
+  obstacle_geom_id_ = obstacle_geom_name_.empty() ? -1 : mj_name2id(model, mjOBJ_GEOM, obstacle_geom_name_.c_str());
+  if (obstacle_geom_id_ < 0)
+  {
+    RCLCPP_WARN(logger_, "Obstacle geom '%s' was not found; its position will not be included in the capture.",
+                obstacle_geom_name_.c_str());
+  }
+
+  discover_food_bodies(model);
+
+  if (!initialize_output_file())
+  {
+    return false;
+  }
+
+  start_consumer();
+
+  RCLCPP_INFO(logger_, "Capturing qpos at %.2f Hz to '%s'; flushing every %.2f seconds.", capture_rate_hz_,
+              output_path_.string().c_str(), flush_interval_seconds_);
+  RCLCPP_INFO(logger_, "Also logging qpos for %zu STL food body(ies) matching prefix '%s'.", food_bodies_.size(),
+              food_body_prefix_.c_str());
+  return true;
+}
+
+bool StateCapturePlugin::configure_parameters()
+{
   if (!node_->has_parameter("capture_rate"))
   {
     node_->declare_parameter("capture_rate", capture_rate_hz_);
@@ -66,6 +97,10 @@ bool StateCapturePlugin::init(rclcpp::Node::SharedPtr node, const mjModel* model
   {
     node_->declare_parameter("food_body_prefix", food_body_prefix_);
   }
+  if (!node_->has_parameter("obstacle_geom_name"))
+  {
+    node_->declare_parameter("obstacle_geom_name", obstacle_geom_name_);
+  }
 
   capture_rate_hz_ = node_->get_parameter("capture_rate").as_double();
   flush_interval_seconds_ = node_->get_parameter("flush_interval").as_double();
@@ -73,6 +108,7 @@ bool StateCapturePlugin::init(rclcpp::Node::SharedPtr node, const mjModel* model
   const std::filesystem::path output_directory = node_->get_parameter("output_directory").as_string();
   const std::filesystem::path output_file = node_->get_parameter("output_file").as_string();
   food_body_prefix_ = node_->get_parameter("food_body_prefix").as_string();
+  obstacle_geom_name_ = node_->get_parameter("obstacle_geom_name").as_string();
 
   if (capture_rate_hz_ <= 0.0 || flush_interval_seconds_ <= 0.0 || configured_capacity < 2)
   {
@@ -86,9 +122,12 @@ bool StateCapturePlugin::init(rclcpp::Node::SharedPtr node, const mjModel* model
   }
 
   buffer_capacity_ = static_cast<std::size_t>(configured_capacity);
-  nq_ = static_cast<std::size_t>(model->nq);
   output_path_ = output_directory / output_file;
+  return true;
+}
 
+void StateCapturePlugin::discover_food_bodies(const mjModel* model)
+{
   // Discover the free-floating STL food bodies by name prefix and record the
   // slice of qpos that stores each one's free-joint state.
   food_bodies_.clear();
@@ -121,12 +160,15 @@ bool StateCapturePlugin::init(rclcpp::Node::SharedPtr node, const mjModel* model
       }
     }
   }
+}
 
+bool StateCapturePlugin::initialize_output_file()
+{
   std::error_code filesystem_error;
-  std::filesystem::create_directories(output_directory, filesystem_error);
+  std::filesystem::create_directories(output_path_.parent_path(), filesystem_error);
   if (filesystem_error)
   {
-    RCLCPP_ERROR(logger_, "Failed to create capture directory '%s': %s", output_directory.string().c_str(),
+    RCLCPP_ERROR(logger_, "Failed to create capture directory '%s': %s", output_path_.parent_path().string().c_str(),
                  filesystem_error.message().c_str());
     return false;
   }
@@ -143,6 +185,13 @@ bool StateCapturePlugin::init(rclcpp::Node::SharedPtr node, const mjModel* model
   for (std::size_t index = 0; index < nq_; ++index)
   {
     output_stream_ << ",qpos_" << index;
+  }
+  if (obstacle_geom_id_ >= 0)
+  {
+    for (int component = 0; component < 3; ++component)
+    {
+      output_stream_ << ',' << obstacle_geom_name_ << "_pos_" << component;
+    }
   }
   for (const FoodBody& food_body : food_bodies_)
   {
@@ -161,38 +210,12 @@ bool StateCapturePlugin::init(rclcpp::Node::SharedPtr node, const mjModel* model
     return false;
   }
 
-  ring_buffer_.resize(buffer_capacity_);
-  for (auto& sample : ring_buffer_)
-  {
-    sample.qpos.resize(nq_);
-    sample.food_qpos.resize(food_qpos_total_);
-  }
-
-  write_sequence_.store(0, std::memory_order_relaxed);
-  read_sequence_.store(0, std::memory_order_relaxed);
-  dropped_samples_.store(0, std::memory_order_relaxed);
-  capture_schedule_initialized_ = false;
-  next_capture_time_ = 0.0;
-  previous_simulation_time_ = 0.0;
-
-  {
-    const std::lock_guard<std::mutex> lock(consumer_mutex_);
-    stop_requested_ = false;
-  }
-
-  capture_enabled_.store(true, std::memory_order_release);
-  consumer_thread_ = std::thread(&StateCapturePlugin::consumer_loop, this);
-
-  RCLCPP_INFO(logger_, "Capturing qpos at %.2f Hz to '%s'; flushing every %.2f seconds.", capture_rate_hz_,
-              output_path_.string().c_str(), flush_interval_seconds_);
-  RCLCPP_INFO(logger_, "Also logging qpos for %zu STL food body(ies) matching prefix '%s'.", food_bodies_.size(),
-              food_body_prefix_.c_str());
   return true;
 }
 
-void StateCapturePlugin::update(const mjModel* /*model*/, mjData* data)
+void StateCapturePlugin::update(const mjModel* model, mjData* data)
 {
-  if (!capture_enabled_.load(std::memory_order_acquire) || !data)
+  if (!consumer_ || !consumer_->is_enabled() || !model || !data)
   {
     return;
   }
@@ -218,19 +241,24 @@ void StateCapturePlugin::update(const mjModel* /*model*/, mjData* data)
   }
   while (next_capture_time_ <= simulation_time + 1e-12);
 
-  const uint64_t write_sequence = write_sequence_.load(std::memory_order_relaxed);
-  const uint64_t read_sequence = read_sequence_.load(std::memory_order_acquire);
-  if (write_sequence - read_sequence >= buffer_capacity_)
+  StateCaptureConsumer::StateSample* sample = consumer_->try_acquire_sample();
+  if (!sample)
   {
-    dropped_samples_.fetch_add(1, std::memory_order_relaxed);
     return;
   }
 
-  StateSample& sample = ring_buffer_[static_cast<std::size_t>(write_sequence % buffer_capacity_)];
-  sample.simulation_time = simulation_time;
+  sample->simulation_time = simulation_time;
   for (std::size_t index = 0; index < nq_; ++index)
   {
-    sample.qpos[index] = static_cast<double>(data->qpos[index]);
+    sample->qpos[index] = static_cast<double>(data->qpos[index]);
+  }
+  if (obstacle_geom_id_ >= 0)
+  {
+    for (int component = 0; component < 3; ++component)
+    {
+      sample->obstacle_position[component] =
+          static_cast<double>(model->geom_pos[3 * obstacle_geom_id_ + component]);
+    }
   }
 
   std::size_t food_offset = 0;
@@ -238,80 +266,19 @@ void StateCapturePlugin::update(const mjModel* /*model*/, mjData* data)
   {
     for (int component = 0; component < food_body.qpos_count; ++component)
     {
-      sample.food_qpos[food_offset++] = static_cast<double>(data->qpos[food_body.qpos_address + component]);
+      sample->food_qpos[food_offset++] = static_cast<double>(data->qpos[food_body.qpos_address + component]);
     }
   }
 
-  write_sequence_.store(write_sequence + 1, std::memory_order_release);
-}
-
-void StateCapturePlugin::consumer_loop()
-{
-  const auto flush_interval = std::chrono::duration<double>(flush_interval_seconds_);
-
-  while (true)
-  {
-    bool stopping = false;
-    {
-      std::unique_lock<std::mutex> lock(consumer_mutex_);
-      consumer_cv_.wait_for(lock, flush_interval, [this]() { return stop_requested_; });
-      stopping = stop_requested_;
-    }
-
-    drain_buffer();
-
-    if (stopping)
-    {
-      break;
-    }
-  }
-}
-
-void StateCapturePlugin::drain_buffer()
-{
-  uint64_t read_sequence = read_sequence_.load(std::memory_order_relaxed);
-  const uint64_t available_sequence = write_sequence_.load(std::memory_order_acquire);
-
-  while (read_sequence < available_sequence)
-  {
-    const StateSample& sample = ring_buffer_[static_cast<std::size_t>(read_sequence % buffer_capacity_)];
-    output_stream_ << sample.simulation_time;
-    for (const double position : sample.qpos)
-    {
-      output_stream_ << ',' << position;
-    }
-    for (const double food_position : sample.food_qpos)
-    {
-      output_stream_ << ',' << food_position;
-    }
-    output_stream_ << '\n';
-
-    ++read_sequence;
-    read_sequence_.store(read_sequence, std::memory_order_release);
-  }
-
-  output_stream_.flush();
-  if (!output_stream_)
-  {
-    RCLCPP_ERROR(logger_, "Failed while writing capture file '%s'; capture has stopped.",
-                 output_path_.string().c_str());
-    capture_enabled_.store(false, std::memory_order_release);
-  }
+  consumer_->publish_sample();
 }
 
 void StateCapturePlugin::cleanup()
 {
-  capture_enabled_.store(false, std::memory_order_release);
-
+  if (consumer_)
   {
-    const std::lock_guard<std::mutex> lock(consumer_mutex_);
-    stop_requested_ = true;
-  }
-  consumer_cv_.notify_all();
-
-  if (consumer_thread_.joinable())
-  {
-    consumer_thread_.join();
+    consumer_->stop();
+    consumer_.reset();
   }
 
   if (output_stream_.is_open())
@@ -320,14 +287,6 @@ void StateCapturePlugin::cleanup()
     output_stream_.close();
   }
 
-  const uint64_t dropped_samples = dropped_samples_.load(std::memory_order_relaxed);
-  if (node_ && dropped_samples > 0)
-  {
-    RCLCPP_WARN(logger_, "Dropped %llu capture sample(s) because the ring buffer was full.",
-                static_cast<unsigned long long>(dropped_samples));
-  }
-
-  ring_buffer_.clear();
   node_.reset();
 }
 
