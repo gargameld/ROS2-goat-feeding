@@ -121,11 +121,11 @@ in the simulation interface GUI you can find interface to interact with the simu
 
 ![](media/image1.png)
 
-the Throw food panel enables you to select a food object and throw it on specified shelf on specified orientation and specified position (relative to the offset defined in the file mujoco_ros2_control/mujoco_ros2_control_plugins/config/mujoco_ros2_control_plugins.yaml).
+the Throw food panel enables you to select a food object and throw it on specified shelf on specified orientation and specified position (relative to the offset defined in the file mujoco_ros2_control/mujoco_ros2_control_plugins/config/mujoco_ros2_control_plugins.yaml). not in every orientation the gripper will be able to close on the food object. if the food falls on the large side the exposed sides of the box will be too wide for the gripper. so if you want to throw the food in a way that the gripper will be able to grasp it set quaternion x and quaternion y to 0 and play freely with quaternion z and w. if you want to deliberately make the food object ungraspable you can also play with x and y.
 
-the robot currently knows to handle “box” food object. the intention was to enable the robot to carry any food shape that fits into the gripper but there are problems with the gasp depth that I didn’t have time to fix so it only knows to find grasp poses for high objects. so right now there is only support for box food.
+the robot currently knows to handle “box” food object. the intention was to enable the robot to carry any food shape that fits into the gripper but there are problems with the gasp depth that I didn’t have time to fix so it only knows to find grasp poses for high objects. so right now there is only support for box food. so inside the food name field type box.
 
-request food panel lets you choose a parking/shelf from which the food should search for food.
+request food panel lets you choose a parking/shelf from which the robot should search for food.
 
 the obstacle panel enables you to move the obstacle and block the way of the robot. you can try to block the way of the robot while it is navigating and see it moving around the obstacle.
 
