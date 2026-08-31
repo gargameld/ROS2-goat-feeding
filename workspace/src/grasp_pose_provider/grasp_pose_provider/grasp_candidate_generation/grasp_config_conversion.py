@@ -12,42 +12,32 @@ from geometry_msgs.msg import PoseStamped
 import numpy as np
 
 
-# Must stay in step with the jaw plates in robot_description's gripper.xacro
-# and with hand_depth in gpd_ros2's ros_eigen_params.cfg: the plates are 80 mm
-# long and arm_tcp sits at their mid-height, 40 mm short of their tips.
-DEFAULT_GPD_HAND_DEPTH = 0.08
-DEFAULT_FINGER_TIP_FROM_TCP = 0.04
-DEFAULT_TCP_FROM_FINGER_BASE = (
-    DEFAULT_GPD_HAND_DEPTH - DEFAULT_FINGER_TIP_FROM_TCP
-)
-
-
 def grasp_configs_to_poses(
+    parameters,
     grasp_config_list,
-    tcp_from_finger_base=DEFAULT_TCP_FROM_FINGER_BASE,
     target_from_grasp_frame=None,
-    target_frame=None,
 ):
     """Convert a ``GraspConfigList`` into a list of TCP grasp poses.
 
-    ``tcp_from_finger_base`` is the distance from GPD's finger-base position to
-    ``arm_tcp``. In TCP coordinates, +Z is GPD approach, +X is GPD binormal
-    (finger closing), and +Y is GPD axis. This matches the gripper URDF, whose
-    left and right jaws travel along the TCP X axis.
+    ``parameters`` is the node's
+    :class:`~grasp_pose_provider.node_parameters.GraspPoseProviderParameters`.
+    Its ``tcp_from_finger_base`` is the distance from GPD's finger-base
+    position to ``arm_tcp``. In TCP coordinates, +Z is GPD approach, +X is GPD
+    binormal (finger closing), and +Y is GPD axis. This matches the gripper
+    URDF, whose left and right jaws travel along the TCP X axis.
 
-    If ``target_from_grasp_frame`` and ``target_frame`` are supplied, the
-    resulting poses are transformed using the transform captured with the
-    input point cloud. This anchors them before a moving camera frame changes
-    while GPD is processing.
+    If ``target_from_grasp_frame`` is supplied, the resulting poses are
+    transformed with it and stamped in the node's ``base_frame``. This anchors
+    them before a moving camera frame changes while GPD is processing;
+    otherwise they keep the frame ``grasp_config_list`` arrived in.
     """
+    tcp_from_finger_base = parameters.tcp_from_finger_base
     if tcp_from_finger_base < 0.0:
         raise ValueError('tcp_from_finger_base must be non-negative.')
-    if (target_from_grasp_frame is None) != (target_frame is None):
-        raise ValueError(
-            'target_from_grasp_frame and target_frame must be supplied '
-            'together.'
-        )
 
+    target_frame = (
+        None if target_from_grasp_frame is None else parameters.base_frame
+    )
     target_matrix = None
     if target_from_grasp_frame is not None:
         target_matrix = np.asarray(target_from_grasp_frame, dtype=np.float64)
@@ -93,18 +83,6 @@ def grasp_configs_to_poses(
 
         poses.append(pose)
     return poses
-
-
-def _grasp_axes_to_tcp_quaternion(approach, binormal, axis):
-    """Return the TCP quaternion corresponding to GPD's hand axes.
-
-    The TCP rotation columns are ``[binormal, axis, approach]``: TCP +X is the
-    jaw closing direction and TCP +Z is the direction in which the gripper
-    advances onto the object.
-    """
-    return _rotation_matrix_to_quaternion(
-        _grasp_axes_to_tcp_rotation(approach, binormal, axis)
-    )
 
 
 def _grasp_axes_to_tcp_rotation(approach, binormal, axis):

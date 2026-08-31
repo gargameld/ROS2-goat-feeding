@@ -15,9 +15,6 @@
   <depend>moveit_ros_planning_interface</depend>
   <depend>rclcpp</depend>
   <depend>rclcpp_action</depend>
-  <exec_depend>rclpy</exec_depend>
-  <exec_depend>tf2_geometry_msgs</exec_depend>
-  <exec_depend>tf2_ros</exec_depend>
   <depend>shape_msgs</depend>
   <depend>std_srvs</depend>
 

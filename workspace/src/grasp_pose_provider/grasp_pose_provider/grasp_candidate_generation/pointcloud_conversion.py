@@ -9,8 +9,8 @@ registration pipeline is trusted.
 ``read_stored_pointcloud_msg`` reads a ``sensor_msgs/msg/PointCloud2`` dumped
 to YAML by ``ros2 topic echo`` (``.yaml`` / ``.yml``) back into a message --
 header included, so the caller knows which camera frame the dump was recorded
-in. :mod:`grasp_pose_provider.stored_model` uses that to merge the three stored
-per-camera dumps into a single model cloud.
+in. :mod:`grasp_pose_provider.grasp_candidate_generation.stored_model` uses
+that to merge the three stored per-camera dumps into a single model cloud.
 """
 
 import array
@@ -179,17 +179,6 @@ def ros_to_open3d(msg, return_indices=False):
     cloud = _pointcloud2_to_open3d(msg)
     _debug_dump(cloud, 'captured')
     return cloud
-
-
-def open3d_to_ros(cloud, frame_id='', stamp=None):
-    """Convert an Open3D point cloud into a ``sensor_msgs/msg/PointCloud2``.
-
-    Produces an unorganized (``height == 1``) XYZ float32 cloud. ``frame_id``
-    and ``stamp`` populate the header; ``stamp`` should be a
-    ``builtin_interfaces/msg/Time`` (e.g. ``node.get_clock().now().to_msg()``)
-    and is left at its default when ``None``.
-    """
-    return numpy_to_ros(cloud.points, frame_id=frame_id, stamp=stamp)
 
 
 def numpy_to_ros(points, frame_id='', stamp=None):

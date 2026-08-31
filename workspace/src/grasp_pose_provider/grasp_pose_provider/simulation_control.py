@@ -13,17 +13,29 @@ PAUSE_SIMULATION_SERVICE = (
 RESUME_SIMULATION_SERVICE = (
     f'/{PHYSICS_SYNC_NODE_NAME}/resume_simulation'
 )
-DEFAULT_SERVICE_TIMEOUT_SEC = 10.0
 
 
-def pause_simulation(node, timeout_sec=DEFAULT_SERVICE_TIMEOUT_SEC):
-    """Pause physics advancement through the physics-sync node."""
-    _call_trigger_service(node, PAUSE_SIMULATION_SERVICE, timeout_sec)
+def pause_simulation(node, parameters):
+    """Pause physics advancement through the physics-sync node.
+
+    ``parameters`` is the node's
+    :class:`~grasp_pose_provider.node_parameters.GraspPoseProviderParameters`;
+    the service timeout comes from it.
+    """
+    _call_trigger_service(
+        node,
+        PAUSE_SIMULATION_SERVICE,
+        parameters.simulation_service_timeout_sec,
+    )
 
 
-def resume_simulation(node, timeout_sec=DEFAULT_SERVICE_TIMEOUT_SEC):
+def resume_simulation(node, parameters):
     """Resume physics advancement through the physics-sync node."""
-    _call_trigger_service(node, RESUME_SIMULATION_SERVICE, timeout_sec)
+    _call_trigger_service(
+        node,
+        RESUME_SIMULATION_SERVICE,
+        parameters.simulation_service_timeout_sec,
+    )
 
 
 def _call_trigger_service(node, service_name, timeout_sec):

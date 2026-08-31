@@ -12,9 +12,12 @@ checks that need the robot's gravity-aligned Z axis.
 :class:`CameraTransformResolver` owns the tf2 buffer and listener. Construct
 one per node and keep it alive: the buffer only answers lookups for transforms
 it has already received, so a short-lived resolver would spend its whole life
-waiting for the first ``/tf_static`` message. Used by
-:mod:`grasp_pose_provider.combine_pointclouds` to patch the three clouds into a
-single one.
+waiting for the first ``/tf_static`` message. It is handed the node's
+:class:`grasp_pose_provider.node_parameters.GraspPoseProviderParameters`, which
+is where the buffer's cache time, the lookup timeout and ``base_link``'s name
+come from. Used by
+:mod:`grasp_pose_provider.grasp_candidate_generation.combine_pointclouds` to
+patch the three clouds into a single one.
 """
 
 import numpy as np
@@ -22,14 +25,6 @@ import rclpy
 from rclpy.duration import Duration
 from tf2_ros import TransformListener
 from tf2_ros.buffer import Buffer
-
-
-# How long a lookup blocks waiting for the transform to show up in the buffer.
-DEFAULT_TF_TIMEOUT_SEC = 5.0
-# How much history the buffer keeps. The camera frames are static, so this only
-# needs to be long enough to cover a stale cloud stamp.
-DEFAULT_CACHE_TIME_SEC = 30.0
-BASE_LINK_FRAME = 'base_link'
 
 
 def transform_to_matrix(transform):
@@ -92,11 +87,14 @@ class CameraTransformResolver:
     def __init__(
         self,
         node,
-        cache_time_sec=DEFAULT_CACHE_TIME_SEC,
+        parameters,
         spin_thread=False,
     ):
         self._node = node
-        self._buffer = Buffer(cache_time=Duration(seconds=cache_time_sec))
+        self._parameters = parameters
+        self._buffer = Buffer(
+            cache_time=Duration(seconds=parameters.tf_cache_time_sec)
+        )
         self._listener = TransformListener(
             self._buffer, node, spin_thread=spin_thread
         )
@@ -106,7 +104,6 @@ class CameraTransformResolver:
         target_frame,
         source_frame,
         stamp=None,
-        timeout_sec=DEFAULT_TF_TIMEOUT_SEC,
     ):
         """Return the 4x4 matrix mapping ``source_frame`` into ``target_frame``.
 
@@ -114,8 +111,8 @@ class CameraTransformResolver:
         ``header.stamp``); ``None`` -- the default -- asks for the latest
         available transform, which is what the static camera frames always
         resolve to anyway. Raises ``tf2_ros.TransformException`` (or one of its
-        subclasses) if the transform is still unavailable after
-        ``timeout_sec``.
+        subclasses) if the transform is still unavailable after the node's
+        ``tf_timeout_sec``.
         """
         if target_frame == source_frame:
             return np.identity(4, dtype=np.float64)
@@ -129,36 +126,16 @@ class CameraTransformResolver:
             target_frame,
             source_frame,
             time,
-            timeout=Duration(seconds=timeout_sec),
+            timeout=Duration(seconds=self._parameters.tf_timeout_sec),
         )
         return transform_to_matrix(transform.transform)
 
-    def lookup_base_from_camera(
-        self,
-        camera_frame,
-        stamp=None,
-        timeout_sec=DEFAULT_TF_TIMEOUT_SEC,
-    ):
-        """Map points from ``camera_frame`` into ``base_link``."""
+    def lookup_base_from_camera(self, camera_frame, stamp=None):
+        """Map points from ``camera_frame`` into the node's base frame."""
         return self.lookup_matrix(
-            BASE_LINK_FRAME,
+            self._parameters.base_frame,
             camera_frame,
             stamp=stamp,
-            timeout_sec=timeout_sec,
-        )
-
-    def lookup_camera_from_base(
-        self,
-        camera_frame,
-        stamp=None,
-        timeout_sec=DEFAULT_TF_TIMEOUT_SEC,
-    ):
-        """Map points from ``base_link`` into ``camera_frame``."""
-        return self.lookup_matrix(
-            camera_frame,
-            BASE_LINK_FRAME,
-            stamp=stamp,
-            timeout_sec=timeout_sec,
         )
 
     def destroy(self):

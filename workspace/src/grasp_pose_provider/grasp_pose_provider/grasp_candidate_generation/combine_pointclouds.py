@@ -4,15 +4,15 @@ The robot carries three left-facing cameras -- the centre one plus a forward
 and a rearward one flanking it -- each publishing its own
 ``sensor_msgs/msg/PointCloud2`` in its own optical frame. This module waits for
 one message on each topic, asks
-:class:`grasp_pose_provider.camera_transforms.CameraTransformResolver` where
-each camera sits relative to the reference camera, moves every cloud into that
-reference frame, and concatenates them.
+:class:`grasp_pose_provider.grasp_candidate_generation.camera_transforms.CameraTransformResolver`
+where each camera sits relative to the reference camera, moves every cloud into
+that reference frame, and concatenates them.
 
 The result is a single unorganized XYZ cloud in the reference frame -- by
 default ``left_camera_frame``, the frame
-:mod:`grasp_pose_provider.stored_model` merges the stored empty-plate dumps
-into as well -- so everything downstream (ICP registration, subtraction, the
-GPD request) keeps working on it unchanged.
+:mod:`grasp_pose_provider.grasp_candidate_generation.stored_model` merges the
+stored empty-plate dumps into as well -- so everything downstream (ICP
+registration, subtraction, the GPD request) keeps working on it unchanged.
 
 NaN points are dropped while merging, so indices into the combined message are
 dense and contiguous. Alongside the message, :func:`capture_combined_cloud`
@@ -28,21 +28,10 @@ import numpy as np
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import PointCloud2
 
-from grasp_pose_provider import camera_transforms, pointcloud_conversion
-
-
-# The point cloud topics of the three on-board cameras. The first one is the
-# reference: its frame is the one everything is merged into.
-DEFAULT_CAMERA_TOPICS = (
-    '/left_camera/points',
-    '/left_back_camera/points',
-    '/left_front_camera/points',
+from grasp_pose_provider.grasp_candidate_generation import (
+    camera_transforms,
+    pointcloud_conversion,
 )
-# How long to block waiting for a message on each topic (seconds).
-# Rendering all four simulated cameras currently takes roughly 25 seconds on
-# the target machine.  Leave enough margin for a complete publish cycle when a
-# caller explicitly asks for messages newer than a particular instant.
-DEFAULT_WAIT_TIMEOUT_SEC = 120.0
 
 
 class PointCloudSnapshotter:
@@ -59,12 +48,19 @@ class PointCloudSnapshotter:
     def __init__(
         self,
         node,
-        topics=DEFAULT_CAMERA_TOPICS,
+        parameters,
         callback_group=None,
     ):
-        """Subscribe to ``topics`` and retain their newest messages."""
+        """Subscribe to the node's camera topics and retain their newest
+        messages.
+
+        ``parameters`` is the node's
+        :class:`~grasp_pose_provider.node_parameters.GraspPoseProviderParameters`;
+        the topics and the capture timeout both come from it.
+        """
         self._node = node
-        self.topics = tuple(topics)
+        self._parameters = parameters
+        self.topics = tuple(parameters.captured_topics)
         self._condition = threading.Condition()
         self._messages = {}
         self._sequences = {topic: 0 for topic in self.topics}
@@ -97,10 +93,11 @@ class PointCloudSnapshotter:
         with self._condition:
             return dict(self._sequences)
 
-    def wait_for_snapshot(self, timeout_sec, after_sequences=None):
+    def wait_for_snapshot(self, after_sequences=None):
         """Return cached messages, optionally requiring them after a mark."""
+        timeout_sec = self._parameters.capture_wait_timeout_sec
         if timeout_sec <= 0.0:
-            raise ValueError('timeout_sec must be positive.')
+            raise ValueError('capture_wait_timeout_sec must be positive.')
         minimum = after_sequences or {}
         deadline = time.monotonic() + timeout_sec
         with self._condition:
@@ -160,39 +157,41 @@ class CombinedCloud:
 
 def capture_combined_cloud(
     node,
+    parameters,
     transform_resolver,
-    topics=DEFAULT_CAMERA_TOPICS,
     reference_frame=None,
-    wait_timeout_sec=DEFAULT_WAIT_TIMEOUT_SEC,
-    tf_timeout_sec=camera_transforms.DEFAULT_TF_TIMEOUT_SEC,
     feedback_cb=None,
     snapshotter=None,
     after_sequences=None,
     snapshot_captured_cb=None,
 ):
-    """Wait for one cloud on each topic and merge them into a single cloud.
+    """Wait for one cloud on each camera topic and merge them into one cloud.
 
+    ``parameters`` is the node's
+    :class:`~grasp_pose_provider.node_parameters.GraspPoseProviderParameters`;
+    the camera topics and the capture timeout come from it.
     ``snapshotter`` should normally be a node-lifetime
     :class:`PointCloudSnapshotter`.  ``after_sequences`` can be a value from
     :meth:`PointCloudSnapshotter.mark` to require all selected clouds to be
     newer than that mark. ``transform_resolver`` is a
-    :class:`~grasp_pose_provider.camera_transforms.CameraTransformResolver`;
-    it supplies the camera-to-camera transforms from the robot state
-    publisher. ``reference_frame`` defaults to the frame of the first topic's
-    cloud. ``feedback_cb``, when given, is called with a short progress string
-    per camera.
+    ``CameraTransformResolver``, from
+    :mod:`grasp_pose_provider.grasp_candidate_generation.camera_transforms`;
+    it supplies the camera-to-camera transforms from the robot state publisher.
+    ``reference_frame`` defaults to the frame of the first topic's cloud.
+    ``feedback_cb``, when given, is called with a short progress string per
+    camera.
 
     Returns a :class:`CombinedCloud`. Raises ``RuntimeError`` if any topic does
-    not produce a message within ``wait_timeout_sec``, and lets
+    not produce a message within ``capture_wait_timeout_sec``, and lets
     ``tf2_ros.TransformException`` through if a camera transform never
     arrives. ``snapshot_captured_cb``, when provided, is called immediately
     after all requested messages arrive and before cloud processing begins.
     """
-    topics = tuple(topics)
+    topics = tuple(parameters.captured_topics)
     if snapshotter is None:
         # Retain a self-contained API for utility callers.  All subscriptions
         # are nevertheless active at once, unlike the former sequential wait.
-        snapshotter = PointCloudSnapshotter(node, topics)
+        snapshotter = PointCloudSnapshotter(node, parameters)
         owns_snapshotter = True
     else:
         owns_snapshotter = False
@@ -208,7 +207,6 @@ def capture_combined_cloud(
     )
     try:
         messages = snapshotter.wait_for_snapshot(
-            wait_timeout_sec,
             after_sequences=after_sequences,
         )
         if snapshot_captured_cb is not None:
@@ -232,7 +230,6 @@ def capture_combined_cloud(
         matrix = transform_resolver.lookup_matrix(
             reference_frame,
             message.header.frame_id,
-            timeout_sec=tf_timeout_sec,
         )
 
         points = camera_transforms.apply_transform(

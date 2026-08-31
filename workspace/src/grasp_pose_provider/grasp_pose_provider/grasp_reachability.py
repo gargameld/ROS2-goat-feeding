@@ -7,18 +7,23 @@ import rclpy
 from rclpy.action import ActionClient
 
 
-DEFAULT_ACTION_NAME = '/check_pose_reachability'
-DEFAULT_MAX_CANDIDATES = 40
-DEFAULT_SERVER_TIMEOUT_SEC = 10.0
-DEFAULT_RESULT_TIMEOUT_SEC = 180.0
-
-
 class GraspReachabilityChecker:
     """Use the arm reachability action to validate ranked grasp candidates."""
 
-    def __init__(self, node, callback_group=None, action_name=DEFAULT_ACTION_NAME):
+    def __init__(self, node, parameters, callback_group=None):
+        """Create the action client used to validate candidates.
+
+        ``parameters`` is the node's
+        :class:`~grasp_pose_provider.node_parameters.GraspPoseProviderParameters`;
+        the action name, the candidate limit and the two timeouts all come
+        from it.
+        """
+        action_name = parameters.reachability_action_name
         self._node = node
         self._action_name = action_name
+        self._max_candidates = parameters.max_reachability_candidates
+        self._server_timeout_sec = parameters.reachability_server_timeout_sec
+        self._result_timeout_sec = parameters.reachability_result_timeout_sec
         self._client = ActionClient(
             node,
             CheckPoseReachability,
@@ -26,15 +31,11 @@ class GraspReachabilityChecker:
             callback_group=callback_group,
         )
 
-    def first_reachable(
-        self,
-        candidates,
-        max_candidates=DEFAULT_MAX_CANDIDATES,
-        server_timeout_sec=DEFAULT_SERVER_TIMEOUT_SEC,
-        result_timeout_sec=DEFAULT_RESULT_TIMEOUT_SEC,
-    ):
+    def first_reachable(self, candidates):
         """Return the first reachable ``PoseStamped`` among ranked candidates."""
-        candidates_to_check = list(candidates[:max_candidates])
+        server_timeout_sec = self._server_timeout_sec
+        result_timeout_sec = self._result_timeout_sec
+        candidates_to_check = list(candidates[:self._max_candidates])
         if not candidates_to_check:
             raise RuntimeError('GPD returned no grasp candidates to validate.')
         if not self._client.wait_for_server(timeout_sec=server_timeout_sec):

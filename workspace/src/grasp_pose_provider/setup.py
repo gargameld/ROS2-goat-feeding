@@ -19,6 +19,11 @@ setup(
             os.path.join('share', package_name, 'launch'),
             glob('launch/*.launch.py'),
         ),
+        # Node parameters; the launch file passes this to the node.
+        (
+            os.path.join('share', package_name, 'config'),
+            glob('config/*.yaml'),
+        ),
         # The stored empty-plate dumps the food detection subtracts; see
         # grasp_pose_provider/stored_model.py.
         (

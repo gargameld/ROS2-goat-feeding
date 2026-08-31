@@ -1,0 +1,82 @@
+# Parameters of the grasp pose provider node, declared in
+# grasp_pose_provider/node_parameters.py. The values below are the defaults the
+# class holds; keep the two in step.
+#
+# stored_pointcloud_dir is deliberately absent: its default is resolved at
+# runtime from the package's share directory (see stored_model.py), so it has
+# no fixed value to spell out here. Set it explicitly only to point the food
+# detection at a different set of empty-plate dumps.
+/**:
+  ros__parameters:
+    # -- The scene the candidates are generated from --
+    # Point cloud topics of the three simulated left-facing cameras. The first
+    # is the reference camera: the merged cloud comes out in its frame.
+    captured_topics:
+      - /left_camera/points
+      - /left_back_camera/points
+      - /left_front_camera/points
+    # How long to block waiting for a message on each camera topic. Rendering
+    # all the simulated cameras currently takes roughly 25 seconds.
+    capture_wait_timeout_sec: 120.0
+    # The frame the returned grasp poses are expressed in.
+    base_frame: base_link
+    # How long a tf2 lookup blocks waiting for its transform.
+    tf_timeout_sec: 5.0
+    # How much history the tf2 buffer keeps. The camera frames are static, so
+    # this only needs to cover a stale cloud stamp.
+    tf_cache_time_sec: 30.0
+
+    # -- Food segmentation --
+    # ICP max correspondence distance when registering the stored empty-plate
+    # model onto the captured scene: pairs farther apart are ignored.
+    icp_max_correspondence_distance: 0.05
+    # A captured point closer than this to the registered model counts as
+    # explained by the plate and is dropped; what survives is candidate food.
+    food_subtraction_distance_threshold: 0.01
+    # DBSCAN settings for separating the disconnected regions the subtraction
+    # leaves behind: neighbourhood radius, and smallest cluster size.
+    food_cluster_eps: 0.02
+    food_cluster_min_points: 10
+    # Shelves and walls are approximately constant along at least one base_link
+    # axis, while large subtraction artifacts can be much bigger than food. A
+    # food cluster must fit between these dimensions along every base_link axis.
+    min_food_cluster_axis_span: 0.01
+    max_food_cluster_axis_span: 0.15
+    # The two percentiles a cluster's extent is measured between. The middle
+    # 90% is used so a few depth-camera outliers do not decide the result.
+    food_cluster_span_percentiles: [5.0, 95.0]
+    # Below this many segmented food points the scene counts as an empty plate
+    # and no grasp is requested. Also filters isolated depth-camera noise.
+    min_food_point_count: 10
+    # The cloud MoveIt builds its octomap from; must match the topic in
+    # moveit_config/config/sensors_3d.yaml.
+    food_cloud_topic: /grasp_pose_provider/food_points
+
+    # -- The GPD grasp-detection service --
+    gpd_service_name: detect_constrained_grasps
+    # A full detection on the merged three-camera cloud has been measured at
+    # ~130 s end to end, so this stays well clear of two minutes.
+    gpd_service_timeout_sec: 600.0
+    # Only local scene geometry is needed to evaluate grasps around the food.
+    gpd_cloud_crop_radius: 0.10
+    # Distance from the finger base to arm_tcp along the approach axis, in
+    # metres: gpd_ros2's hand_depth (0.08) minus the finger tip's offset from
+    # arm_tcp (0.04).
+    tcp_from_finger_base: 0.04
+
+    # -- Publishing the candidates for RViz --
+    grasp_poses_topic: /grasp_pose_candidates
+    # How many of the highest-ranked candidates are published for RViz.
+    max_rviz_candidates: 5
+
+    # -- Validating the candidates against MoveIt --
+    reachability_action_name: /check_pose_reachability
+    # How far down the ranked list to keep asking the arm for a plan.
+    max_reachability_candidates: 40
+    # How long to wait for the arm's action server, and for one plan.
+    reachability_server_timeout_sec: 10.0
+    reachability_result_timeout_sec: 180.0
+
+    # -- Pausing physics around the capture --
+    # How long to wait for the physics-sync node's pause/resume services.
+    simulation_service_timeout_sec: 10.0

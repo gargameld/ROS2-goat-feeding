@@ -53,10 +53,6 @@ ament_target_dependencies(environment_loader
 install(TARGETS arm_behavior_node environment_loader
   DESTINATION lib/${PROJECT_NAME}
 )
-install(PROGRAMS
-  scripts/compare_pose_frames.py
-  DESTINATION lib/${PROJECT_NAME}
-)
 install(DIRECTORY config launch
   DESTINATION share/${PROJECT_NAME}
 )

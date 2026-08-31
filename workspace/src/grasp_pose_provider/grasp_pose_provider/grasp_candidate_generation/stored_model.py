@@ -4,9 +4,10 @@ The model the food detection subtracts from the scene is captured the same way
 the scene itself is: one ``sensor_msgs/msg/PointCloud2`` per camera, dumped to
 YAML with ``ros2 topic echo``. This module reads those three dumps, moves each
 one into the reference camera's frame with
-:class:`grasp_pose_provider.camera_transforms.CameraTransformResolver` -- the
-same transforms :mod:`grasp_pose_provider.combine_pointclouds` uses for the
-live clouds -- and concatenates them into a single Open3D cloud.
+:class:`grasp_pose_provider.grasp_candidate_generation.camera_transforms.CameraTransformResolver`
+-- the same transforms
+:mod:`grasp_pose_provider.grasp_candidate_generation.combine_pointclouds` uses
+for the live clouds -- and concatenates them into a single Open3D cloud.
 
 Recording the plate from all three viewpoints matters because the captured
 scene is now a three-camera merge: a single-camera model would only explain the
@@ -29,9 +30,8 @@ from ament_index_python.packages import (
     get_package_share_directory,
 )
 
-from grasp_pose_provider import (
+from grasp_pose_provider.grasp_candidate_generation import (
     camera_transforms,
-    combine_pointclouds,
     pointcloud_conversion,
 )
 
@@ -43,16 +43,19 @@ STORED_POINTCLOUD_DIRNAME = 'stored_pointcloud_data'
 STORED_POINTCLOUD_SUFFIX = '.yaml'
 
 # The copy in the sources, resolved from this file's real path:
-# .../grasp_pose_provider/grasp_pose_provider/stored_model.py
+# .../grasp_pose_provider/grasp_pose_provider/grasp_candidate_generation/
+#     stored_model.py
 #   -> .../grasp_pose_provider/stored_pointcloud_data/
-_PACKAGE_MODULE_DIR = os.path.dirname(os.path.realpath(__file__))
+_PACKAGE_MODULE_DIR = os.path.dirname(
+    os.path.dirname(os.path.realpath(__file__))
+)
 _SOURCE_STORED_POINTCLOUD_DIR = os.path.join(
     os.path.dirname(_PACKAGE_MODULE_DIR),
     STORED_POINTCLOUD_DIRNAME,
 )
 
 
-def _default_stored_pointcloud_dir():
+def default_stored_pointcloud_dir():
     """Return the directory holding the stored per-camera dumps.
 
     ``setup.py`` installs them into the package's share directory, so that is
@@ -72,10 +75,6 @@ def _default_stored_pointcloud_dir():
     return _SOURCE_STORED_POINTCLOUD_DIR
 
 
-# Directory of the stored per-camera dumps shipped with the package.
-DEFAULT_STORED_POINTCLOUD_DIR = _default_stored_pointcloud_dir()
-
-
 def camera_name(topic):
     """Return the camera name a point cloud ``topic`` belongs to.
 
@@ -84,14 +83,11 @@ def camera_name(topic):
     return topic.strip('/').split('/')[0]
 
 
-def stored_pointcloud_paths(
-    directory=DEFAULT_STORED_POINTCLOUD_DIR,
-    topics=combine_pointclouds.DEFAULT_CAMERA_TOPICS,
-):
+def stored_pointcloud_paths(directory, topics):
     """Return the stored dump path expected for each camera topic.
 
     The file name is the camera's name plus
-    :data:`STORED_POINTCLOUD_SUFFIX`, so the three defaults are
+    :data:`STORED_POINTCLOUD_SUFFIX`, so the three on-board cameras give
     ``left_camera.yaml``, ``left_back_camera.yaml`` and
     ``left_front_camera.yaml``.
     """
@@ -104,25 +100,28 @@ def stored_pointcloud_paths(
 
 
 def load_stored_model(
-    directory,
+    parameters,
     transform_resolver,
     reference_frame,
-    topics=combine_pointclouds.DEFAULT_CAMERA_TOPICS,
-    tf_timeout_sec=camera_transforms.DEFAULT_TF_TIMEOUT_SEC,
     feedback_cb=None,
 ):
     """Load the per-camera dumps and merge them into one Open3D cloud.
 
-    ``directory`` holds one dump per entry of ``topics``, named as
-    :func:`stored_pointcloud_paths` describes. Every cloud is transformed from
-    the frame recorded in its own header into ``reference_frame`` before being
-    concatenated, so the result is directly comparable to the merged captured
-    cloud.
+    ``parameters`` is the node's
+    :class:`~grasp_pose_provider.node_parameters.GraspPoseProviderParameters`;
+    the dump directory and the camera topics come from it. That directory holds
+    one dump per camera topic, named as :func:`stored_pointcloud_paths`
+    describes. Every cloud is transformed from the frame recorded in its own
+    header into ``reference_frame`` before being concatenated, so the result is
+    directly comparable to the merged captured cloud.
 
     Raises ``FileNotFoundError`` if any expected dump is missing, and
     ``RuntimeError`` if the dumps together contain no finite points.
     """
-    paths = stored_pointcloud_paths(directory, topics=topics)
+    directory = parameters.stored_pointcloud_dir
+    paths = stored_pointcloud_paths(
+        directory, topics=parameters.captured_topics
+    )
     missing = [path for path in paths if not os.path.isfile(path)]
     if missing:
         raise FileNotFoundError(
@@ -143,7 +142,6 @@ def load_stored_model(
         matrix = transform_resolver.lookup_matrix(
             reference_frame,
             msg.header.frame_id,
-            timeout_sec=tf_timeout_sec,
         )
         point_blocks.append(
             camera_transforms.apply_transform(

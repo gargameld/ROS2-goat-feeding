@@ -1,31 +1,34 @@
 """The grasp pose provider node and its construction.
 
 Defines :class:`GraspPoseProviderNode`, a ``rclpy`` node that offers the
-``provide_grasp_pose`` action. Handling a goal runs
-:func:`grasp_pose_provider.provide_grasp_pose.provide_grasp_pose`, validates
-the top candidates with MoveIt, and returns the first reachable pose.
+``provide_grasp_pose`` action. The node owns two parts and initializes both:
+
+* ``GraspCandidateGenerator``, from
+  :mod:`grasp_pose_provider.grasp_candidate_generation.grasp_candidate_generator`,
+  turns the current scene into ranked TCP grasp candidates, and
+* ``GraspCandidateValidator``, from
+  :mod:`grasp_pose_provider.grasp_candidate_validator`, returns the first of
+  those candidates MoveIt can reach.
+
+Handling a goal is then generation, followed by validation, with the physics
+pausing the capture needs sequenced around them. The node also holds a
+:class:`grasp_pose_provider.grasp_candidate_publisher.GraspCandidatePublisher`
+and pushes the generated candidates through it, so RViz shows the same batch
+the validator is given.
 """
 
 from grasp_pose_interface.action import ProvideGraspPose
-from grasp_pose_interface.msg import GraspPoseArray
-from grasp_pose_provider import camera_transforms
-from grasp_pose_provider import combine_pointclouds
-from grasp_pose_provider import food_cloud_publisher as food_cloud
-from grasp_pose_provider import grasp_config_conversion
-from grasp_pose_provider import grasp_reachability
-from grasp_pose_provider import provide_grasp_pose as grasp_pose_pipeline
+from grasp_pose_provider import grasp_candidate_publisher
+from grasp_pose_provider import grasp_candidate_validator
 from grasp_pose_provider import simulation_control
-from grasp_pose_provider import stored_model
+from grasp_pose_provider.grasp_candidate_generation import grasp_candidate_generator
+from grasp_pose_provider.node_parameters import GraspPoseProviderParameters
 from rclpy.action import ActionServer
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
-from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 
 
 ACTION_NAME = 'provide_grasp_pose'
-DEFAULT_GRASP_POSES_TOPIC = '/grasp_pose_candidates'
-DEFAULT_FOOD_CLOUD_TOPIC = food_cloud.DEFAULT_FOOD_CLOUD_TOPIC
-MAX_RVIZ_CANDIDATES = 5
 
 
 class GraspPoseProviderNode(Node):
@@ -33,117 +36,38 @@ class GraspPoseProviderNode(Node):
 
     def __init__(self):
         super().__init__('grasp_pose_provider')
+        self.parameters = GraspPoseProviderParameters(self)
+        self.parameters.get_parameters()
 
-        # The directory holding one stored empty-plate dump per camera, named
-        # after the camera that recorded it. Defaults to the copy installed
-        # with the package.
-        self.declare_parameter(
-            'stored_pointcloud_dir',
-            stored_model.DEFAULT_STORED_POINTCLOUD_DIR,
-        )
-        self.declare_parameter(
-            'captured_topics',
-            list(grasp_pose_pipeline.DEFAULT_CAPTURED_TOPICS),
-        )
-        self.declare_parameter('grasp_poses_topic', DEFAULT_GRASP_POSES_TOPIC)
-        # The cloud MoveIt builds its octomap from; see
-        # moveit_config/config/sensors_3d.yaml.
-        self.declare_parameter('food_cloud_topic', DEFAULT_FOOD_CLOUD_TOPIC)
-        self.declare_parameter(
-            'min_food_point_count',
-            grasp_pose_pipeline.DEFAULT_MIN_FOOD_POINT_COUNT,
-        )
-        self.declare_parameter(
-            'tcp_from_finger_base',
-            grasp_config_conversion.DEFAULT_TCP_FROM_FINGER_BASE,
-        )
-
-        # The latest candidates describe a static scene. Transient-local
-        # durability lets RViz receive them even when it starts after the
-        # action has completed.
-        grasp_poses_topic = (
-            self.get_parameter('grasp_poses_topic')
-            .get_parameter_value()
-            .string_value
-        )
-        self._grasp_poses_publisher = self.create_publisher(
-            GraspPoseArray,
-            grasp_poses_topic,
-            QoSProfile(
-                depth=1,
-                reliability=ReliabilityPolicy.RELIABLE,
-                durability=DurabilityPolicy.TRANSIENT_LOCAL,
-            ),
-        )
-
-        # Created once and kept: the occupancy map monitor subscribes when
-        # move_group starts, so a per-goal publisher could lose the single
-        # cloud each cycle sends to discovery latency.
-        self._food_cloud_publisher = food_cloud.FoodCloudPublisher(
-            self,
-            topic=(
-                self.get_parameter('food_cloud_topic')
-                .get_parameter_value()
-                .string_value
-            ),
-        )
-
-        # Kept for the node's lifetime: the tf2 buffer only answers lookups for
-        # transforms it has already received, so the listener has to be up long
-        # before the first goal arrives.
-        self._transform_resolver = (
-            camera_transforms.CameraTransformResolver(self)
-        )
-
-        # A reentrant group lets the executor deliver GPD and arm-action
-        # responses while this callback waits on them.
+        # A reentrant group lets the executor deliver point clouds, GPD and
+        # arm-action responses while the action callback waits on them.
         self._callback_group = ReentrantCallbackGroup()
-        self._pointcloud_snapshotter = (
-            combine_pointclouds.PointCloudSnapshotter(
-                self,
-                topics=list(
-                    self.get_parameter('captured_topics')
-                    .get_parameter_value()
-                    .string_array_value
-                ),
-                callback_group=self._callback_group,
+
+        self._generator = grasp_candidate_generator.GraspCandidateGenerator(
+            self,
+            self.parameters,
+            callback_group=self._callback_group,
+        )
+        self._validator = grasp_candidate_validator.GraspCandidateValidator(
+            self,
+            self.parameters,
+            callback_group=self._callback_group,
+        )
+        self._candidate_publisher = (
+            grasp_candidate_publisher.GraspCandidatePublisher(
+                self, self.parameters
             )
         )
-        self._reachability_checker = (
-            grasp_reachability.GraspReachabilityChecker(
-                self, callback_group=self._callback_group
-            )
-        )
+
         self._action_server = ActionServer(
             self,
             ProvideGraspPose,
             ACTION_NAME,
-            self._execute_callback,
+            self._handle_grasp_pose_request,
             callback_group=self._callback_group,
         )
 
-    def _execute_callback(self, goal_handle):
-        stored_pointcloud_dir = (
-            self.get_parameter('stored_pointcloud_dir')
-            .get_parameter_value()
-            .string_value
-        )
-        captured_topics = (
-            self.get_parameter('captured_topics')
-            .get_parameter_value()
-            .string_array_value
-        )
-        min_food_point_count = (
-            self.get_parameter('min_food_point_count')
-            .get_parameter_value()
-            .integer_value
-        )
-        tcp_from_finger_base = (
-            self.get_parameter('tcp_from_finger_base')
-            .get_parameter_value()
-            .double_value
-        )
-
+    def _handle_grasp_pose_request(self, goal_handle):
         def feedback_cb(stage):
             self.get_logger().info(stage)
             feedback = ProvideGraspPose.Feedback()
@@ -155,50 +79,30 @@ class GraspPoseProviderNode(Node):
         def pause_after_snapshot():
             nonlocal simulation_paused
             feedback_cb('Pausing physics after capturing camera point clouds')
-            simulation_control.pause_simulation(self)
+            simulation_control.pause_simulation(self, self.parameters)
             simulation_paused = True
 
         try:
-            grasp_poses = grasp_pose_pipeline.provide_grasp_pose(
-                self,
-                stored_pointcloud_dir,
-                self._transform_resolver,
-                captured_topics=list(captured_topics),
-                min_food_point_count=min_food_point_count,
-                tcp_from_finger_base=tcp_from_finger_base,
+            grasp_poses = self._generator.generate(
                 feedback_cb=feedback_cb,
-                pointcloud_snapshotter=self._pointcloud_snapshotter,
                 snapshot_captured_cb=pause_after_snapshot,
-                food_cloud_publisher=self._food_cloud_publisher,
             )
-            # Keep RViz focused on the same highest-ranked candidates that
-            # MoveIt checks. A rejected batch is still useful diagnostic
-            # information and remains visible because the topic is transient.
-            rviz_grasp_poses = grasp_poses[:MAX_RVIZ_CANDIDATES]
-            candidates = GraspPoseArray()
-            candidates.poses = rviz_grasp_poses
-            self._grasp_poses_publisher.publish(candidates)
-            self.get_logger().info(
-                f'Published {len(rviz_grasp_poses)} static grasp candidates'
-            )
+            self._candidate_publisher.publish(grasp_poses)
 
             feedback_cb('Resuming physics before arm motion planning')
-            simulation_control.resume_simulation(self)
+            simulation_control.resume_simulation(self, self.parameters)
             simulation_paused = False
 
-            feedback_cb('Checking reachability of the top grasp candidates')
-            reachable_grasp = self._reachability_checker.first_reachable(
-                grasp_poses
+            reachable_grasp = self._validator.first_reachable(
+                grasp_poses, feedback_cb=feedback_cb
             )
-        except grasp_pose_pipeline.NoFoodDetectedError as exc:
+        except grasp_candidate_generator.NoFoodDetectedError as exc:
             self.get_logger().info(f'No food detected: {exc}')
             feedback_cb('No food detected')
             goal_handle.succeed()
 
             # Clear transient-local candidates from an earlier successful goal.
-            candidates = GraspPoseArray()
-            candidates.poses = []
-            self._grasp_poses_publisher.publish(candidates)
+            self._candidate_publisher.clear()
 
             result = ProvideGraspPose.Result()
             result.food_found = False
@@ -210,7 +114,9 @@ class GraspPoseProviderNode(Node):
         finally:
             if simulation_paused:
                 try:
-                    simulation_control.resume_simulation(self)
+                    simulation_control.resume_simulation(
+                        self, self.parameters
+                    )
                     self.get_logger().info(
                         'Resumed physics after the grasp-pose action'
                     )
@@ -227,11 +133,10 @@ class GraspPoseProviderNode(Node):
         return result
 
     def destroy_node(self):
-        """Tear the tf2 listener down before the node itself goes away."""
-        self._reachability_checker.destroy()
-        self._food_cloud_publisher.destroy()
-        self._pointcloud_snapshotter.destroy()
-        self._transform_resolver.destroy()
+        """Tear both parts down before the node itself goes away."""
+        self._candidate_publisher.destroy()
+        self._validator.destroy()
+        self._generator.destroy()
         return super().destroy_node()
 
 

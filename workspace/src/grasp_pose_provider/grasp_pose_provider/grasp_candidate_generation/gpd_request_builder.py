@@ -1,8 +1,8 @@
 """Assemble ``DetectConstrainedGrasps`` service requests for the GPD server.
 
 Turns a captured cloud plus the food-point indices (as produced by
-:func:`grasp_pose_provider.food_detector.detect_food`) into the request the
-``detect_constrained_grasps`` service expects.
+:func:`grasp_pose_provider.grasp_candidate_generation.food_detector.detect_food`)
+into the request the ``detect_constrained_grasps`` service expects.
 """
 
 from geometry_msgs.msg import Point
@@ -12,21 +12,21 @@ import numpy as np
 import open3d as o3d
 from std_msgs.msg import Int64
 
-from grasp_pose_provider import pointcloud_conversion
-
-
-DEFAULT_CLOUD_CROP_RADIUS = 0.10
+from grasp_pose_provider.grasp_candidate_generation import pointcloud_conversion
 
 
 def crop_cloud_around_indices(
+    parameters,
     cloud_msg,
     indices,
     camera_source=None,
-    radius=DEFAULT_CLOUD_CROP_RADIUS,
 ):
-    """Crop a dense cloud to points within ``radius`` of indexed food points.
+    """Crop a dense cloud to the neighbourhood of the indexed food points.
 
-    Returns ``(cropped_msg, cropped_indices, cropped_camera_source)``. The food
+    The neighbourhood radius is the node's ``gpd_cloud_crop_radius``
+    parameter, read off the
+    :class:`~grasp_pose_provider.node_parameters.GraspPoseProviderParameters`
+    passed in. Returns ``(cropped_msg, cropped_indices, cropped_camera_source)``. The food
     indices are remapped into the cropped cloud, and per-point camera-source
     entries are cropped by the same mask. ``view_points`` need no adjustment
     because camera positions remain expressed in the unchanged cloud frame.
@@ -35,8 +35,9 @@ def crop_cloud_around_indices(
     cloud containing non-finite points here rather than silently corrupting
     index correspondence.
     """
+    radius = parameters.gpd_cloud_crop_radius
     if radius < 0.0:
-        raise ValueError('radius must be non-negative.')
+        raise ValueError('gpd_cloud_crop_radius must be non-negative.')
 
     num_points = cloud_msg.width * cloud_msg.height
     points = pointcloud_conversion.finite_points(cloud_msg)
@@ -96,7 +97,7 @@ def build_cloud_indexed(
     ``camera_source`` carries one entry per point in ``cloud_msg``.
 
     ``camera_source`` and ``view_points`` describe a cloud merged from several
-    cameras (see :mod:`grasp_pose_provider.combine_pointclouds`):
+    cameras (see :mod:`grasp_pose_provider.grasp_candidate_generation.combine_pointclouds`):
     ``camera_source`` gives, per point, which camera saw it, and
     ``view_points`` gives each camera's position in the cloud's frame. GPD uses
     them to point surface normals back at the camera that observed each point,

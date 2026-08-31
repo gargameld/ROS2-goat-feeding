@@ -7,7 +7,8 @@ inspected offline. Because it writes into the source tree directly,
 ``setup.py`` does not have to install the folder.
 
 This is an intermediate debugging aid only; remove this module (and its call
-site in :mod:`grasp_pose_provider.food_detector`) once detection is trusted.
+site in :mod:`grasp_pose_provider.grasp_candidate_generation.food_detector`)
+once detection is trusted.
 """
 
 import os
@@ -16,13 +17,15 @@ import numpy as np
 import open3d as o3d
 
 
-# This file lives at src/grasp_pose_provider/grasp_pose_provider/debug_dump.py;
-# the debug folder sits one level up, next to the package's python module dir.
-# ``realpath`` resolves the symlink created by ``colcon build
-# --symlink-install`` back to this source file, so the dump lands in the source
-# tree rather than the install space.
+# This file lives at src/grasp_pose_provider/grasp_pose_provider/
+# grasp_candidate_generation/debug_dump.py; the debug folder sits next to the
+# package's python module dir, two levels up. ``realpath`` resolves the symlink
+# created by ``colcon build --symlink-install`` back to this source file, so
+# the dump lands in the source tree rather than the install space.
 DEBUG_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.realpath(__file__))),
+    os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    ),
     'debug_pointclouds',
 )
 

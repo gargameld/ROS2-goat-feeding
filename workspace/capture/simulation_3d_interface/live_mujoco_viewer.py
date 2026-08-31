@@ -20,6 +20,7 @@ import sys
 import tempfile
 import threading
 import time
+import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 
 os.environ.setdefault("MUJOCO_GL", "glfw")
@@ -33,10 +34,57 @@ except ImportError as exc:  # pragma: no cover - dependency guard
         "  python3 -m pip install mujoco"
     ) from exc
 
-from live_view import DEFAULT_CSV, DEFAULT_MODEL, copy_sanitized_mjcf
 
+SCRIPT_DIRECTORY = Path(__file__).resolve().parent
+CAPTURE_DIRECTORY = SCRIPT_DIRECTORY.parent
+DEFAULT_CSV = CAPTURE_DIRECTORY / "simulation_states.csv"
+DEFAULT_MODEL = CAPTURE_DIRECTORY.parent / "mujoco_model" / "scene.xml"
 
 STOP_REQUESTED = threading.Event()
+
+
+# ---------------------------------------------------------------------------
+# MJCF sanitising (mirrors render_capture.py so optional plugins are dropped).
+# ---------------------------------------------------------------------------
+def remove_mjcf_plugins(root: ET.Element) -> None:
+    """Remove extension declarations and elements backed by those plugins."""
+    for parent in root.iter():
+        for child in list(parent):
+            if child.tag in {"extension", "plugin"}:
+                parent.remove(child)
+
+
+def copy_sanitized_mjcf(source: Path, destination: Path, copied: dict[Path, Path]) -> ET.ElementTree:
+    """Copy an MJCF file and its includes while omitting optional plugins."""
+    source = source.resolve()
+    if source in copied:
+        return ET.parse(copied[source])
+
+    tree = ET.parse(source)
+    root = tree.getroot()
+    remove_mjcf_plugins(root)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    copied[source] = destination
+
+    for include in root.iter("include"):
+        include_name = include.get("file")
+        if not include_name:
+            continue
+        included_source = (source.parent / include_name).resolve()
+        included_destination = destination.parent / include_name
+        copy_sanitized_mjcf(included_source, included_destination, copied)
+
+    # Included XML is copied, but meshes and other assets remain in the original
+    # model tree. Absolute paths keep those resources available to MuJoCo.
+    for element in root.iter():
+        if element.tag == "include" or "file" not in element.attrib:
+            continue
+        asset_path = Path(element.attrib["file"])
+        if not asset_path.is_absolute():
+            element.set("file", str((source.parent / asset_path).resolve()))
+
+    tree.write(destination, encoding="utf-8", xml_declaration=True)
+    return tree
 
 
 def build_model(model_path: Path) -> tuple[mujoco.MjModel, Path]:
