@@ -1,4 +1,4 @@
-"""Immutable, toolkit-independent descriptions of a top-view scene."""
+"""Immutable, toolkit-independent geometry of one drawable scene."""
 
 from dataclasses import dataclass
 
@@ -32,21 +32,8 @@ class Polygon2D:
 
 
 @dataclass(frozen=True, slots=True)
-class Circle2D:
-    """Represent a circle in world-space metres."""
-
-    center: Point2D
-    radius: float
-
-    def __post_init__(self) -> None:
-        """Reject a negative radius."""
-        if self.radius < 0.0:
-            raise ValueError('A circle radius cannot be negative.')
-
-
-@dataclass(frozen=True, slots=True)
-class TopViewScene:
-    """Contain every primitive needed to draw one lightweight top view."""
+class SceneState:
+    """Contain every line and polygon needed to draw one top view."""
 
     base_polygon: Polygon2D
     orientation_marker: Line2D

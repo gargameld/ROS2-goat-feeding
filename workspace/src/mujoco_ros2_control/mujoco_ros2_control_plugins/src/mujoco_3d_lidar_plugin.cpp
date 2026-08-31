@@ -27,11 +27,15 @@
 #include <pluginlib/class_list_macros.hpp>
 #include <sensor_msgs/point_cloud2_iterator.hpp>
 
+#include "mujoco_ros2_control_plugins/plugin_parameters.hpp"
+
 namespace mujoco_ros2_control_plugins
 {
 
 namespace
 {
+
+constexpr char kPluginName[] = "mujoco_3d_lidar_plugin";
 
 // Evenly spaced numbers over a specified interval.
 void lin_space(float lower, float upper, int n, std::vector<float>& array)
@@ -202,23 +206,17 @@ bool Mujoco3dLidarPlugin::register_sensor(const mjModel* model, int sensor_idx)
     lidar_config.async = std::atoi(async.c_str()) != 0;
   }
 
-  // Parameters are nested below the configured ROS plugin key.
-  const std::string param_prefix = "mujoco_plugins.mujoco_3d_lidar_plugin.";
   const char* site_name = mj_id2name(model, mjtObj::mjOBJ_SITE, model->sensor_objid[sensor_idx]);
-  const std::string default_frame_name = site_name ? site_name : lidar_config.name;
-  const std::string frame_name_param = param_prefix + lidar_config.name + ".frame_name";
-  if (!node_->has_parameter(frame_name_param))
+  PluginParameters parameters(node_);
+  lidar_config.frame_name = site_name ? site_name : lidar_config.name;
+  lidar_config.lidar_topic = lidar_config.is_3d ? "/points" : "/scan";
+  if (!parameters.get_parameter(kPluginName, lidar_config.name + ".frame_name", lidar_config.frame_name,
+                                lidar_config.frame_name) ||
+      !parameters.get_parameter(kPluginName, lidar_config.name + ".topic", lidar_config.lidar_topic,
+                                lidar_config.lidar_topic))
   {
-    node_->declare_parameter(frame_name_param, default_frame_name);
+    return false;
   }
-  lidar_config.frame_name = node_->get_parameter(frame_name_param).as_string();
-
-  const std::string lidar_topic_param = param_prefix + lidar_config.name + ".topic";
-  if (!node_->has_parameter(lidar_topic_param))
-  {
-    node_->declare_parameter(lidar_topic_param, lidar_config.is_3d ? "/points" : "/scan");
-  }
-  lidar_config.lidar_topic = node_->get_parameter(lidar_topic_param).as_string();
 
   if (lidar_config.is_3d)
   {

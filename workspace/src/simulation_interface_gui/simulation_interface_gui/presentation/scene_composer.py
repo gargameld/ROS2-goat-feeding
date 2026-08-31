@@ -1,16 +1,22 @@
-"""Translate simulation snapshots into lightweight top-view scenes."""
+"""Turn simulation states into drawable scene states."""
 
+from abc import ABC
+from abc import abstractmethod
+from concurrent.futures import Future
+from dataclasses import dataclass
 import math
 
 from simulation_interface_gui.models import Point3D
-from simulation_interface_gui.models import SimulationSnapshot
-from simulation_interface_gui.presentation.kinematics import ArmKinematics
 from simulation_interface_gui.presentation.kinematics import quaternion_to_yaw
 from simulation_interface_gui.presentation.kinematics import robot_point_to_world
-from simulation_interface_gui.presentation.scene import Line2D
-from simulation_interface_gui.presentation.scene import Point2D
-from simulation_interface_gui.presentation.scene import Polygon2D
-from simulation_interface_gui.presentation.scene import TopViewScene
+from simulation_interface_gui.presentation.scene_state import Line2D
+from simulation_interface_gui.presentation.scene_state import Point2D
+from simulation_interface_gui.presentation.scene_state import Polygon2D
+from simulation_interface_gui.presentation.scene_state import SceneState
+from simulation_interface_gui.presentation.simulation_state import SimulationState
+from simulation_interface_gui.presentation.simulation_state_provider import (
+    SimulationStateProvider,
+)
 
 
 _BASE_CORNERS = (
@@ -68,52 +74,91 @@ DEFAULT_OBSTACLES = tuple(
 )
 
 
-class SceneBuilder:
-    """Build complete immutable top-view scenes without ROS or Qt types."""
+@dataclass(frozen=True, slots=True)
+class SceneUpdate:
+    """Contain one simulation state and the scene state composed from it."""
+
+    simulation_state: SimulationState
+    scene_state: SceneState
+
+
+class SceneComposer(ABC):
+    """Compose scene states, both on demand and from the simulation."""
+
+    @abstractmethod
+    def compose(self, simulation_state: SimulationState) -> SceneState:
+        """Translate one simulation state into drawable scene geometry."""
+
+    @abstractmethod
+    def request_scene_update(self) -> Future[SceneUpdate]:
+        """Update the simulation state and compose its scene state."""
+
+
+class TopViewSceneComposer(SceneComposer):
+    """Compose top-view scenes from states read by a lower-level provider."""
 
     def __init__(
         self,
+        provider: SimulationStateProvider,
         *,
-        arm_kinematics: ArmKinematics | None = None,
         world_boundaries: tuple[Line2D, ...] = DEFAULT_WORLD_BOUNDARIES,
         obstacle_polygons: tuple[Polygon2D, ...] = DEFAULT_OBSTACLES,
     ) -> None:
-        """Configure robot kinematics and static world geometry."""
-        self._arm_kinematics = arm_kinematics or ArmKinematics()
+        """Store the state provider and this scene's static world geometry."""
+        self._provider = provider
         self._world_boundaries = world_boundaries
         self._obstacle_polygons = obstacle_polygons
 
-    def build(self, snapshot: SimulationSnapshot) -> TopViewScene:
-        """Translate one simulation snapshot into a complete top-view scene."""
-        yaw = quaternion_to_yaw(snapshot.base_orientation)
-        center = _project(snapshot.base_position)
+    def request_scene_update(self) -> Future[SceneUpdate]:
+        """Ask the provider for a state and compose its scene when it lands."""
+        result: Future[SceneUpdate] = Future()
+        result.set_running_or_notify_cancel()
+
+        def finish(state_future: Future[SimulationState]) -> None:
+            try:
+                simulation_state = state_future.result()
+                result.set_result(SceneUpdate(
+                    simulation_state=simulation_state,
+                    scene_state=self.compose(simulation_state),
+                ))
+            except BaseException as error:
+                result.set_exception(error)
+
+        try:
+            self._provider.request_simulation_state().add_done_callback(finish)
+        except BaseException as error:
+            result.set_exception(error)
+        return result
+
+    def compose(self, simulation_state: SimulationState) -> SceneState:
+        """Translate one simulation state into a complete top-view scene."""
+        yaw = quaternion_to_yaw(simulation_state.base_orientation)
+        center = _project(simulation_state.base_position)
 
         base_polygon = Polygon2D(tuple(
-            _project(robot_point_to_world(corner, snapshot.base_position, yaw))
+            _project(robot_point_to_world(
+                corner, simulation_state.base_position, yaw
+            ))
             for corner in _BASE_CORNERS
         ))
         orientation_marker = Line2D(
             center,
             _project(robot_point_to_world(
                 _ORIENTATION_POINT,
-                snapshot.base_position,
+                simulation_state.base_position,
                 yaw,
             )),
         )
 
-        relative_arm_points = self._arm_kinematics.forward(
-            snapshot.arm_joint_positions
-        )
         arm_points = tuple(
-            _project(robot_point_to_world(point, snapshot.base_position, yaw))
-            for point in relative_arm_points
+            _project(point) for point in simulation_state.arm_points_world
         )
         arm_segments = tuple(
             Line2D(start, end)
             for start, end in zip(arm_points, arm_points[1:])
         )
 
-        return TopViewScene(
+        return SceneState(
             base_polygon=base_polygon,
             orientation_marker=orientation_marker,
             arm_segments=arm_segments,
@@ -121,10 +166,10 @@ class SceneBuilder:
             world_boundaries=self._world_boundaries,
             obstacle_polygons=self._obstacle_polygons,
             managed_obstacle_polygon=_rectangle(
-                snapshot.obstacle.position.x,
-                snapshot.obstacle.position.y,
-                snapshot.obstacle.width / 2.0,
-                snapshot.obstacle.length / 2.0,
+                simulation_state.obstacle.position.x,
+                simulation_state.obstacle.position.y,
+                simulation_state.obstacle.width / 2.0,
+                simulation_state.obstacle.length / 2.0,
             ),
         )
 

@@ -12,10 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "mujoco_ros2_control_plugins/state_capture_plugin.hpp"
+#include "mujoco_ros2_control_plugins/state_capture/state_capture_plugin.hpp"
 
-#include "mujoco_ros2_control_plugins/state_capture_consumer.hpp"
+#include "mujoco_ros2_control_plugins/state_capture/state_capture_consumer.hpp"
 
+#include "mujoco_ros2_control_plugins/plugin_parameters.hpp"
+
+#include <cmath>
 #include <iomanip>
 #include <limits>
 #include <string_view>
@@ -26,6 +29,13 @@
 
 namespace mujoco_ros2_control_plugins
 {
+
+namespace
+{
+
+constexpr char kPluginName[] = "state_capture";
+
+}  // namespace
 
 StateCapturePlugin::~StateCapturePlugin()
 {
@@ -42,19 +52,32 @@ bool StateCapturePlugin::init(rclcpp::Node::SharedPtr node, const mjModel* model
   node_ = std::move(node);
   logger_ = node_->get_logger().get_child("StateCapturePlugin");
 
-  if (!configure_parameters())
+  PluginParameters parameters(node_);
+  int64_t buffer_capacity = static_cast<int64_t>(buffer_capacity_);
+  std::string output_directory = "/config/workspace/capture";
+  std::string output_file = "simulation_states.csv";
+  if (!parameters.get_parameter(kPluginName, "capture_rate", capture_rate_hz_, capture_rate_hz_) ||
+      !parameters.get_parameter(kPluginName, "flush_interval", flush_interval_seconds_,
+                                flush_interval_seconds_) ||
+      !parameters.get_parameter(kPluginName, "buffer_capacity", buffer_capacity, buffer_capacity) ||
+      !parameters.get_parameter(kPluginName, "output_directory", output_directory, output_directory) ||
+      !parameters.get_parameter(kPluginName, "output_file", output_file, output_file) ||
+      !parameters.get_parameter(kPluginName, "food_body_prefix", food_body_prefix_, food_body_prefix_))
   {
     return false;
   }
+  const std::filesystem::path output_filename(output_file);
+  if (!std::isfinite(capture_rate_hz_) || capture_rate_hz_ <= 0.0 || !std::isfinite(flush_interval_seconds_) ||
+      flush_interval_seconds_ <= 0.0 || buffer_capacity < 2 || output_filename.empty() ||
+      output_filename.has_parent_path())
+  {
+    RCLCPP_ERROR(logger_, "Invalid state-capture parameter value.");
+    return false;
+  }
+  buffer_capacity_ = static_cast<std::size_t>(buffer_capacity);
+  output_path_ = std::filesystem::path(output_directory) / output_filename;
 
   nq_ = static_cast<std::size_t>(model->nq);
-  obstacle_geom_id_ = obstacle_geom_name_.empty() ? -1 : mj_name2id(model, mjOBJ_GEOM, obstacle_geom_name_.c_str());
-  if (obstacle_geom_id_ < 0)
-  {
-    RCLCPP_WARN(logger_, "Obstacle geom '%s' was not found; its position will not be included in the capture.",
-                obstacle_geom_name_.c_str());
-  }
-
   discover_food_bodies(model);
 
   if (!initialize_output_file())
@@ -68,61 +91,6 @@ bool StateCapturePlugin::init(rclcpp::Node::SharedPtr node, const mjModel* model
               output_path_.string().c_str(), flush_interval_seconds_);
   RCLCPP_INFO(logger_, "Also logging qpos for %zu STL food body(ies) matching prefix '%s'.", food_bodies_.size(),
               food_body_prefix_.c_str());
-  return true;
-}
-
-bool StateCapturePlugin::configure_parameters()
-{
-  if (!node_->has_parameter("capture_rate"))
-  {
-    node_->declare_parameter("capture_rate", capture_rate_hz_);
-  }
-  if (!node_->has_parameter("flush_interval"))
-  {
-    node_->declare_parameter("flush_interval", flush_interval_seconds_);
-  }
-  if (!node_->has_parameter("buffer_capacity"))
-  {
-    node_->declare_parameter("buffer_capacity", static_cast<int64_t>(buffer_capacity_));
-  }
-  if (!node_->has_parameter("output_directory"))
-  {
-    node_->declare_parameter("output_directory", std::string("/config/workspace/capture"));
-  }
-  if (!node_->has_parameter("output_file"))
-  {
-    node_->declare_parameter("output_file", std::string("simulation_states.csv"));
-  }
-  if (!node_->has_parameter("food_body_prefix"))
-  {
-    node_->declare_parameter("food_body_prefix", food_body_prefix_);
-  }
-  if (!node_->has_parameter("obstacle_geom_name"))
-  {
-    node_->declare_parameter("obstacle_geom_name", obstacle_geom_name_);
-  }
-
-  capture_rate_hz_ = node_->get_parameter("capture_rate").as_double();
-  flush_interval_seconds_ = node_->get_parameter("flush_interval").as_double();
-  const int64_t configured_capacity = node_->get_parameter("buffer_capacity").as_int();
-  const std::filesystem::path output_directory = node_->get_parameter("output_directory").as_string();
-  const std::filesystem::path output_file = node_->get_parameter("output_file").as_string();
-  food_body_prefix_ = node_->get_parameter("food_body_prefix").as_string();
-  obstacle_geom_name_ = node_->get_parameter("obstacle_geom_name").as_string();
-
-  if (capture_rate_hz_ <= 0.0 || flush_interval_seconds_ <= 0.0 || configured_capacity < 2)
-  {
-    RCLCPP_ERROR(logger_, "capture_rate and flush_interval must be positive, and buffer_capacity must be at least 2.");
-    return false;
-  }
-  if (output_file.empty() || output_file.has_parent_path())
-  {
-    RCLCPP_ERROR(logger_, "output_file must be a filename without directory components.");
-    return false;
-  }
-
-  buffer_capacity_ = static_cast<std::size_t>(configured_capacity);
-  output_path_ = output_directory / output_file;
   return true;
 }
 
@@ -186,13 +154,6 @@ bool StateCapturePlugin::initialize_output_file()
   {
     output_stream_ << ",qpos_" << index;
   }
-  if (obstacle_geom_id_ >= 0)
-  {
-    for (int component = 0; component < 3; ++component)
-    {
-      output_stream_ << ',' << obstacle_geom_name_ << "_pos_" << component;
-    }
-  }
   for (const FoodBody& food_body : food_bodies_)
   {
     for (int component = 0; component < food_body.qpos_count; ++component)
@@ -252,15 +213,6 @@ void StateCapturePlugin::update(const mjModel* model, mjData* data)
   {
     sample->qpos[index] = static_cast<double>(data->qpos[index]);
   }
-  if (obstacle_geom_id_ >= 0)
-  {
-    for (int component = 0; component < 3; ++component)
-    {
-      sample->obstacle_position[component] =
-          static_cast<double>(model->geom_pos[3 * obstacle_geom_id_ + component]);
-    }
-  }
-
   std::size_t food_offset = 0;
   for (const FoodBody& food_body : food_bodies_)
   {

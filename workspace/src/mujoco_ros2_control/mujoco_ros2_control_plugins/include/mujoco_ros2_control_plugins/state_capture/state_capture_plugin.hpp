@@ -51,7 +51,6 @@ private:
     int qpos_count{ 0 };
   };
 
-  bool configure_parameters();
   void discover_food_bodies(const mjModel* model);
   bool initialize_output_file();
   void start_consumer();
@@ -67,8 +66,6 @@ private:
   std::vector<FoodBody> food_bodies_;
   std::size_t food_qpos_total_{ 0 };
   std::string food_body_prefix_{ "food_" };
-  std::string obstacle_geom_name_{ "obstacle" };
-  int obstacle_geom_id_{ -1 };
 
   double capture_rate_hz_{ 30.0 };
   double flush_interval_seconds_{ 4.0 };

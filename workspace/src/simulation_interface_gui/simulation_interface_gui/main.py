@@ -7,6 +7,8 @@ from rclpy.utilities import remove_ros_args
 
 from simulation_interface_gui.event_listener import EventListener
 from simulation_interface_gui.gui import TopViewWindow
+from simulation_interface_gui.presentation import MujocoSimulationStateProvider
+from simulation_interface_gui.presentation import TopViewSceneComposer
 from simulation_interface_gui.ros import MujocoClient
 from simulation_interface_gui.ros import RosRuntime
 from simulation_interface_gui.scene_refresher import SceneRefresher
@@ -25,7 +27,10 @@ def main(args: list[str] | None = None) -> int:
         client = MujocoClient(runtime)
         window = TopViewWindow()
         event_listener = EventListener(client, window)
-        scene_refresher = SceneRefresher(client, window)
+        scene_refresher = SceneRefresher(
+            TopViewSceneComposer(MujocoSimulationStateProvider(client)),
+            window,
+        )
         application.aboutToQuit.connect(event_listener.stop)
         application.aboutToQuit.connect(scene_refresher.stop)
 

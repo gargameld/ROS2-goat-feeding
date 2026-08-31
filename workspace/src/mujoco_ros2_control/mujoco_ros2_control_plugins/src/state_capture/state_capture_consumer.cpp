@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "mujoco_ros2_control_plugins/state_capture_consumer.hpp"
+#include "mujoco_ros2_control_plugins/state_capture/state_capture_consumer.hpp"
 
-#include "mujoco_ros2_control_plugins/state_capture_plugin.hpp"
+#include "mujoco_ros2_control_plugins/state_capture/state_capture_plugin.hpp"
 
 #include <chrono>
 #include <utility>
@@ -25,14 +25,13 @@ namespace mujoco_ros2_control_plugins
 StateCaptureConsumer::StateCaptureConsumer(std::ofstream& output_stream, std::filesystem::path output_path,
                                            rclcpp::Logger logger, const std::size_t buffer_capacity,
                                            const std::size_t nq, const std::size_t food_qpos_total,
-                                           const bool capture_obstacle, const double flush_interval_seconds)
+                                           const double flush_interval_seconds)
   : output_stream_(output_stream),
     output_path_(std::move(output_path)),
     logger_(std::move(logger)),
     buffer_capacity_(buffer_capacity),
     nq_(nq),
     food_qpos_total_(food_qpos_total),
-    capture_obstacle_(capture_obstacle),
     flush_interval_seconds_(flush_interval_seconds)
 {
 }
@@ -161,13 +160,6 @@ void StateCaptureConsumer::drain_buffer()
     {
       output_stream_ << ',' << position;
     }
-    if (capture_obstacle_)
-    {
-      for (const double position : sample.obstacle_position)
-      {
-        output_stream_ << ',' << position;
-      }
-    }
     for (const double food_position : sample.food_qpos)
     {
       output_stream_ << ',' << food_position;
@@ -194,8 +186,7 @@ void StateCapturePlugin::start_consumer()
   previous_simulation_time_ = 0.0;
 
   consumer_ = std::make_unique<StateCaptureConsumer>(output_stream_, output_path_, logger_, buffer_capacity_, nq_,
-                                                      food_qpos_total_, obstacle_geom_id_ >= 0,
-                                                      flush_interval_seconds_);
+                                                      food_qpos_total_, flush_interval_seconds_);
   consumer_->start();
 }
 

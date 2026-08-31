@@ -3,7 +3,7 @@
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 
-#include "mujoco_ros2_control_plugins/simulation_management/food_management.hpp"
+#include "mujoco_ros2_control_plugins/food_control/food_management.hpp"
 
 #include <algorithm>
 #include <cmath>

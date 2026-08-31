@@ -14,33 +14,35 @@ This separation allows for modular, optional features without adding complexity 
 Available Plugins
 -----------------
 
-SimulationManagementPlugin
+Simulation control plugins
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Provides services for inspecting and managing the live MuJoCo simulation. The plugin does not
-perform periodic work; its ``update()`` implementation is empty.
+Three independent plugins provide obstacle control, food control, and live state reporting. Their
+service names retain the existing ``/simulation_management`` namespace so clients do not need to
+change when enabling the new plugin split.
 
 .. list-table::
    :widths: 25 75
    :header-rows: 0
 
    * - **Service**
-     - ``~/get_robot_state`` (``mujoco_ros2_control_msgs/srv/GetRobotState``)
+     - ``/simulation_management/get_robot_state`` (``mujoco_ros2_control_msgs/srv/GetRobotState``)
    * - **Service**
-     - ``~/set_obstacle`` (``mujoco_ros2_control_msgs/srv/SetObstacle``)
+     - ``/simulation_management/set_obstacle`` (``mujoco_ros2_control_msgs/srv/SetObstacle``)
    * - **Service**
-     - ``~/throw_food`` (``mujoco_ros2_control_msgs/srv/ThrowFood``)
+     - ``/simulation_management/throw_food`` (``mujoco_ros2_control_msgs/srv/ThrowFood``)
 
 The state-service request is empty. Its response contains ``float64[] qpos`` with all ``model->nq``
 generalized position values, plus the managed box's ``obstacle_position`` and full
 ``obstacle_size``. Size axes are width (X), length (Y), and height (Z).
 
-``set_obstacle`` accepts the desired XY position. It edits the named
-``obstacle`` geom in the retained ``mjSpec`` and invokes ``mj_recompile`` while holding the
-simulation mutex. The requested Z position is ignored, and the geom's existing height and dimensions
-are preserved.
+``ObstacleControlPlugin`` stores the configured initial position and the free obstacle body's initial
+orientation. Its update pins the body's free-joint ``qpos`` to that pose, clears its velocity, and
+runs ``mj_forward``. ``set_obstacle`` changes the stored XY position; Z, orientation, and dimensions
+remain fixed. No model recompilation is required.
 
-``throw_food`` teleports a free-floating food body into one of the numbered parking areas. The
+``FoodControlPlugin`` implements ``throw_food`` by teleporting a free-floating food body into one of
+the numbered parking areas. The
 request carries the target ``parking_index`` (1..``parking_count``), the ``food_name`` of the body
 to move, an ``x``/``y`` position expressed in that parking's frame, and a 4-element ``orientation``
 quaternion in MuJoCo order (``w, x, y, z``). Each parking frame is map-aligned and configured with
@@ -73,8 +75,15 @@ un-normalised quaternion is accepted.
    /**:
      ros__parameters:
        mujoco_plugins:
-         simulation_management:
-           type: "mujoco_ros2_control_plugins/SimulationManagementPlugin"
+         obstacle_control:
+           type: "mujoco_ros2_control_plugins/ObstacleControlPlugin"
+           body_name: "obstacle"
+           initial_position: [-2.0, -7.5, 0.5]
+         simulation_state_provider:
+           type: "mujoco_ros2_control_plugins/SimulationStateProviderPlugin"
+           obstacle_geom_name: "obstacle"
+         food_control:
+           type: "mujoco_ros2_control_plugins/FoodControlPlugin"
            throw_food_height: 0.3
            parking_count: 4
            parking_frames:

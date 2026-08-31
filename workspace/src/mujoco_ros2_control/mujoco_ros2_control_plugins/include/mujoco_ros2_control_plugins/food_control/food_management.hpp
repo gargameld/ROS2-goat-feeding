@@ -14,9 +14,6 @@
 namespace mujoco_ros2_control_plugins
 {
 
-/**
- * @brief Map-frame origin and local XY limits for one parking frame.
- */
 struct ParkingFrame
 {
   double offset_x;

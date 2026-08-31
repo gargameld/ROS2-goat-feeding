@@ -1,4 +1,4 @@
-"""Immutable simulation state consumed by the presentation layer."""
+"""Immutable domain values shared by the ROS and presentation layers."""
 
 from dataclasses import dataclass
 from dataclasses import field
@@ -48,21 +48,7 @@ class RobotState:
 
     qpos: tuple[float, ...]
     obstacle: ObstacleState
-
-
-@dataclass(frozen=True, slots=True)
-class SimulationSnapshot:
-    """Contain the state needed to construct one top-view scene."""
-
-    base_position: Point3D
-    base_orientation: Quaternion
-    arm_joint_positions: tuple[float, ...]
-    obstacle: ObstacleState = field(default_factory=lambda: ObstacleState(
-        position=Point3D(-2.0, -7.5, 0.5),
-        width=0.8,
-        length=0.8,
-        height=1.0,
-    ))
+    arm_points_world: tuple[Point3D, ...]
 
 
 @dataclass(frozen=True, slots=True)

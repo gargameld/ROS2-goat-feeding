@@ -15,7 +15,6 @@
 #ifndef MUJOCO_ROS2_CONTROL_PLUGINS__STATE_CAPTURE_CONSUMER_HPP_
 #define MUJOCO_ROS2_CONTROL_PLUGINS__STATE_CAPTURE_CONSUMER_HPP_
 
-#include <array>
 #include <atomic>
 #include <condition_variable>
 #include <cstddef>
@@ -39,12 +38,11 @@ public:
     double simulation_time{ 0.0 };
     std::vector<double> qpos;
     std::vector<double> food_qpos;
-    std::array<double, 3> obstacle_position{};
   };
 
   StateCaptureConsumer(std::ofstream& output_stream, std::filesystem::path output_path, rclcpp::Logger logger,
                        std::size_t buffer_capacity, std::size_t nq, std::size_t food_qpos_total,
-                       bool capture_obstacle, double flush_interval_seconds);
+                       double flush_interval_seconds);
   ~StateCaptureConsumer();
 
   StateCaptureConsumer(const StateCaptureConsumer&) = delete;
@@ -66,7 +64,6 @@ private:
   std::size_t buffer_capacity_;
   std::size_t nq_;
   std::size_t food_qpos_total_;
-  bool capture_obstacle_;
   double flush_interval_seconds_;
 
   std::vector<StateSample> ring_buffer_;

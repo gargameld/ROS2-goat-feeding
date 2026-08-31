@@ -20,12 +20,14 @@
 
 #include <pluginlib/class_list_macros.hpp>
 
+#include "mujoco_ros2_control_plugins/plugin_parameters.hpp"
+
 namespace mujoco_ros2_control_plugins
 {
 namespace
 {
 
-constexpr const char* kDefaultBodyName = "chassis";
+constexpr char kPluginName[] = "lock_robot_base";
 
 }  // namespace
 
@@ -46,17 +48,12 @@ bool LockRobotBasePlugin::init(rclcpp::Node::SharedPtr node, const mjModel* mode
     return false;
   }
 
-  // Parameters are nested below the configured ROS plugin key. The plugin is given a sub-node whose
-  // sub-namespace is that key, but sub-namespaces only affect topic and service names, so the
-  // parameter names have to carry the prefix explicitly.
-  const std::string plugin_key =
-      node_->get_sub_namespace().empty() ? std::string("lock_robot_base") : node_->get_sub_namespace();
-  const std::string body_name_param = "mujoco_plugins." + plugin_key + ".body_name";
-  if (!node_->has_parameter(body_name_param))
+  PluginParameters parameters(node_);
+  if (!parameters.get_parameter(kPluginName, "body_name", std::string("chassis"), body_name_))
   {
-    node_->declare_parameter(body_name_param, std::string(kDefaultBodyName));
+    cleanup();
+    return false;
   }
-  body_name_ = node_->get_parameter(body_name_param).as_string();
 
   const int body_id = mj_name2id(model, mjOBJ_BODY, body_name_.c_str());
   if (body_id < 0)

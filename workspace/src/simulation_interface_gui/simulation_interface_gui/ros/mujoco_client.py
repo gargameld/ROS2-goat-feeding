@@ -182,6 +182,10 @@ class MujocoClient:
                         length=float(response.obstacle_size.y),
                         height=float(response.obstacle_size.z),
                     ),
+                    arm_points_world=tuple(
+                        Point3D(float(point.x), float(point.y), float(point.z))
+                        for point in response.arm_points_world
+                    ),
                 ))
             except BaseException as error:
                 result.set_exception(error)
@@ -241,28 +245,6 @@ class MujocoClient:
         return self._runtime.submit(
             lambda: self._lookup_transform_pose(self._odom_frame)
         )
-
-    def get_sim_pose(self) -> Future[Pose2D]:
-        """Return the MuJoCo free-joint planar pose from the state plugin."""
-        result: Future[Pose2D] = Future()
-
-        def finish_request(state_future: Future[RobotState]) -> None:
-            try:
-                qpos = state_future.result().qpos
-                if len(qpos) < 7:
-                    raise RuntimeError('MuJoCo state does not contain a free joint.')
-                yaw = math.atan2(
-                    2.0 * (qpos[3] * qpos[6] + qpos[4] * qpos[5]),
-                    1.0 - 2.0 * (qpos[5] ** 2 + qpos[6] ** 2),
-                )
-                # The occupancy map is generated directly from the MuJoCo
-                # scene, so qpos already uses the map's world coordinates.
-                result.set_result(Pose2D(qpos[0], qpos[1], yaw))
-            except BaseException as error:
-                result.set_exception(error)
-
-        self.get_robot_state().add_done_callback(finish_request)
-        return result
 
     def close(self) -> Future[None]:
         """Destroy this client's ROS entities on the executor thread."""

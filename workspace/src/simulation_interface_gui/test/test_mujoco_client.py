@@ -275,16 +275,6 @@ def test_get_robot_state_returns_float_list(client_and_runtime):
     assert state.obstacle.length == 1.2
 
 
-def test_get_sim_pose_decodes_free_joint_xy_and_yaw(client_and_runtime):
-    """The simulation pose comes from the robot-state plugin qpos values."""
-    client, runtime = client_and_runtime
-    runtime.node.client.response.qpos = [1, 2, 0.26, 0, 0, 0, 1]
-
-    pose = client.get_sim_pose().result()
-
-    assert (pose.x, pose.y, pose.yaw) == pytest.approx((1.0, 2.0, 3.141592653589793))
-
-
 def test_client_uses_simulation_management_service_namespace(
     client_and_runtime,
 ):

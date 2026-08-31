@@ -14,7 +14,9 @@ Full documentation is maintained in RST format:
 |---|---|
 | `Mujoco3dLidarPlugin` | Publishes `mujoco.plugin.lidar` sensors as `LaserScan` (single row) or `PointCloud2` (multi row) |
 | `StateCapturePlugin` | Buffers simulation time and `qpos` and flushes them to a CSV file |
-| `SimulationManagementPlugin` | Returns robot/box state, recompiles managed box size and position, and throws food items into parking areas |
+| `ObstacleControlPlugin` | Pins the free obstacle body to a configurable, service-controlled position |
+| `FoodControlPlugin` | Throws food items into configured parking areas |
+| `SimulationStateProviderPlugin` | Returns live generalized positions and obstacle state |
 
 ## Quick Start
 

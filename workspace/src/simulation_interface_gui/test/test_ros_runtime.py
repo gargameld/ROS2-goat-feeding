@@ -16,5 +16,3 @@ def test_runtime_executes_work_on_worker_and_shuts_down():
         assert worker_name == 'simulation_interface_runtime_test-ros-executor'
     finally:
         runtime.shutdown()
-
-    assert not runtime.is_running

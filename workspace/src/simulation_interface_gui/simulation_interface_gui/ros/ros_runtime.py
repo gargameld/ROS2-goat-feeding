@@ -56,12 +56,6 @@ class RosRuntime:
         """Return the runtime's node for work executed through ``submit``."""
         return self._node
 
-    @property
-    def is_running(self) -> bool:
-        """Report whether the runtime accepts new work."""
-        with self._state_lock:
-            return not self._stopping and not self._stopped
-
     def submit(self, callback: Callable[[], Result]) -> Future[Result]:
         """
         Schedule ``callback`` on the executor thread.
@@ -126,11 +120,3 @@ class RosRuntime:
             self._node.get_logger().error(
                 f'ROS executor stopped unexpectedly: {error}'
             )
-
-    def __enter__(self) -> 'RosRuntime':
-        """Return this running runtime."""
-        return self
-
-    def __exit__(self, *_: object) -> None:
-        """Shut down the runtime when leaving a context manager."""
-        self.shutdown()

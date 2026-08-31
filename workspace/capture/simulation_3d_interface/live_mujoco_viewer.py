@@ -1,42 +1,16 @@
 #!/usr/bin/env python3
-"""Replays StateCapturePlugin's CSV output in MuJoCo's own viewer window.
+"""Replay a StateCapturePlugin CSV in MuJoCo's interactive viewer.
 
-This is the animated counterpart of ``live_view.py``: instead of rendering a
-single frame into a Tkinter label when you press *Apply*, it opens MuJoCo's
-interactive viewer (``mujoco.viewer``) and drives it at a fixed refresh rate --
-5 Hz by default.
-
-Playback starts at the *first* state in ``simulation_states.csv`` and walks
-forward through the file, so you watch the run from the beginning. The frames
-are paced by captured simulation time, not by rows: each tick the playback clock
-advances by one refresh period (times ``--speed``) and the window shows the most
-recent captured state at or before that clock, exactly the way the video
-renderer in ``live_view.py`` builds its frames. A capture that is still being
-written is picked up as it grows; when playback reaches the last state the clock
-holds there until more states are appended, and if the capture restarts (the CSV
-shrinks) playback restarts from the top with it.
-
-No physics is stepped. The viewer is *passive*: the qpos vector and the captured
-position of the static obstacle geom come straight out of the CSV,
-``mj_forward`` places the bodies, and the window is synced. Mouse and keyboard
-work as usual, so you can orbit, zoom, toggle visualisation flags and pick
-bodies while the replay runs.
-
-This is a standalone program: it is NOT part of the ROS system and does not
-import any ROS packages. It needs ``mujoco``, ``numpy`` and a display; the MJCF
-sanitising and CSV header handling are reused from ``live_view.py``.
-
-Typical use::
-
-    python3 live_mujoco_viewer.py                 # 5 Hz, real time, from the start
-    python3 live_mujoco_viewer.py --speed 5       # replay five times faster
-    python3 live_mujoco_viewer.py --rate 10       # smoother, still real time
+The MJCF model is loaded once. Each CSV row then replaces ``data.qpos`` at the
+captured simulation time, followed by ``mj_forward`` and a viewer sync. Physics
+is never stepped.
 """
 
 from __future__ import annotations
 
 import argparse
-import collections
+import csv
+import itertools
 import math
 import os
 from pathlib import Path
@@ -46,16 +20,9 @@ import sys
 import tempfile
 import threading
 import time
+from collections.abc import Iterator
 
-# The interactive viewer draws into a real window, so it needs a windowed GL
-# backend. Claim one before importing live_view, which otherwise falls back to
-# off-screen EGL when it cannot see a display.
 os.environ.setdefault("MUJOCO_GL", "glfw")
-
-try:
-    import numpy as np
-except ImportError as exc:  # pragma: no cover - dependency guard
-    raise SystemExit("NumPy is required. Install it with: python3 -m pip install numpy") from exc
 
 try:
     import mujoco
@@ -66,153 +33,90 @@ except ImportError as exc:  # pragma: no cover - dependency guard
         "  python3 -m pip install mujoco"
     ) from exc
 
-from live_view import DEFAULT_CSV, DEFAULT_MODEL, copy_sanitized_mjcf, read_qpos_column_count
+from live_view import DEFAULT_CSV, DEFAULT_MODEL, copy_sanitized_mjcf
 
 
-DEFAULT_RATE = 5.0
-
-# Set when the process is asked to terminate. The loop below checks it rather
-# than unwinding from inside the handler, which would tear the GL window down
-# from the middle of a viewer call.
 STOP_REQUESTED = threading.Event()
 
 
 def build_model(model_path: Path) -> tuple[mujoco.MjModel, Path]:
-    """Load the MJCF with optional plugins stripped, as render_capture does.
-
-    The sanitised copy lives next to the original model so that relative asset
-    paths inside the includes keep resolving; the caller removes it afterwards.
-    """
-    temporary_directory = Path(tempfile.mkdtemp(prefix="live_viewer_", dir=model_path.parent))
+    """Load one temporary MJCF copy with optional plugins removed."""
+    temporary_directory = Path(tempfile.mkdtemp(prefix="live_viewer_"))
     temporary_path = temporary_directory / model_path.name
     try:
         copy_sanitized_mjcf(model_path, temporary_path, {})
-        model = mujoco.MjModel.from_xml_path(str(temporary_path))
+        return mujoco.MjModel.from_xml_path(str(temporary_path)), temporary_directory
     except Exception:
         shutil.rmtree(temporary_directory, ignore_errors=True)
         raise
-    return model, temporary_directory
 
 
-def row_time(line: bytes) -> float | None:
-    """Return the simulation time of a CSV row, or ``None`` if it has none.
+def read_states(csv_path: Path) -> tuple[int, Iterator[tuple[float, list[float]]]]:
+    """Return the qpos width and an iterator over valid captured states."""
+    stream = csv_path.open("r", encoding="utf-8", newline="")
+    reader = csv.reader(stream)
+    header = next(reader, None)
+    if not header or header[0] != "time":
+        stream.close()
+        raise SystemExit("Capture CSV must start with a 'time' column")
 
-    Only the first field is touched: the qpos values of a row are parsed later,
-    and only for the rows that actually reach the window.
-    """
-    field, _, rest = line.partition(b",")
-    if not rest:
-        return None
-    try:
-        timestamp = float(field)
-    except ValueError:  # the header row, or a partial write
-        return None
-    return timestamp if math.isfinite(timestamp) else None
+    qpos_count = sum(name.startswith("qpos_") for name in header[1:])
 
-
-def parse_qpos(line: bytes, qpos_count: int) -> np.ndarray | None:
-    """Return the qpos vector of a CSV row, or ``None`` if the row is unusable."""
-    fields = line.decode("utf-8", errors="replace").split(",")
-    if len(fields) < qpos_count + 1:
-        return None
-    try:
-        qpos = np.asarray([float(value) for value in fields[1 : qpos_count + 1]], dtype=float)
-    except ValueError:
-        return None
-    return qpos if np.all(np.isfinite(qpos)) else None
-
-
-def find_position_columns(csv_path: Path, geom_name: str) -> tuple[int, int, int] | None:
-    """Find the CSV field indices holding a captured static geom position."""
-    try:
-        with csv_path.open("r", encoding="utf-8", newline="") as stream:
-            header = stream.readline().strip().split(",")
-    except OSError:
-        return None
-
-    names = [f"{geom_name}_pos_{component}" for component in range(3)]
-    try:
-        return tuple(header.index(name) for name in names)
-    except ValueError:
-        return None
-
-
-def parse_position(line: bytes, columns: tuple[int, int, int] | None) -> np.ndarray | None:
-    """Return a captured static geom position, if this CSV row contains one."""
-    if columns is None:
-        return None
-    fields = line.decode("utf-8", errors="replace").split(",")
-    if len(fields) <= max(columns):
-        return None
-    try:
-        position = np.asarray([float(fields[index]) for index in columns], dtype=float)
-    except ValueError:
-        return None
-    return position if np.all(np.isfinite(position)) else None
-
-
-class StateStream:
-    """Reads the capture CSV from the top and hands out its rows in order.
-
-    The file handle stays open between calls and only the bytes appended since
-    the previous call are read, so following a growing capture stays cheap. A
-    partial final line is held back until its newline arrives.
-    """
-
-    def __init__(self, csv_path: Path, qpos_count: int) -> None:
-        self.csv_path = csv_path
-        self.qpos_count = qpos_count
-        self._stream = None
-        self._partial = b""
-
-    def _open(self) -> None:
-        self._stream = self.csv_path.open("rb")
-        self._partial = b""
-
-    def close(self) -> None:
-        if self._stream is not None:
-            self._stream.close()
-            self._stream = None
-
-    def new_rows(self) -> tuple[bool, list[tuple[float, bytes]]]:
-        """Return ``(restarted, rows)`` for everything appended since last call.
-
-        Each row is ``(time, line)``. ``restarted`` is true when the capture
-        truncated the file -- a new run -- and reading began again from the top.
-        """
-        restarted = False
-        if self._stream is None:
-            try:
-                self._open()
-            except OSError:
-                return False, []
+    def states() -> Iterator[tuple[float, list[float]]]:
         try:
-            # A shrunken file means the capture restarted: re-read from the top.
-            if self.csv_path.stat().st_size < self._stream.tell():
-                self.close()
-                self._open()
-                restarted = True
-            chunk = self._stream.read()
-        except OSError:
-            self.close()
-            return restarted, []
+            for row in reader:
+                if len(row) < qpos_count + 1:
+                    continue
+                try:
+                    timestamp = float(row[0])
+                    qpos = [float(value) for value in row[1 : qpos_count + 1]]
+                except ValueError:
+                    continue
+                if math.isfinite(timestamp) and all(math.isfinite(value) for value in qpos):
+                    yield timestamp, qpos
+        finally:
+            stream.close()
 
-        if not chunk:
-            return restarted, []
-        lines = (self._partial + chunk).split(b"\n")
-        self._partial = lines.pop()
-        rows = []
-        for line in lines:
-            timestamp = row_time(line)
-            if timestamp is not None:
-                rows.append((timestamp, line))
-        return restarted, rows
+    return qpos_count, states()
+
+
+def wait_for_frame(deadline: float, viewer: mujoco.viewer.Handle) -> bool:
+    """Wait until a frame is due; return false if playback should stop."""
+    while viewer.is_running() and not STOP_REQUESTED.is_set():
+        remaining = deadline - time.perf_counter()
+        if remaining <= 0.0:
+            return True
+        STOP_REQUESTED.wait(min(remaining, 0.05))
+    return False
+
+
+def show_state(
+    model: mujoco.MjModel,
+    data: mujoco.MjData,
+    viewer: mujoco.viewer.Handle,
+    timestamp: float,
+    qpos: list[float],
+) -> None:
+    """Apply one captured state to the passive viewer."""
+    with viewer.lock():
+        data.qpos[:] = qpos
+        data.qvel[:] = 0.0
+        data.time = timestamp
+        mujoco.mj_forward(model, data)
+    viewer.sync()
 
 
 def run_viewer(args: argparse.Namespace) -> None:
-    qpos_count = read_qpos_column_count(args.csv)
-    obstacle_columns = find_position_columns(args.csv, args.obstacle_geom)
-    model, temporary_directory = build_model(args.model)
+    qpos_count, states = read_states(args.csv)
+    first_state = next(states, None)
+    if first_state is None:
+        raise SystemExit(f"Capture CSV has no complete state rows: {args.csv}")
+
+    try:
+        model, temporary_directory = build_model(args.model)
+    except Exception:
+        states.close()
+        raise
     try:
         if model.nq != qpos_count:
             raise SystemExit(
@@ -221,84 +125,25 @@ def run_viewer(args: argparse.Namespace) -> None:
             )
 
         data = mujoco.MjData(model)
-        obstacle_geom_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, args.obstacle_geom)
-        if obstacle_columns is not None and obstacle_geom_id < 0:
-            raise SystemExit(
-                f"CSV contains a position for geom '{args.obstacle_geom}', but that geom is absent from the model."
-            )
-        if obstacle_columns is None:
-            print(
-                f"Capture has no '{args.obstacle_geom}_pos_*' columns; "
-                "static obstacle movement cannot be replayed from this CSV."
-            )
-        stream = StateStream(args.csv, qpos_count)
-        period = 1.0 / args.rate
-        step = period * args.speed  # simulation seconds covered by one frame
+        first_time = first_state[0]
+        frame_count = 0
 
-        print(
-            f"Replaying {args.csv} from the start at {args.rate:g} Hz "
-            f"({args.speed:g}x). Close the window to stop."
-        )
+        print(f"Replaying {args.csv} at {args.speed:g}x. Close the window to stop.")
         with mujoco.viewer.launch_passive(model, data) as viewer:
-            upcoming: collections.deque[tuple[float, bytes]] = collections.deque()
-            playback_time: float | None = None
-            shown_time: float | None = None
-            frames = 0
-            next_tick = time.perf_counter()
-            while viewer.is_running() and not STOP_REQUESTED.is_set():
-                restarted, rows = stream.new_rows()
-                if restarted:
-                    upcoming.clear()
-                    playback_time = None
-                    shown_time = None
-                upcoming.extend(rows)
+            wall_start = time.perf_counter()
+            for timestamp, qpos in itertools.chain((first_state,), states):
+                deadline = wall_start + (timestamp - first_time) / args.speed
+                if not wait_for_frame(deadline, viewer):
+                    break
+                show_state(model, data, viewer, timestamp, qpos)
+                frame_count += 1
 
-                if playback_time is None:
-                    # First frame: begin at the first state the capture holds.
-                    if upcoming:
-                        playback_time = upcoming[0][0]
-                elif upcoming:
-                    # Advance only while there is something ahead to show, so
-                    # reaching the end of a growing capture waits instead of
-                    # running the clock off into rows that do not exist yet.
-                    playback_time += step
-
-                line = None
-                while upcoming and upcoming[0][0] <= playback_time:
-                    shown_time, line = upcoming.popleft()
-                if line is not None:
-                    qpos = parse_qpos(line, qpos_count)
-                    if qpos is not None:
-                        obstacle_position = parse_position(line, obstacle_columns)
-                        # Replay only: velocities stay zero and no step is taken,
-                        # so the window shows exactly what was captured.
-                        with viewer.lock():
-                            data.qpos[:] = qpos
-                            data.qvel[:] = 0.0
-                            data.time = shown_time
-                            if obstacle_position is not None:
-                                model.geom_pos[obstacle_geom_id] = obstacle_position
-                            mujoco.mj_forward(model, data)
-                        frames += 1
+            while viewer.is_running() and not STOP_REQUESTED.wait(0.05):
                 viewer.sync()
 
-                clock = "--" if shown_time is None else f"{shown_time:.3f}s"
-                waiting = "  (waiting for new states)" if line is None else ""
-                print(
-                    f"\rframe {frames}   sim time {clock}   queued {len(upcoming)}{waiting}   ",
-                    end="",
-                    flush=True,
-                )
-
-                next_tick += period
-                remaining = next_tick - time.perf_counter()
-                if remaining > 0.0:
-                    STOP_REQUESTED.wait(remaining)
-                else:
-                    next_tick = time.perf_counter()  # fell behind; drop the backlog
-        stream.close()
-        print()
+        print(f"Replayed {frame_count} frame(s).")
     finally:
+        states.close()
         shutil.rmtree(temporary_directory, ignore_errors=True)
 
 
@@ -307,25 +152,13 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--csv", type=Path, default=DEFAULT_CSV, help=f"capture CSV (default: {DEFAULT_CSV})")
     parser.add_argument("--model", type=Path, default=DEFAULT_MODEL, help=f"MJCF scene (default: {DEFAULT_MODEL})")
     parser.add_argument(
-        "--rate", type=float, default=DEFAULT_RATE, help=f"window refresh rate in Hz (default: {DEFAULT_RATE:g})"
-    )
-    parser.add_argument(
         "--speed", type=float, default=1.0, help="playback speed relative to simulation time (default: 1)"
-    )
-    parser.add_argument(
-        "--obstacle-geom",
-        default="obstacle",
-        help="name of the static obstacle geom captured as model position (default: obstacle)",
     )
     args = parser.parse_args()
     args.csv = args.csv.expanduser().resolve()
     args.model = args.model.expanduser().resolve()
-    if not math.isfinite(args.rate) or args.rate <= 0.0:
-        raise SystemExit("--rate must be a positive number of hertz")
     if not math.isfinite(args.speed) or args.speed <= 0.0:
         raise SystemExit("--speed must be a positive multiplier")
-    if not args.obstacle_geom:
-        raise SystemExit("--obstacle-geom must not be empty")
     if not args.csv.is_file():
         raise SystemExit(f"Capture CSV does not exist: {args.csv}")
     if not args.model.is_file():
@@ -334,16 +167,11 @@ def parse_arguments() -> argparse.Namespace:
 
 
 def main() -> None:
-    # Leave the loop on SIGTERM the same way closing the window does, so the
-    # sanitised copy of the model is removed instead of being left behind.
     signal.signal(signal.SIGTERM, lambda signum, frame: STOP_REQUESTED.set())
     try:
         run_viewer(parse_arguments())
     except KeyboardInterrupt:
         print()
-    # MuJoCo's viewer leaves GL resources that segfault when the interpreter
-    # frees them after the window is gone. Everything the program had to do is
-    # finished by now, so leave without running that teardown.
     sys.stdout.flush()
     sys.stderr.flush()
     os._exit(0)

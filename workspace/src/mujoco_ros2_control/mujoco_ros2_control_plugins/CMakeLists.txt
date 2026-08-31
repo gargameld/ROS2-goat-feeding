@@ -29,14 +29,15 @@ endif()
 
 # Build the plugin library (all plugins compiled into one shared library)
 add_library(mujoco_ros2_control_plugins SHARED
+  src/plugin_parameters.cpp
   src/mujoco_3d_lidar_plugin.cpp
-  src/state_capture_plugin.cpp
-  src/state_capture_consumer.cpp
+  src/state_capture/state_capture_plugin.cpp
+  src/state_capture/state_capture_consumer.cpp
   src/lock_robot_base_plugin.cpp
-  # simulation management plugin and the model-editing classes it drives
-  src/simulation_management/simulation_management_plugin.cpp
-  src/simulation_management/obstacle_management.cpp
-  src/simulation_management/food_management.cpp
+  src/obstacle_control/obstacle_control_plugin.cpp
+  src/food_control/food_control_plugin.cpp
+  src/food_control/food_management.cpp
+  src/simulation_state_provider/simulation_state_provider_plugin.cpp
 )
 target_include_directories(mujoco_ros2_control_plugins PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -90,11 +91,5 @@ ament_export_dependencies(
   ros2_control_cmake
 )
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
-
-if(BUILD_TESTING)
-  find_package(ament_cmake_gtest REQUIRED)
-  ament_add_gtest(test_obstacle_management test/test_obstacle_management.cpp)
-  target_link_libraries(test_obstacle_management mujoco_ros2_control_plugins)
-endif()
 
 ament_package()
