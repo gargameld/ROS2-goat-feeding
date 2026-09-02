@@ -1,11 +1,3 @@
-/**
- * Copyright (c) 2026, United States Government, as represented by the
- * Administrator of the National Aeronautics and Space Administration.
- *
- * All rights reserved.
- *
- * This software is licensed under the Apache License, Version 2.0.
- */
 
 #include "mujoco_ros2_control/simulation/mujoco_simulation_clock.hpp"
 

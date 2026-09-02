@@ -1,9 +1,3 @@
-/**
- * Copyright (c) 2025, United States Government, as represented by the
- * Administrator of the National Aeronautics and Space Administration.
- *
- * Licensed under the Apache License, Version 2.0.
- */
 
 #pragma once
 
